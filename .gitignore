@@ -1,0 +1,13 @@
+# Build artifacts
+/target/
+
+# Local benchmark output
+/results/
+*.profraw
+*.profdata
+
+# Editor and OS files
+.DS_Store
+*.swp
+*.swo
+*~
