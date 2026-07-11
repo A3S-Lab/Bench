@@ -80,7 +80,7 @@ fn execute_inner(
             judge_result: &judge_result,
         },
     )?;
-    journal.complete(&path)?;
+    journal.complete(&path, &record.result_digest)?;
     print_result(options, &loaded.task.id, score, &record.run_id, &path)?;
     Ok(0)
 }

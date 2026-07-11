@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 #[serde(deny_unknown_fields)]
 pub struct LocalResultRecord {
     pub schema: String,
+    pub result_digest: String,
     pub governance_status: String,
     pub run_id: String,
     pub task_id: String,
@@ -43,8 +44,9 @@ pub struct NewLocalResult<'a> {
 
 impl LocalResultRecord {
     pub fn save(state_root: &Path, input: NewLocalResult<'_>) -> Result<(Self, PathBuf)> {
-        let record = Self {
-            schema: "a3s.bench.local-result.v3".into(),
+        let mut record = Self {
+            schema: "a3s.bench.local-result.v4".into(),
+            result_digest: String::new(),
             governance_status: "local_unofficial".into(),
             run_id: input.run_id.into(),
             task_id: input.task_id.into(),
@@ -60,6 +62,7 @@ impl LocalResultRecord {
             score: input.score.into(),
             judge_result: input.judge_result.clone(),
         };
+        record.result_digest = crate::result_identity::calculate(&record)?;
         record.validate(&record.run_id)?;
         let root = state_root.join("results");
         state_fs::secure_directory(&root)?;
@@ -92,6 +95,10 @@ impl LocalResultRecord {
             "local result lock binding does not match its run journal"
         );
         anyhow::ensure!(
+            journal.result_digest.as_deref() == Some(record.result_digest.as_str()),
+            "local result digest does not match its run journal"
+        );
+        anyhow::ensure!(
             journal.result_path.as_deref() == Some(path.as_path()),
             "local result path does not match its run journal"
         );
@@ -111,7 +118,7 @@ impl LocalResultRecord {
     fn validate(&self, expected_run_id: &str) -> Result<()> {
         run_journal::validate_run_id(&self.run_id)?;
         anyhow::ensure!(
-            self.schema == "a3s.bench.local-result.v3",
+            self.schema == "a3s.bench.local-result.v4",
             "unsupported local result schema"
         );
         anyhow::ensure!(
@@ -121,6 +128,11 @@ impl LocalResultRecord {
         anyhow::ensure!(
             self.run_id == expected_run_id,
             "local result identity mismatch"
+        );
+        crate::lock_identity::validate_digest(&self.result_digest)?;
+        anyhow::ensure!(
+            crate::result_identity::calculate(self)? == self.result_digest,
+            "local result semantic digest mismatch"
         );
         for (name, value) in [
             ("task_id", self.task_id.as_str()),
@@ -230,7 +242,7 @@ mod tests {
             },
         )
         .unwrap();
-        journal.complete(&path).unwrap();
+        journal.complete(&path, &saved.result_digest).unwrap();
         let loaded = LocalResultRecord::load(state.path(), &saved.run_id)
             .unwrap()
             .unwrap();
@@ -248,7 +260,8 @@ mod tests {
     #[test]
     fn rejects_unknown_fields_and_score_tampering() {
         let mut value = serde_json::json!({
-            "schema":"a3s.bench.local-result.v3", "governance_status":"local_unofficial",
+            "schema":"a3s.bench.local-result.v4", "result_digest":format!("sha256:{}", "c".repeat(64)),
+            "governance_status":"local_unofficial",
             "run_id":"local-1", "task_id":"task", "agent":"agent",
             "task_lock_digest":format!("sha256:{}", "a".repeat(64)),
             "candidate_lock_digest":format!("sha256:{}", "b".repeat(64)),

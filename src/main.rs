@@ -11,6 +11,7 @@ mod lock;
 mod lock_identity;
 mod model_candidate;
 mod oci_asset;
+mod result_identity;
 mod result_record;
 mod run_input;
 mod run_journal;

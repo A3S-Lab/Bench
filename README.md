@@ -24,7 +24,7 @@ replace signed admission or claim that all 51 task images have completed a full
 evaluation run.
 
 Local development runs also create an owner-only
-`a3s.bench.run-journal.v2` record before input resolution. Runtime readiness,
+`a3s.bench.run-journal.v3` record before input resolution. Runtime readiness,
 input resolution, Candidate execution, judging, and terminal completion/failure
 are persisted by atomic rename. Completed journals bind the same run ID and
 result path emitted by the CLI. This is the filesystem lifecycle foundation;
@@ -33,12 +33,16 @@ work rather than being simulated by a Bench-local Docker/Box abstraction.
 An exact local run ID can already be passed to `result` to inspect a persisted
 nonterminal or failed stage. That projection deliberately omits the journal's
 private error text; only a committed result can expose a score.
-Completed development runs use the closed `a3s.bench.local-result.v3` record,
+Completed development runs use the closed `a3s.bench.local-result.v4` record,
 which binds `primary_metric`, `score`, and the matching Judge metric and rejects
 unknown fields or inconsistent model token totals when reloaded. Every ordinary
 and explicit-locked run now converges on verified TaskLock and CandidateLock
 inputs; their canonical digests are persisted in the journal before the
-`inputs_resolved` transition and copied into the completed result.
+`inputs_resolved` transition and copied into the completed result. Result v4
+also carries a canonical digest over all closed result fields. Journal v3 binds
+that digest and the exact result path at its terminal transition; reload checks
+the result's own digest, both input-lock digests, the journal digest, and path
+before exposing a score.
 Imported `a3s-bench/judge-source/v1` descriptors are also decoded through a
 closed typed schema, including their nested evaluation, image, workspace, and
 tagged rescale-hint variants; all 51 packaged descriptors are covered by one
