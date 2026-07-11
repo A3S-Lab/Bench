@@ -99,7 +99,8 @@ the same verified inputs.
 
 The lock and result chain provides:
 
-- stable source capture with `source_changed` detection;
+- stable source capture with `source_changed` detection, including executable
+  file semantics;
 - immutable Task, Candidate, Judge, and container-image identities;
 - canonical lock digests covering semantic fields;
 - an offline locked path that does not re-resolve an OCI Judge;

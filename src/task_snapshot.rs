@@ -94,6 +94,10 @@ fn tree_digest(root: &Path, files: &[PathBuf]) -> Result<String> {
     for relative in files {
         hasher.update(relative.to_string_lossy().as_bytes());
         hasher.update([0]);
+        hasher.update([u8::from(crate::state_fs::is_executable(
+            &root.join(relative),
+        )?)]);
+        hasher.update([0]);
         hasher.update(std::fs::read(root.join(relative))?);
         hasher.update([0]);
     }

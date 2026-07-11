@@ -214,6 +214,10 @@ fn tree_identity(root: &Path) -> Result<String> {
     for relative in files {
         digest.update(relative.to_string_lossy().as_bytes());
         digest.update([0]);
+        digest.update([u8::from(crate::state_fs::is_executable(
+            &root.join(&relative),
+        )?)]);
+        digest.update([0]);
         digest.update(std::fs::read(root.join(relative))?);
         digest.update([0]);
     }

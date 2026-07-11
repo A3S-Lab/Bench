@@ -65,6 +65,40 @@ fn verification_detects_content_tampering() {
 
 #[cfg(unix)]
 #[test]
+fn executable_semantics_are_bound_into_tree_identity() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let source = tempfile::tempdir().unwrap();
+    let state = tempfile::tempdir().unwrap();
+    let script = source.path().join("run.sh");
+    std::fs::write(&script, "#!/bin/sh\n").unwrap();
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o644)).unwrap();
+    let non_executable = capture(source.path(), state.path()).unwrap();
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let executable = capture(source.path(), state.path()).unwrap();
+    assert_ne!(non_executable, executable);
+
+    let artifact = artifact_path(state.path(), &executable).unwrap();
+    let captured_script = artifact.join("run.sh");
+    assert_eq!(
+        std::fs::metadata(&captured_script)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o500
+    );
+    std::fs::set_permissions(&captured_script, std::fs::Permissions::from_mode(0o400)).unwrap();
+    assert!(verify(&artifact, &executable).is_err());
+
+    for digest in [non_executable, executable] {
+        let artifact = artifact_path(state.path(), &digest).unwrap();
+        crate::state_fs::remove_sealed_tree(&artifact).unwrap();
+    }
+}
+
+#[cfg(unix)]
+#[test]
 fn artifact_lookup_rejects_symlink_directory() {
     use std::os::unix::fs::symlink;
     let root = tempfile::tempdir().unwrap();
