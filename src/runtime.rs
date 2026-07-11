@@ -1,4 +1,5 @@
-use crate::{asset::LocalAgentAsset, config::RuntimeSelection, task::TaskInfo};
+use crate::{asset::LocalAgentAsset, task::TaskInfo};
+use a3s_runtime::{ProviderId, RuntimeSelection};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -267,15 +268,10 @@ pub(crate) fn canonical_decimal(value: &str) -> bool {
 }
 
 pub fn preflight(selection: &RuntimeSelection) -> Result<RuntimeStatus> {
-    match selection {
-        RuntimeSelection::DockerDefault => docker_preflight(),
-        RuntimeSelection::Configured { provider } if provider == "docker" => docker_preflight(),
-        RuntimeSelection::Configured { provider } if provider == "a3s-box" => command_preflight(
-            "a3s-box",
-            &["--version"],
-            "a3s-box",
-        ),
-        RuntimeSelection::Configured { provider } => Err(anyhow::anyhow!(
+    match selection.provider.as_str() {
+        ProviderId::DOCKER => docker_preflight(),
+        ProviderId::A3S_BOX => command_preflight("a3s-box", &["--version"], "a3s-box"),
+        provider => Err(anyhow::anyhow!(
             "configured Runtime provider {provider:?} is not installed; provider selection never falls back to Docker"
         )),
     }

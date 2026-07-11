@@ -23,6 +23,7 @@ version = "0.1.0"
 dependencies = [
  "a3s-acl 0.2.1",
  "a3s-code-core",
+ "a3s-runtime",
  "anyhow",
  "async-trait",
  "globset",
@@ -149,6 +150,15 @@ dependencies = [
  "serde_json",
  "tokio",
  "uuid",
+]
+
+[[package]]
+name = "a3s-runtime"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "serde",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

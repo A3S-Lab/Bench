@@ -383,6 +383,15 @@ same provider result only in the no-login/no-policy case. Provider-specific
 options will use typed nested blocks when their shared Runtime contracts are
 implemented; executable paths and shell commands are not accepted.
 
+The development component already delegates this precedence and defaulting
+rule to `a3s-runtime`: Bench parses the operator's ACL block into a typed
+`ProviderId`, while the shared resolver chooses operator config, authenticated
+session policy, or the signed-out Docker default in that order. This removes a
+Bench-owned copy of provider-selection semantics. Execution preflight and the
+current Docker development path still need migration behind
+`A3sRuntimeClient`; selecting another provider continues to fail explicitly
+until that provider implements the complete shared lifecycle contract.
+
 P1 always runs the Bench control component as a local child of the top-level
 CLI. A remote Runtime may sit behind `A3sRuntimeClient`, but there is no remote
 Bench control plane, Bench service login, or private-component protocol exposed

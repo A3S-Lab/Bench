@@ -1,12 +1,7 @@
 use a3s_acl::{Block, Document, Value};
+use a3s_runtime::{OperatorRuntimeConfig, ProviderId, RuntimeSelection, SessionRuntimePolicy};
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RuntimeSelection {
-    DockerDefault,
-    Configured { provider: String },
-}
 
 #[derive(Debug, Clone)]
 pub struct LocalConfig {
@@ -19,7 +14,10 @@ pub fn discover(start: &Path) -> Result<LocalConfig> {
     let Some(path) = path else {
         return Ok(LocalConfig {
             path: None,
-            runtime: RuntimeSelection::DockerDefault,
+            runtime: RuntimeSelection::resolve(
+                &OperatorRuntimeConfig::default(),
+                &SessionRuntimePolicy::default(),
+            ),
         });
     };
     let source = std::fs::read_to_string(&path)
@@ -56,7 +54,10 @@ fn parse_runtime(document: &Document) -> Result<RuntimeSelection> {
         "config.acl contains duplicate runtime blocks"
     );
     let Some(block) = blocks.first() else {
-        return Ok(RuntimeSelection::DockerDefault);
+        return Ok(RuntimeSelection::resolve(
+            &OperatorRuntimeConfig::default(),
+            &SessionRuntimePolicy::default(),
+        ));
     };
     anyhow::ensure!(
         block.labels.is_empty(),
@@ -71,9 +72,13 @@ fn parse_runtime(document: &Document) -> Result<RuntimeSelection> {
         !provider.trim().is_empty(),
         "runtime.provider must not be empty"
     );
-    Ok(RuntimeSelection::Configured {
-        provider: provider.to_owned(),
-    })
+    let provider = ProviderId::parse(provider.to_owned()).map_err(anyhow::Error::from)?;
+    Ok(RuntimeSelection::resolve(
+        &OperatorRuntimeConfig {
+            provider: Some(provider),
+        },
+        &SessionRuntimePolicy::default(),
+    ))
 }
 
 #[cfg(test)]
@@ -84,19 +89,19 @@ mod tests {
     fn no_runtime_block_defaults_to_docker() {
         let document = a3s_acl::parse("default_model = \"openai/test\"").unwrap();
         assert_eq!(
-            parse_runtime(&document).unwrap(),
-            RuntimeSelection::DockerDefault
+            parse_runtime(&document).unwrap().provider.as_str(),
+            "docker"
         );
     }
 
     #[test]
     fn configured_provider_wins() {
         let document = a3s_acl::parse("runtime { provider = \"a3s-box\" }").unwrap();
+        let selected = parse_runtime(&document).unwrap();
+        assert_eq!(selected.provider.as_str(), "a3s-box");
         assert_eq!(
-            parse_runtime(&document).unwrap(),
-            RuntimeSelection::Configured {
-                provider: "a3s-box".to_owned()
-            }
+            selected.source,
+            a3s_runtime::SelectionSource::OperatorConfig
         );
     }
 }

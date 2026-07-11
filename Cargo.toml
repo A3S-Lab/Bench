@@ -13,6 +13,7 @@ path = "src/main.rs"
 [dependencies]
 a3s-acl = { path = "../acl" }
 a3s-code-core = { path = "../code/core" }
+a3s-runtime = { path = "../runtime" }
 anyhow = "1"
 async-trait = "0.1"
 serde = { version = "1", features = ["derive"] }
