@@ -47,10 +47,11 @@ The design has eight foundational rules:
    retries, reapers, or workspace lifecycle.
 8. Each P1 run is deliberately one Task, one Candidate execution, one private
    Runtime-owned terminal checkpoint, one derived SubmissionSnapshot, one Judge
-   execution, and one result. Every built-in included in a release must be
-   admitted, runnable, and out of the box, but the released set is revisioned
-   and may grow or change independently of the current provisional import
-   snapshot. Suites, trajectory evaluation, campaigns, statistics, and
+   execution, and one result. Every built-in marked locally available in a
+   release must be runnable and out of the box. Official admission is an
+   independent governance property. The catalog is revisioned and may grow or
+   change independently of the current provisional import snapshot. Suites,
+   trajectory evaluation, campaigns, statistics, and
    leaderboards come only after this per-Task vertical slice is proven.
 
 The common path is:
@@ -452,10 +453,10 @@ a3s bench info ad_placement_optimization --all
 a3s bench list --all   # also show quarantined or unavailable entries
 ~~~
 
-The default list contains only admitted Tasks that the installed control
-component schema supports. It does not claim that the current Runtime, model
-route, credentials, or artifacts are ready. Quarantined imports may be
-inspected but `run` rejects them before external or billable work.
+The default list contains locally available Tasks that the installed control
+component schema supports. A locally available Task may run only as
+`local_unofficial` unless it also has valid signed admission. `--all` includes
+locally blocked records; `run` rejects those before external or billable work.
 
 ### 4.2 Candidate references
 
@@ -1755,9 +1756,10 @@ For imported Tasks:
 - a source descriptor is not executable authority;
 - catalog admission is separate from the Judge Asset manifest.
 
-`a3s bench list` shows admitted runnable Tasks. `--all` may show quarantined
-entries with the exact admission reason. Quarantine never creates a second Task
-kind, Judge protocol, or Runtime path.
+`a3s bench list` shows locally available Tasks. `--all` may show blocked entries
+with the exact availability reason. Official admission and local availability
+are independent, and neither creates a second Task kind, Judge protocol, or
+Runtime path.
 
 Built-in payloads remain in the installed Bench control component. Project
 locks, Experiment records, and reports still go only to `.a3s/bench/`.

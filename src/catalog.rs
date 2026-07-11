@@ -6,17 +6,22 @@ use std::path::{Path, PathBuf};
 const CATALOG_JSON: &str = include_str!("../builtin/catalog.json");
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Catalog {
     pub schema: String,
     pub tasks: Vec<CatalogTask>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CatalogTask {
     pub id: String,
     pub path: String,
     pub name: String,
     pub category: String,
+    pub execution_class: String,
+    pub availability: String,
+    pub availability_reason: String,
     pub admission: String,
     pub admission_reason: String,
     pub provenance_ref: String,
@@ -54,11 +59,19 @@ pub fn runnable_task_path(id: &str) -> Result<PathBuf> {
         .find(|entry| entry.id == id)
         .ok_or_else(|| anyhow::anyhow!("unknown built-in Task {id:?}"))?;
     anyhow::ensure!(
-        entry.admission == "admitted",
-        "built-in Task {id:?} is not runnable: {}",
-        entry.admission_reason
+        entry.availability == "ready",
+        "built-in Task {id:?} is not locally runnable: {}",
+        entry.availability_reason
     );
     Ok(builtin_root().join(&entry.path))
+}
+
+pub fn resolve_task_reference(reference: &str) -> Result<PathBuf> {
+    if reference.starts_with("./") || reference.starts_with("../") {
+        Ok(Path::new(reference).to_path_buf())
+    } else {
+        runnable_task_path(reference)
+    }
 }
 
 fn validate(catalog: &Catalog, root: &Path) -> Result<()> {
@@ -82,6 +95,24 @@ fn validate(catalog: &Catalog, root: &Path) -> Result<()> {
         anyhow::ensure!(
             entry.path == format!("tasks/{}", entry.id),
             "built-in Task {:?} has a non-canonical path",
+            entry.id
+        );
+        anyhow::ensure!(
+            matches!(
+                entry.execution_class.as_str(),
+                "conformance" | "long_horizon"
+            ),
+            "built-in Task {:?} has invalid execution class",
+            entry.id
+        );
+        anyhow::ensure!(
+            matches!(entry.availability.as_str(), "ready" | "blocked"),
+            "built-in Task {:?} has invalid availability",
+            entry.id
+        );
+        anyhow::ensure!(
+            !entry.availability_reason.trim().is_empty(),
+            "built-in Task {:?} has no availability reason",
             entry.id
         );
         anyhow::ensure!(
@@ -154,8 +185,18 @@ mod tests {
     }
 
     #[test]
-    fn admitted_builtin_resolves_to_a_task_bundle() {
+    fn available_builtin_resolves_to_a_task_bundle() {
         let path = runnable_task_path("quick_file_edit").unwrap();
         assert!(path.join("task.acl").is_file());
+    }
+
+    #[test]
+    fn local_availability_is_independent_from_official_admission() {
+        let path = runnable_task_path("juliet_vulnerability_analyzer").unwrap();
+        assert!(path.join("task.acl").is_file());
+        let error = runnable_task_path("college_english_exam_bank").unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("judge_model_gateway_not_configured"));
     }
 }

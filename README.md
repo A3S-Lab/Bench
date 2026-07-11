@@ -31,11 +31,12 @@ components and cannot make an evaluation official.
 | OCI Candidate and Judge adapters | Docker-compatible images and generic ORAS artifacts supported |
 | `a3s-box` selection | Parsed and preflighted; execution is not implemented yet |
 | Shared Runtime lifecycle | Contract, registry, and durable operation primitives exist; Bench migration is incomplete |
-| Built-in tasks | One short conformance task is runnable by ID; 51 imported long-horizon tasks remain provisional and quarantined |
+| Built-in tasks | One short conformance task and 50 long-horizon tasks are locally runnable by ID; one model-Judge task still needs gateway support |
 | Published component | `v0.1.0-preview.1` prerelease through GitHub Actions |
 
-Quarantined built-ins are not presented as runnable or official. A local Task
-may run as `local_unofficial`.
+Local availability and official admission are separate. A bundled task may run
+as `local_unofficial` without claiming official admission; only signed admission
+can produce an official result.
 
 ## Preview releases
 
@@ -149,11 +150,11 @@ durable terminal state.
 ### List and inspect tasks
 
 ```bash
-# Short, admitted built-ins suitable for installation checks.
+# Locally runnable built-ins. Check execution_class before choosing a task.
 cargo run -- list
 cargo run -- run quick_file_edit --agent ./examples/smoke-candidate
 
-# Include quarantined imported sources.
+# Include locally blocked and officially quarantined records.
 cargo run -- list --all
 cargo run -- info juliet_vulnerability_analyzer --all
 
@@ -372,10 +373,12 @@ judging, and durable results without turning installation validation into a
 long-running benchmark.
 
 The repository also contains 51 provisional imported long-horizon Task/Judge
-descriptors under [`builtin/tasks`](builtin/tasks). They are not the default
-test suite and their count is not a product boundary. Tasks may be added,
-removed, replaced, or revised. The catalog-wide test proves only that the
-imported snapshot is internally consistent:
+descriptors under [`builtin/tasks`](builtin/tasks). Fifty are locally available
+by bare ID. `college_english_exam_bank` remains blocked until its task-owned
+model Judge can use the local model gateway. These tasks are not installation
+tests and their count is not a product boundary. Tasks may be added, removed,
+replaced, or revised. The catalog-wide test proves only that the imported
+snapshot is internally consistent:
 
 - catalog IDs, paths, and metadata agree;
 - every Task ACL parses under the closed schema;
@@ -384,9 +387,9 @@ imported snapshot is internally consistent:
 - the catalog exactly covers the packaged task directories.
 
 This is not admission or full execution evidence. Admission is per Task
-revision, so an unavailable provisional entry does not block the short admitted
-conformance task. Every imported long-horizon entry remains quarantined and is
-shown only by `list --all`. Provenance and licensing information are in
+revision, while `availability` controls local `local_unofficial` execution.
+Official quarantine therefore does not hide an otherwise runnable local task.
+The blocked model-Judge task is shown by `list --all`. Provenance and licensing information are in
 [builtin/README.md](builtin/README.md) and
 [THIRD_PARTY_NOTICES.md](builtin/THIRD_PARTY_NOTICES.md).
 

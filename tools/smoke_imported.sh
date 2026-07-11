@@ -6,7 +6,7 @@ cd "$root"
 
 docker version --format '{{.Server.Version}}' >/dev/null
 output=$(cargo run --quiet -- run \
-  ./builtin/tasks/juliet_vulnerability_analyzer \
+  juliet_vulnerability_analyzer \
   --agent ./examples/smoke-candidate --json)
 
 python3 - "$output" <<'PY'

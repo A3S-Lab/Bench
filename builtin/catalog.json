@@ -8,466 +8,622 @@
       "id": "quick_file_edit",
       "name": "Quick File Edit",
       "path": "tasks/quick_file_edit",
-      "provenance_ref": "builtin/quick_file_edit"
+      "provenance_ref": "builtin/quick_file_edit",
+      "execution_class": "conformance",
+      "availability": "ready",
+      "availability_reason": "bundled_offline_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Combinatorial Optimization",
       "id": "ad_placement_optimization",
       "name": "Ad Placement Optimization",
       "path": "tasks/ad_placement_optimization",
-      "provenance_ref": "provenance/edgebench.json#ad_placement_optimization"
+      "provenance_ref": "provenance/edgebench.json#ad_placement_optimization",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Interactive Games & Simulators",
       "id": "anchorhead_text_adventure",
       "name": "Anchorhead Text Adventure",
       "path": "tasks/anchorhead_text_adventure",
-      "provenance_ref": "provenance/edgebench.json#anchorhead_text_adventure"
+      "provenance_ref": "provenance/edgebench.json#anchorhead_text_adventure",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Systems & Software Engineering",
       "id": "ann_vector_search_qps",
       "name": "Ann Vector Search Qps",
       "path": "tasks/ann_vector_search_qps",
-      "provenance_ref": "provenance/edgebench.json#ann_vector_search_qps"
+      "provenance_ref": "provenance/edgebench.json#ann_vector_search_qps",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Combinatorial Optimization",
       "id": "apple_incremental_game",
       "name": "Apple Incremental Game",
       "path": "tasks/apple_incremental_game",
-      "provenance_ref": "provenance/edgebench.json#apple_incremental_game"
+      "provenance_ref": "provenance/edgebench.json#apple_incremental_game",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Systems & Software Engineering",
       "id": "arc_compiler_runtime",
       "name": "Arc Compiler Runtime",
       "path": "tasks/arc_compiler_runtime",
-      "provenance_ref": "provenance/edgebench.json#arc_compiler_runtime"
+      "provenance_ref": "provenance/edgebench.json#arc_compiler_runtime",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Scientific Problems & ML",
       "id": "bipedalwalker_locomotion_rl",
       "name": "Bipedalwalker Locomotion Rl",
       "path": "tasks/bipedalwalker_locomotion_rl",
-      "provenance_ref": "provenance/edgebench.json#bipedalwalker_locomotion_rl"
+      "provenance_ref": "provenance/edgebench.json#bipedalwalker_locomotion_rl",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Scientific Problems & ML",
       "id": "borden_source_inversion",
       "name": "Borden Source Inversion",
       "path": "tasks/borden_source_inversion",
-      "provenance_ref": "provenance/edgebench.json#borden_source_inversion"
+      "provenance_ref": "provenance/edgebench.json#borden_source_inversion",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Formal Math & Theorem Proving",
       "id": "carleson_formalization",
       "name": "Carleson Formalization",
       "path": "tasks/carleson_formalization",
-      "provenance_ref": "provenance/edgebench.json#carleson_formalization"
+      "provenance_ref": "provenance/edgebench.json#carleson_formalization",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Professional Knowledge Work",
       "id": "college_english_exam_bank",
       "name": "College English Exam Bank",
       "path": "tasks/college_english_exam_bank",
-      "provenance_ref": "provenance/edgebench.json#college_english_exam_bank"
+      "provenance_ref": "provenance/edgebench.json#college_english_exam_bank",
+      "execution_class": "long_horizon",
+      "availability": "blocked",
+      "availability_reason": "judge_model_gateway_not_configured"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Formal Math & Theorem Proving",
       "id": "combinatorial_games_formalization",
       "name": "Combinatorial Games Formalization",
       "path": "tasks/combinatorial_games_formalization",
-      "provenance_ref": "provenance/edgebench.json#combinatorial_games_formalization"
+      "provenance_ref": "provenance/edgebench.json#combinatorial_games_formalization",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Professional Knowledge Work",
       "id": "cta_risk_budget_optimization",
       "name": "Cta Risk Budget Optimization",
       "path": "tasks/cta_risk_budget_optimization",
-      "provenance_ref": "provenance/edgebench.json#cta_risk_budget_optimization"
+      "provenance_ref": "provenance/edgebench.json#cta_risk_budget_optimization",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Scientific Problems & ML",
       "id": "dabic_gravity_inversion",
       "name": "Dabic Gravity Inversion",
       "path": "tasks/dabic_gravity_inversion",
-      "provenance_ref": "provenance/edgebench.json#dabic_gravity_inversion"
+      "provenance_ref": "provenance/edgebench.json#dabic_gravity_inversion",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Interactive Games & Simulators",
       "id": "dcss_dungeon_ai",
       "name": "Dcss Dungeon Ai",
       "path": "tasks/dcss_dungeon_ai",
-      "provenance_ref": "provenance/edgebench.json#dcss_dungeon_ai"
+      "provenance_ref": "provenance/edgebench.json#dcss_dungeon_ai",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Combinatorial Optimization",
       "id": "equivalence_class_divide_and_conquer",
       "name": "Equivalence Class Divide And Conquer",
       "path": "tasks/equivalence_class_divide_and_conquer",
-      "provenance_ref": "provenance/edgebench.json#equivalence_class_divide_and_conquer"
+      "provenance_ref": "provenance/edgebench.json#equivalence_class_divide_and_conquer",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Systems & Software Engineering",
       "id": "exchange_core_throughput",
       "name": "Exchange Core Throughput",
       "path": "tasks/exchange_core_throughput",
-      "provenance_ref": "provenance/edgebench.json#exchange_core_throughput"
+      "provenance_ref": "provenance/edgebench.json#exchange_core_throughput",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Systems & Software Engineering",
       "id": "ffmpeg_swscale_reimplementation",
       "name": "Ffmpeg Swscale Reimplementation",
       "path": "tasks/ffmpeg_swscale_reimplementation",
-      "provenance_ref": "provenance/edgebench.json#ffmpeg_swscale_reimplementation"
+      "provenance_ref": "provenance/edgebench.json#ffmpeg_swscale_reimplementation",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Formal Math & Theorem Proving",
       "id": "flt_regular_formalization",
       "name": "Flt Regular Formalization",
       "path": "tasks/flt_regular_formalization",
-      "provenance_ref": "provenance/edgebench.json#flt_regular_formalization"
+      "provenance_ref": "provenance/edgebench.json#flt_regular_formalization",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Systems & Software Engineering",
       "id": "git_rewrite_in_zig",
       "name": "Git Rewrite In Zig",
       "path": "tasks/git_rewrite_in_zig",
-      "provenance_ref": "provenance/edgebench.json#git_rewrite_in_zig"
+      "provenance_ref": "provenance/edgebench.json#git_rewrite_in_zig",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Scientific Problems & ML",
       "id": "graph_node_classification",
       "name": "Graph Node Classification",
       "path": "tasks/graph_node_classification",
-      "provenance_ref": "provenance/edgebench.json#graph_node_classification"
+      "provenance_ref": "provenance/edgebench.json#graph_node_classification",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Combinatorial Optimization",
       "id": "grid_turing_robot",
       "name": "Grid Turing Robot",
       "path": "tasks/grid_turing_robot",
-      "provenance_ref": "provenance/edgebench.json#grid_turing_robot"
+      "provenance_ref": "provenance/edgebench.json#grid_turing_robot",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Systems & Software Engineering",
       "id": "integer_compression_codec",
       "name": "Integer Compression Codec",
       "path": "tasks/integer_compression_codec",
-      "provenance_ref": "provenance/edgebench.json#integer_compression_codec"
+      "provenance_ref": "provenance/edgebench.json#integer_compression_codec",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Combinatorial Optimization",
       "id": "jagua_nesting_optimization",
       "name": "Jagua Nesting Optimization",
       "path": "tasks/jagua_nesting_optimization",
-      "provenance_ref": "provenance/edgebench.json#jagua_nesting_optimization"
+      "provenance_ref": "provenance/edgebench.json#jagua_nesting_optimization",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Systems & Software Engineering",
       "id": "juliet_vulnerability_analyzer",
       "name": "Juliet Vulnerability Analyzer",
       "path": "tasks/juliet_vulnerability_analyzer",
-      "provenance_ref": "provenance/edgebench.json#juliet_vulnerability_analyzer"
+      "provenance_ref": "provenance/edgebench.json#juliet_vulnerability_analyzer",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Professional Knowledge Work",
       "id": "k12_math_recommendation",
       "name": "K12 Math Recommendation",
       "path": "tasks/k12_math_recommendation",
-      "provenance_ref": "provenance/edgebench.json#k12_math_recommendation"
+      "provenance_ref": "provenance/edgebench.json#k12_math_recommendation",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Formal Math & Theorem Proving",
       "id": "lean_analysis_proofs",
       "name": "Lean Analysis Proofs",
       "path": "tasks/lean_analysis_proofs",
-      "provenance_ref": "provenance/edgebench.json#lean_analysis_proofs"
+      "provenance_ref": "provenance/edgebench.json#lean_analysis_proofs",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Combinatorial Optimization",
       "id": "molecular_self_assembly",
       "name": "Molecular Self Assembly",
       "path": "tasks/molecular_self_assembly",
-      "provenance_ref": "provenance/edgebench.json#molecular_self_assembly"
+      "provenance_ref": "provenance/edgebench.json#molecular_self_assembly",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Interactive Games & Simulators",
       "id": "nethack_dungeon_agent",
       "name": "Nethack Dungeon Agent",
       "path": "tasks/nethack_dungeon_agent",
-      "provenance_ref": "provenance/edgebench.json#nethack_dungeon_agent"
+      "provenance_ref": "provenance/edgebench.json#nethack_dungeon_agent",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Formal Math & Theorem Proving",
       "id": "new_foundations_consistency",
       "name": "New Foundations Consistency",
       "path": "tasks/new_foundations_consistency",
-      "provenance_ref": "provenance/edgebench.json#new_foundations_consistency"
+      "provenance_ref": "provenance/edgebench.json#new_foundations_consistency",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Interactive Games & Simulators",
       "id": "openrct2_theme_park_ai",
       "name": "Openrct2 Theme Park Ai",
       "path": "tasks/openrct2_theme_park_ai",
-      "provenance_ref": "provenance/edgebench.json#openrct2_theme_park_ai"
+      "provenance_ref": "provenance/edgebench.json#openrct2_theme_park_ai",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Interactive Games & Simulators",
       "id": "openttd_transport_ai",
       "name": "Openttd Transport Ai",
       "path": "tasks/openttd_transport_ai",
-      "provenance_ref": "provenance/edgebench.json#openttd_transport_ai"
+      "provenance_ref": "provenance/edgebench.json#openttd_transport_ai",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Combinatorial Optimization",
       "id": "order_addition_permutation_optimization",
       "name": "Order Addition Permutation Optimization",
       "path": "tasks/order_addition_permutation_optimization",
-      "provenance_ref": "provenance/edgebench.json#order_addition_permutation_optimization"
+      "provenance_ref": "provenance/edgebench.json#order_addition_permutation_optimization",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Formal Math & Theorem Proving",
       "id": "ordinal_notation_well_foundedness",
       "name": "Ordinal Notation Well Foundedness",
       "path": "tasks/ordinal_notation_well_foundedness",
-      "provenance_ref": "provenance/edgebench.json#ordinal_notation_well_foundedness"
+      "provenance_ref": "provenance/edgebench.json#ordinal_notation_well_foundedness",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Formal Math & Theorem Proving",
       "id": "pfr_formalization",
       "name": "Pfr Formalization",
       "path": "tasks/pfr_formalization",
-      "provenance_ref": "provenance/edgebench.json#pfr_formalization"
+      "provenance_ref": "provenance/edgebench.json#pfr_formalization",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Professional Knowledge Work",
       "id": "portfolio_risk_calibration",
       "name": "Portfolio Risk Calibration",
       "path": "tasks/portfolio_risk_calibration",
-      "provenance_ref": "provenance/edgebench.json#portfolio_risk_calibration"
+      "provenance_ref": "provenance/edgebench.json#portfolio_risk_calibration",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Systems & Software Engineering",
       "id": "rust_multicrate_reconstruction",
       "name": "Rust Multicrate Reconstruction",
       "path": "tasks/rust_multicrate_reconstruction",
-      "provenance_ref": "provenance/edgebench.json#rust_multicrate_reconstruction"
+      "provenance_ref": "provenance/edgebench.json#rust_multicrate_reconstruction",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Systems & Software Engineering",
       "id": "schemathesis_config_modernization",
       "name": "Schemathesis Config Modernization",
       "path": "tasks/schemathesis_config_modernization",
-      "provenance_ref": "provenance/edgebench.json#schemathesis_config_modernization"
+      "provenance_ref": "provenance/edgebench.json#schemathesis_config_modernization",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Systems & Software Engineering",
       "id": "schemathesis_datagen_pipeline",
       "name": "Schemathesis Datagen Pipeline",
       "path": "tasks/schemathesis_datagen_pipeline",
-      "provenance_ref": "provenance/edgebench.json#schemathesis_datagen_pipeline"
+      "provenance_ref": "provenance/edgebench.json#schemathesis_datagen_pipeline",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Systems & Software Engineering",
       "id": "schemathesis_reporting_observability",
       "name": "Schemathesis Reporting Observability",
       "path": "tasks/schemathesis_reporting_observability",
-      "provenance_ref": "provenance/edgebench.json#schemathesis_reporting_observability"
+      "provenance_ref": "provenance/edgebench.json#schemathesis_reporting_observability",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Combinatorial Optimization",
       "id": "smt_solver",
       "name": "Smt Solver",
       "path": "tasks/smt_solver",
-      "provenance_ref": "provenance/edgebench.json#smt_solver"
+      "provenance_ref": "provenance/edgebench.json#smt_solver",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Formal Math & Theorem Proving",
       "id": "sphere_eversion_formalization",
       "name": "Sphere Eversion Formalization",
       "path": "tasks/sphere_eversion_formalization",
-      "provenance_ref": "provenance/edgebench.json#sphere_eversion_formalization"
+      "provenance_ref": "provenance/edgebench.json#sphere_eversion_formalization",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Combinatorial Optimization",
       "id": "treant_forest",
       "name": "Treant Forest",
       "path": "tasks/treant_forest",
-      "provenance_ref": "provenance/edgebench.json#treant_forest"
+      "provenance_ref": "provenance/edgebench.json#treant_forest",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Combinatorial Optimization",
       "id": "tree_block_partitioning",
       "name": "Tree Block Partitioning",
       "path": "tasks/tree_block_partitioning",
-      "provenance_ref": "provenance/edgebench.json#tree_block_partitioning"
+      "provenance_ref": "provenance/edgebench.json#tree_block_partitioning",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Combinatorial Optimization",
       "id": "triangulation_coloring_optimization",
       "name": "Triangulation Coloring Optimization",
       "path": "tasks/triangulation_coloring_optimization",
-      "provenance_ref": "provenance/edgebench.json#triangulation_coloring_optimization"
+      "provenance_ref": "provenance/edgebench.json#triangulation_coloring_optimization",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Interactive Games & Simulators",
       "id": "trinity_text_adventure",
       "name": "Trinity Text Adventure",
       "path": "tasks/trinity_text_adventure",
-      "provenance_ref": "provenance/edgebench.json#trinity_text_adventure"
+      "provenance_ref": "provenance/edgebench.json#trinity_text_adventure",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Interactive Games & Simulators",
       "id": "tryst_text_adventure",
       "name": "Tryst Text Adventure",
       "path": "tasks/tryst_text_adventure",
-      "provenance_ref": "provenance/edgebench.json#tryst_text_adventure"
+      "provenance_ref": "provenance/edgebench.json#tryst_text_adventure",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Combinatorial Optimization",
       "id": "vehicle_routing_time_windows",
       "name": "Vehicle Routing Time Windows",
       "path": "tasks/vehicle_routing_time_windows",
-      "provenance_ref": "provenance/edgebench.json#vehicle_routing_time_windows"
+      "provenance_ref": "provenance/edgebench.json#vehicle_routing_time_windows",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Combinatorial Optimization",
       "id": "vibrating_path_graph_coloring",
       "name": "Vibrating Path Graph Coloring",
       "path": "tasks/vibrating_path_graph_coloring",
-      "provenance_ref": "provenance/edgebench.json#vibrating_path_graph_coloring"
+      "provenance_ref": "provenance/edgebench.json#vibrating_path_graph_coloring",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Systems & Software Engineering",
       "id": "vliw_kernel_optimization",
       "name": "Vliw Kernel Optimization",
       "path": "tasks/vliw_kernel_optimization",
-      "provenance_ref": "provenance/edgebench.json#vliw_kernel_optimization"
+      "provenance_ref": "provenance/edgebench.json#vliw_kernel_optimization",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Combinatorial Optimization",
       "id": "warehouse_forklift_routing",
       "name": "Warehouse Forklift Routing",
       "path": "tasks/warehouse_forklift_routing",
-      "provenance_ref": "provenance/edgebench.json#warehouse_forklift_routing"
+      "provenance_ref": "provenance/edgebench.json#warehouse_forklift_routing",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Interactive Games & Simulators",
       "id": "wesnoth_tactical_ai",
       "name": "Wesnoth Tactical Ai",
       "path": "tasks/wesnoth_tactical_ai",
-      "provenance_ref": "provenance/edgebench.json#wesnoth_tactical_ai"
+      "provenance_ref": "provenance/edgebench.json#wesnoth_tactical_ai",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     },
     {
       "admission": "quarantined",
-      "admission_reason": "hidden_bundle_unavailable",
+      "admission_reason": "official_evidence_incomplete",
       "category": "Combinatorial Optimization",
       "id": "wireless_electricity_layout",
       "name": "Wireless Electricity Layout",
       "path": "tasks/wireless_electricity_layout",
-      "provenance_ref": "provenance/edgebench.json#wireless_electricity_layout"
+      "provenance_ref": "provenance/edgebench.json#wireless_electricity_layout",
+      "execution_class": "long_horizon",
+      "availability": "ready",
+      "availability_reason": "bundled_oci_task"
     }
   ]
 }

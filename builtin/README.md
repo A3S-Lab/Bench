@@ -6,14 +6,14 @@ products, runtimes, or command namespaces.
 
 ## User Interface
 
-An admitted built-in is referenced by its bare task ID:
+A locally available built-in is referenced by its bare task ID:
 
 ~~~bash
 a3s bench run quick_file_edit --agent ./candidate
 ~~~
 
-A bare ID searches admitted built-ins only. It never searches local paths, A3S
-OS, upstream source names, or quarantined entries. Local TaskBundles are
+A bare ID searches locally available built-ins only. It never searches local
+paths, A3S OS, or upstream source names. Local TaskBundles are
 explicit and begin with `./` or `../`:
 
 ~~~bash
@@ -23,15 +23,15 @@ a3s bench run ./tasks/smoke --agent codex
 The catalog commands are:
 
 ~~~bash
-a3s bench list                              # admitted and runnable only
-a3s bench list --all                        # include quarantined records
+a3s bench list                              # locally runnable tasks
+a3s bench list --all                        # also include locally blocked records
 a3s bench info TASK_ID                      # runnable task details
-a3s bench info ad_placement_optimization --all  # quarantine inspection
+a3s bench info college_english_exam_bank --all  # blocked-task inspection
 ~~~
 
-`info <id> --all` is read-only catalog inspection. It does not turn a
-quarantined record into a runnable task reference, pull its image, resolve
-credentials, or create project state.
+`info <id> --all` is read-only catalog inspection. It does not turn a blocked
+record into a runnable task reference, pull its image, resolve credentials, or
+create project state.
 
 There are no source-specific selectors, CLIs, protocols, state directories,
 or runtime versions. Immutable identity comes from the compiled TaskLock and
@@ -39,10 +39,11 @@ the task-owned Judge AssetSnapshot, not from the readable task ID.
 
 ## Admission
 
-Catalog discovery and execution admission are separate. A task with
-`admission = "quarantined"` appears only with `list --all` and can be inspected
-with `info --all`, but `run` and lock compilation fail before an OCI pull,
-credential lookup, model reservation, or billable work.
+Local availability and official admission are separate catalog dimensions.
+`availability = "ready"` permits a local `local_unofficial` run. A blocked task
+appears only with `list --all` and fails before an OCI pull or billable work.
+`admission = "quarantined"` prevents an official result, but does not by itself
+prevent local execution.
 
 Admission requires a signed record binding:
 
@@ -73,22 +74,23 @@ RuntimeSemanticsProfile and a per-execution attestation binding build,
 placement, spec, and result. An operator-trusted development provider may run a
 local Task, but the result remains `local_unofficial`.
 
-The short `quick_file_edit` task is admitted as a local conformance check. It
+The short `quick_file_edit` task is available as a local conformance check. It
 exercises the complete run pipeline without requiring a long-horizon agent run.
 
-The 51 third-party task sources currently in this catalog are all quarantined.
+The 51 third-party task sources currently in this catalog are all quarantined
+for official results. Fifty are locally available long-horizon tasks.
 Their source records publish OCI tags and legacy evaluator commands, but do not
 provide enough evidence to admit those commands as A3S Judge Agent Assets. The
 image layers are referenced, not included or republished by this repository.
-Consequently, the default `a3s bench list` contains the short conformance task;
-`--all` additionally exposes the long-horizon quarantined records for audit.
+`college_english_exam_bank` is locally blocked until its task-owned model Judge
+can use the configured model gateway. `--all` exposes that blocked record.
 
 This is an incomplete development snapshot, not a fixed catalog or an
 acceptable released set. The current 51 sources are provisional: entries may be
 added, removed, replaced, or revised as their provenance and execution
-contracts are validated. Admission is per Task revision. A quarantined or
-unavailable provisional entry is excluded from the released built-in set and
-does not block unrelated admitted revisions.
+contracts are validated. Admission and availability are both per Task
+revision. A locally blocked revision does not block unrelated available
+revisions.
 
 Every Task revision that is shipped as a built-in must still be genuinely out
 of the box. Release preparation must resolve immutable work and Judge OCI
@@ -99,8 +101,8 @@ Normal first use may pull those locked OCI artifacts, but users must not clone
 an upstream dataset, run the import tool, construct a Judge, place a hidden
 bundle, edit the catalog, or log in to A3S OS when using the local Runtime.
 
-Once a revision is admitted, it becomes visible in the default `list` and its
-bare ID works with the normal command:
+Once a revision is locally available, it becomes visible in the default `list`
+and its bare ID works with the normal command:
 
 ~~~bash
 a3s bench run TASK_ID --agent asset:acme/reviewer
@@ -129,14 +131,14 @@ builtin/
       judge.source.json
 ~~~
 
-An admitted runnable TaskBundle that needs hidden data supplies it at
-`private/bundle/`. If an authored or admitted Task intentionally needs none, it
-may omit that directory and its TaskLock records the canonical empty-tree
-digest; Git does not need to preserve an empty directory. These 51 quarantined
-source records also omit the directory, but for a different reason: the
-upstream hidden bytes are unavailable. That absence must not be represented as
-an audited empty bundle, so their catalog entries use
-`admission_reason = "hidden_bundle_unavailable"`.
+An ordinary runnable TaskBundle that needs local hidden data supplies it at
+`private/bundle/`. If an authored Task intentionally needs none, it may omit
+that directory and its TaskLock records the canonical empty-tree digest; Git
+does not need to preserve an empty directory. The 51 imported adapters keep
+evaluator-owned data inside their referenced Judge OCI images rather than
+copying it into this repository. Their catalog entries use
+`admission_reason = "official_evidence_incomplete"` until the complete official
+evidence chain is available.
 
 `catalog.json` contains discovery fields only. Source repositories, revisions,
 source-file digests, adaptations, and generated-file digests live under

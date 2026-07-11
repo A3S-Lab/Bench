@@ -67,11 +67,7 @@ impl RunOptions {
             );
             return load_locks(Path::new(&self.task), Path::new(&self.agent), state_root);
         }
-        let task_source = if self.task.starts_with("./") || self.task.starts_with("../") {
-            Path::new(&self.task).to_path_buf()
-        } else {
-            crate::catalog::runnable_task_path(&self.task)?
-        };
+        let task_source = crate::catalog::resolve_task_reference(&self.task)?;
         let locks = state_root.join("locks");
         state_fs::secure_directory(&locks)?;
         let task_lock = locks.join(format!("{run_id}.task-lock.json"));

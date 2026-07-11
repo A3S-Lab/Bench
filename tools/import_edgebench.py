@@ -255,8 +255,17 @@ def catalog_entry(task: dict[str, Any]) -> dict[str, Any]:
         "path": f"tasks/{task_id}",
         "name": task["name"],
         "category": task["category"],
+        "execution_class": "long_horizon",
+        "availability": (
+            "blocked" if task_id == "college_english_exam_bank" else "ready"
+        ),
+        "availability_reason": (
+            "judge_model_gateway_not_configured"
+            if task_id == "college_english_exam_bank"
+            else "bundled_oci_task"
+        ),
         "admission": "quarantined",
-        "admission_reason": "hidden_bundle_unavailable",
+        "admission_reason": "official_evidence_incomplete",
         "provenance_ref": f"{PROVENANCE_REF}#{task_id}",
     }
 

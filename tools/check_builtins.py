@@ -63,6 +63,9 @@ def main() -> None:
                 "path",
                 "name",
                 "category",
+                "execution_class",
+                "availability",
+                "availability_reason",
                 "admission",
                 "admission_reason",
                 "provenance_ref",
@@ -109,9 +112,21 @@ def main() -> None:
         agent_md = agent_path.read_text(encoding="utf-8")
         descriptor = json.loads(descriptor_path.read_text(encoding="utf-8"))
         require(entry["path"] == f"tasks/{task_id}", f"path: {task_id}")
+        require(entry["execution_class"] == "long_horizon", f"execution class: {task_id}")
+        expected_availability = "blocked" if task_id == "college_english_exam_bank" else "ready"
+        require(entry["availability"] == expected_availability, f"availability: {task_id}")
+        expected_availability_reason = (
+            "judge_model_gateway_not_configured"
+            if task_id == "college_english_exam_bank"
+            else "bundled_oci_task"
+        )
+        require(
+            entry["availability_reason"] == expected_availability_reason,
+            f"availability reason: {task_id}",
+        )
         require(entry["admission"] == "quarantined", f"catalog admission: {task_id}")
         require(
-            entry["admission_reason"] == "hidden_bundle_unavailable",
+            entry["admission_reason"] == "official_evidence_incomplete",
             f"catalog admission reason: {task_id}",
         )
         require(task_acl.count("{") == task_acl.count("}"), f"ACL braces: {task_id}")

@@ -56,13 +56,16 @@ fn list(args: &[String]) -> Result<u8> {
     let tasks: Vec<_> = catalog
         .tasks
         .into_iter()
-        .filter(|task| all || task.admission == "admitted")
+        .filter(|task| all || task.availability == "ready")
         .collect();
     if json_output {
         crate::output::print_success("list", json!({"tasks":tasks}))?;
     } else {
         for task in tasks {
-            println!("{:<40} {:<12} {}", task.id, task.admission, task.name);
+            println!(
+                "{:<40} {:<13} {:<12} {}",
+                task.id, task.execution_class, task.availability, task.name
+            );
         }
     }
     Ok(0)
@@ -91,15 +94,20 @@ fn info(args: &[String]) -> Result<u8> {
         .find(|task| task.id == *reference)
         .ok_or_else(|| anyhow::anyhow!("unknown built-in Task {reference:?}"))?;
     anyhow::ensure!(
-        all || entry.admission == "admitted",
-        "built-in Task {reference:?} is not admitted; use --all to inspect it"
+        all || entry.availability == "ready",
+        "built-in Task {reference:?} is not locally runnable; use --all to inspect it"
     );
     if json_output {
         crate::output::print_success("info", json!({"task":entry}))?;
     } else {
         println!(
-            "{}\n  admission: {}\n  reason: {}",
-            entry.id, entry.admission, entry.admission_reason
+            "{}\n  class: {}\n  availability: {}\n  availability reason: {}\n  admission: {}\n  admission reason: {}",
+            entry.id,
+            entry.execution_class,
+            entry.availability,
+            entry.availability_reason,
+            entry.admission,
+            entry.admission_reason
         );
     }
     Ok(0)
@@ -129,7 +137,8 @@ fn advanced_task_lock(args: &[String]) -> Result<u8> {
         "usage: advanced task lock <source> --out <file>"
     );
     let state_root = workspace::state_root()?;
-    let value = lock::create_task(Path::new(&args[0]), &state_root, Path::new(&args[2]))?;
+    let source = catalog::resolve_task_reference(&args[0])?;
+    let value = lock::create_task(&source, &state_root, Path::new(&args[2]))?;
     println!("locked Task {}", value.task_revision);
     Ok(0)
 }

@@ -45,16 +45,17 @@ The canonical task reference forms are:
 | `./path/to/task/task.lock.json` | Exported immutable TaskLock. |
 | `oci://registry.example/tasks/name@sha256:<digest>` | Advanced immutable published TaskBundle. |
 
-A bare ID searches admitted built-ins only. It never resolves a local path, an
-A3S OS record, a source-specific namespace, or a quarantined catalog entry.
+A bare ID searches locally available built-ins only. It never resolves a local
+path, an A3S OS record, a source-specific namespace, or a blocked catalog entry.
 Local references must begin with `./` or `../`, so a local directory cannot
 shadow a built-in. Published TaskBundles require the explicit `oci://` form and
 an immutable digest.
 
-`a3s bench list` shows only admitted built-ins. `a3s bench list --all` includes
-quarantined discovery records, and `a3s bench info <task-id> --all` can inspect
-one without making it runnable. Catalog inspection is read-only and creates no
-project state.
+`a3s bench list` shows locally available built-ins. `a3s bench list --all`
+includes locally blocked discovery records, and `a3s bench info <task-id>
+--all` can inspect one without making it runnable. Local availability permits
+only `local_unofficial` execution; official admission remains independently
+signed. Catalog inspection is read-only and creates no project state.
 
 TaskRevision remains the digest of compiled TaskLock content. A task always
 owns its Judge, so there is no `--judge` override. Any generated state from a
@@ -287,22 +288,20 @@ it. Bench validates identity, protocol, isolation, bounds, and deterministic
 score projection; it does not certify evaluator correctness, scientific
 validity, or absence of bias.
 
-### Quarantined Judge sources
+### Imported Judge sources
 
-Discovery is not execution admission. A built-in A3S `category = "agent"`
-package may record an inert `judge.source.json` while its catalog entry has
-`admission = "quarantined"`. This permits catalog and provenance inspection
-without interpreting a source image command, stdout parser, interactive
-service, model route, or credential request as an admitted Judge execution.
+Discovery, local availability, and official admission are distinct. A built-in
+A3S `category = "agent"` package may record `judge.source.json` while its
+catalog entry has `admission = "quarantined"`. The installed component may mark
+that exact adapter `availability = "ready"` for `local_unofficial` execution
+after validating its OCI source, parser, isolation profile, and result mapping.
 
-Such a package is not a second Judge API. Advanced validation, lock compilation,
-and `run` must fail before image pull or billable work until a signed admission
-record binds the exact AssetSnapshot, immutable dependencies, typed
-request/result schemas, A3S OS Runtime behavior, capabilities, licenses,
-resources, timeouts, and evidence requirements. An admission record cannot
-authorize an unknown runtime contract or cause Bench to execute commands stored
-in task metadata. The task still owns the Judge and entrants still cannot
-replace it.
+Such a package is not a second Judge API. A locally blocked package fails before
+image pull or billable work. A locally ready package still produces only
+`local_unofficial` results until a signed admission record binds the exact
+AssetSnapshot, immutable dependencies, typed request/result schemas, Runtime
+behavior, capabilities, licenses, resources, timeouts, and evidence
+requirements. The task still owns the Judge and entrants cannot replace it.
 
 ## Canonical Defaults
 
