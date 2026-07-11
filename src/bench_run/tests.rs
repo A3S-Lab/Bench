@@ -3,18 +3,6 @@ use std::io::{Read, Write};
 use std::net::TcpListener;
 
 #[test]
-fn rejects_duplicate_run_options() {
-    let args = vec![
-        "./task".into(),
-        "--agent".into(),
-        "./agent".into(),
-        "--json".into(),
-        "--json".into(),
-    ];
-    assert!(RunOptions::parse(&args).is_err());
-}
-
-#[test]
 #[ignore = "requires Docker and the linux/amd64 imported game images"]
 fn model_candidate_game_and_task_owned_judge_run_end_to_end() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -31,11 +19,13 @@ fn model_candidate_game_and_task_owned_judge_run_end_to_end() {
     )
     .unwrap();
     let config = config::discover(state.path()).unwrap();
-    let mut task = task::load_local(
-        &Path::new(env!("CARGO_MANIFEST_DIR")).join("builtin/tasks/anchorhead_text_adventure"),
-    )
-    .unwrap();
-    resolve_task_images(&mut task, None).unwrap();
+    let task_source =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("builtin/tasks/anchorhead_text_adventure");
+    let task_lock_path = state.path().join("task.lock.json");
+    lock::create_task(&task_source, state.path(), &task_lock_path).unwrap();
+    let locked = lock::load_task(&task_lock_path, state.path()).unwrap();
+    let mut task = task::load_local(&locked.task_artifact).unwrap();
+    resolve_task_images(&mut task, &locked.lock.resolved_images).unwrap();
     let game = start_game(&task, state.path()).unwrap().unwrap();
     let candidate_root = state.path().join("candidate");
     std::fs::create_dir(&candidate_root).unwrap();

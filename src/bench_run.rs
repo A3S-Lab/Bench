@@ -1,13 +1,13 @@
 use crate::{
-    asset, config, game_judge, legacy_judge, lock, model_candidate, runtime, task, workspace,
+    asset, config, game_judge, legacy_judge, lock, model_candidate, run_input, runtime, task,
+    workspace,
 };
 use anyhow::{Context, Result};
 use serde_json::json;
-use std::collections::BTreeMap;
 use std::path::Path;
 
 pub fn execute(args: &[String]) -> Result<u8> {
-    let options = RunOptions::parse(args)?;
+    let options = run_input::RunOptions::parse(args)?;
     let state_root = workspace::state_root()?;
     let mut journal =
         crate::run_journal::RunJournal::begin(&state_root, &options.task, &options.agent)?;
@@ -23,7 +23,7 @@ pub fn execute(args: &[String]) -> Result<u8> {
 }
 
 fn execute_inner(
-    options: &RunOptions,
+    options: &run_input::RunOptions,
     state_root: &Path,
     journal: &mut crate::run_journal::RunJournal,
 ) -> Result<u8> {
@@ -32,13 +32,14 @@ fn execute_inner(
     let config = config::discover(&std::env::current_dir()?)?;
     let status = runtime::preflight(&config.runtime)?;
     journal.advance(RunStage::RuntimeReady)?;
-    let mut loaded = options.load(state_root)?;
+    let mut loaded = options.load(state_root, &journal.run_id)?;
+    journal.bind_locks(&loaded.task_lock_digest, &loaded.candidate_lock_digest)?;
     anyhow::ensure!(
         status.provider == "docker",
         "execution through configured Runtime {:?} is not implemented yet",
         status.provider
     );
-    resolve_task_images(&mut loaded.task, loaded.locked_images.as_ref())?;
+    resolve_task_images(&mut loaded.task, &loaded.resolved_images)?;
     journal.advance(RunStage::InputsResolved)?;
     let game = start_game(&loaded.task, state_root)?;
     let candidate_workspace = workspace::create(&loaded.task)?;
@@ -66,7 +67,9 @@ fn execute_inner(
         crate::result_record::NewLocalResult {
             run_id: &journal.run_id,
             task_id: &loaded.task.id,
+            task_lock_digest: &loaded.task_lock_digest,
             agent: &options.agent,
+            candidate_lock_digest: &loaded.candidate_lock_digest,
             agent_identity: &loaded.candidate.identity,
             judge_identity: &loaded.judge.identity,
             runtime_provider: &status.provider,
@@ -80,101 +83,6 @@ fn execute_inner(
     journal.complete(&path)?;
     print_result(options, &loaded.task.id, score, &record.run_id, &path)?;
     Ok(0)
-}
-
-struct RunOptions {
-    task: String,
-    agent: String,
-    model: Option<String>,
-    json: bool,
-    locked: bool,
-}
-
-struct LoadedRun {
-    task: task::TaskInfo,
-    candidate: asset::LocalAgentAsset,
-    judge: asset::LocalAgentAsset,
-    model: Option<String>,
-    locked_images: Option<BTreeMap<String, String>>,
-}
-
-impl RunOptions {
-    fn parse(args: &[String]) -> Result<Self> {
-        anyhow::ensure!(!args.is_empty(), "run requires one Task reference");
-        let mut agent = None;
-        let mut model = None;
-        let mut json = false;
-        let mut locked = false;
-        let mut index = 1;
-        while index < args.len() {
-            match args[index].as_str() {
-                "--agent" if agent.is_none() && index + 1 < args.len() => {
-                    agent = Some(args[index + 1].clone());
-                    index += 2;
-                }
-                "--model" if model.is_none() && index + 1 < args.len() => {
-                    model = Some(args[index + 1].clone());
-                    index += 2;
-                }
-                "--json" if !json => {
-                    json = true;
-                    index += 1;
-                }
-                "--locked" if !locked => {
-                    locked = true;
-                    index += 1;
-                }
-                value => anyhow::bail!("invalid or duplicate run option {value:?}"),
-            }
-        }
-        Ok(Self {
-            task: args[0].clone(),
-            agent: agent.ok_or_else(|| anyhow::anyhow!("run requires exactly one --agent"))?,
-            model,
-            json,
-            locked,
-        })
-    }
-
-    fn load(&self, state_root: &Path) -> Result<LoadedRun> {
-        if self.locked {
-            anyhow::ensure!(
-                self.model.is_none(),
-                "--model cannot alter a locked Candidate"
-            );
-            let locked_task = lock::load_task(Path::new(&self.task), state_root)?;
-            let (candidate_lock, candidate_artifact) =
-                lock::load_candidate(Path::new(&self.agent), state_root)?;
-            return Ok(LoadedRun {
-                task: task::load_local(&locked_task.task_artifact)?,
-                candidate: asset::load_local(&candidate_artifact)?,
-                judge: asset::load_local(&locked_task.judge_artifact)?,
-                model: candidate_lock.model,
-                locked_images: Some(locked_task.lock.resolved_images),
-            });
-        }
-        anyhow::ensure!(
-            self.task.starts_with("./") || self.task.starts_with("../"),
-            "this development build currently executes local Tasks only"
-        );
-        let task = task::load_local(Path::new(&self.task))?;
-        let judge = resolve_judge(&task, state_root)?;
-        Ok(LoadedRun {
-            task,
-            candidate: asset::resolve(&self.agent, state_root)?,
-            judge,
-            model: self.model.clone(),
-            locked_images: None,
-        })
-    }
-}
-
-fn resolve_judge(task: &task::TaskInfo, state_root: &Path) -> Result<asset::LocalAgentAsset> {
-    if task.judge_asset.starts_with("oci://") {
-        asset::resolve(&task.judge_asset, state_root)
-    } else {
-        asset::load_local(&task.root.join(&task.judge_asset))
-    }
 }
 
 fn start_game(task: &task::TaskInfo, state_root: &Path) -> Result<Option<game_judge::GameSession>> {
@@ -257,20 +165,17 @@ fn primary_metric(task: &task::TaskInfo) -> &task::MetricInfo {
 
 fn resolve_task_images(
     task: &mut task::TaskInfo,
-    locked: Option<&BTreeMap<String, String>>,
+    locked: &std::collections::BTreeMap<String, String>,
 ) -> Result<()> {
     fn resolve(
         reference: &str,
         platform: Option<&str>,
-        locked: Option<&BTreeMap<String, String>>,
+        locked: &std::collections::BTreeMap<String, String>,
     ) -> Result<String> {
-        if let Some(images) = locked {
-            return images
-                .get(&lock::image_key(reference, platform))
-                .cloned()
-                .ok_or_else(|| anyhow::anyhow!("TaskLock does not bind image {reference:?}"));
-        }
-        Ok(runtime::resolve_image(reference, platform)?.immutable_ref)
+        locked
+            .get(&lock::image_key(reference, platform))
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("TaskLock does not bind image {reference:?}"))
     }
     task.work_image = resolve(
         &task.work_image.clone(),
@@ -287,7 +192,7 @@ fn resolve_task_images(
 }
 
 fn print_result(
-    options: &RunOptions,
+    options: &run_input::RunOptions,
     task_id: &str,
     score: &str,
     run_id: &str,

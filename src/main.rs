@@ -12,6 +12,7 @@ mod lock_identity;
 mod model_candidate;
 mod oci_asset;
 mod result_record;
+mod run_input;
 mod run_journal;
 mod runtime;
 mod state_fs;

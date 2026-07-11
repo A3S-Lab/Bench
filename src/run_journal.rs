@@ -59,6 +59,10 @@ pub struct RunJournal {
     pub run_id: String,
     pub task_reference: String,
     pub agent_reference: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_lock_digest: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub candidate_lock_digest: Option<String>,
     pub stage: RunStage,
     pub updated_at_ms: u128,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -77,11 +81,13 @@ impl RunJournal {
         let sequence = RUN_SEQUENCE.fetch_add(1, Ordering::Relaxed);
         let run_id = format!("local-{now}-{}-{sequence}", std::process::id());
         let mut journal = Self {
-            schema: "a3s.bench.run-journal.v1".into(),
+            schema: "a3s.bench.run-journal.v2".into(),
             path: root.join(format!("{run_id}.json")),
             run_id,
             task_reference: task_reference.into(),
             agent_reference: agent_reference.into(),
+            task_lock_digest: None,
+            candidate_lock_digest: None,
             stage: RunStage::Planned,
             updated_at_ms: now,
             result_path: None,
@@ -103,6 +109,23 @@ impl RunJournal {
             stage
         );
         self.stage = stage;
+        self.updated_at_ms = epoch_millis()?;
+        self.persist()
+    }
+
+    pub fn bind_locks(&mut self, task_digest: &str, candidate_digest: &str) -> Result<()> {
+        anyhow::ensure!(
+            self.stage == RunStage::RuntimeReady,
+            "run locks can only be bound after Runtime readiness"
+        );
+        anyhow::ensure!(
+            self.task_lock_digest.is_none() && self.candidate_lock_digest.is_none(),
+            "run locks are already bound"
+        );
+        crate::lock_identity::validate_digest(task_digest)?;
+        crate::lock_identity::validate_digest(candidate_digest)?;
+        self.task_lock_digest = Some(task_digest.into());
+        self.candidate_lock_digest = Some(candidate_digest.into());
         self.updated_at_ms = epoch_millis()?;
         self.persist()
     }
@@ -131,10 +154,26 @@ impl RunJournal {
         let mut journal: Self =
             serde_json::from_slice(&state_fs::read_regular_file(&path, "run journal")?)?;
         anyhow::ensure!(
-            journal.schema == "a3s.bench.run-journal.v1",
+            journal.schema == "a3s.bench.run-journal.v2",
             "unsupported run journal schema"
         );
         anyhow::ensure!(journal.run_id == run_id, "run journal identity mismatch");
+        anyhow::ensure!(
+            journal.task_lock_digest.is_some() == journal.candidate_lock_digest.is_some(),
+            "run journal lock binding is incomplete"
+        );
+        if let Some(task_digest) = &journal.task_lock_digest {
+            crate::lock_identity::validate_digest(task_digest)?;
+        }
+        if let Some(candidate_digest) = &journal.candidate_lock_digest {
+            crate::lock_identity::validate_digest(candidate_digest)?;
+        }
+        anyhow::ensure!(
+            journal.stage == RunStage::Failed
+                || journal.stage.rank() < RunStage::InputsResolved.rank()
+                || journal.task_lock_digest.is_some(),
+            "resolved run journal has no lock binding"
+        );
         anyhow::ensure!(
             (journal.stage == RunStage::Completed) == journal.result_path.is_some(),
             "run journal result binding is invalid"
@@ -188,6 +227,12 @@ mod tests {
         let state = tempfile::tempdir().unwrap();
         let mut journal = RunJournal::begin(state.path(), "./task", "./agent").unwrap();
         journal.advance(RunStage::RuntimeReady).unwrap();
+        journal
+            .bind_locks(
+                &format!("sha256:{}", "a".repeat(64)),
+                &format!("sha256:{}", "b".repeat(64)),
+            )
+            .unwrap();
         journal.advance(RunStage::InputsResolved).unwrap();
         assert!(journal.advance(RunStage::CandidateCompleted).is_err());
         journal.advance(RunStage::CandidateRunning).unwrap();
@@ -200,7 +245,7 @@ mod tests {
         .unwrap();
         let persisted: RunJournal = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(persisted.stage, RunStage::CandidateRunning);
-        assert_eq!(persisted.schema, "a3s.bench.run-journal.v1");
+        assert_eq!(persisted.schema, "a3s.bench.run-journal.v2");
     }
 
     #[test]

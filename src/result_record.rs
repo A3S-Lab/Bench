@@ -12,7 +12,9 @@ pub struct LocalResultRecord {
     pub governance_status: String,
     pub run_id: String,
     pub task_id: String,
+    pub task_lock_digest: String,
     pub agent: String,
+    pub candidate_lock_digest: String,
     pub agent_identity: String,
     pub judge_identity: String,
     pub runtime_provider: String,
@@ -26,7 +28,9 @@ pub struct LocalResultRecord {
 pub struct NewLocalResult<'a> {
     pub run_id: &'a str,
     pub task_id: &'a str,
+    pub task_lock_digest: &'a str,
     pub agent: &'a str,
+    pub candidate_lock_digest: &'a str,
     pub agent_identity: &'a str,
     pub judge_identity: &'a str,
     pub runtime_provider: &'a str,
@@ -40,11 +44,13 @@ pub struct NewLocalResult<'a> {
 impl LocalResultRecord {
     pub fn save(state_root: &Path, input: NewLocalResult<'_>) -> Result<(Self, PathBuf)> {
         let record = Self {
-            schema: "a3s.bench.local-result.v2".into(),
+            schema: "a3s.bench.local-result.v3".into(),
             governance_status: "local_unofficial".into(),
             run_id: input.run_id.into(),
             task_id: input.task_id.into(),
+            task_lock_digest: input.task_lock_digest.into(),
             agent: input.agent.into(),
+            candidate_lock_digest: input.candidate_lock_digest.into(),
             agent_identity: input.agent_identity.into(),
             judge_identity: input.judge_identity.into(),
             runtime_provider: input.runtime_provider.into(),
@@ -74,6 +80,21 @@ impl LocalResultRecord {
         };
         let record: Self = serde_json::from_slice(&bytes)?;
         record.validate(run_id)?;
+        let journal = run_journal::RunJournal::load(state_root, run_id)?;
+        anyhow::ensure!(
+            journal.stage == run_journal::RunStage::Completed,
+            "local result is not backed by a completed run journal"
+        );
+        anyhow::ensure!(
+            journal.task_lock_digest.as_deref() == Some(record.task_lock_digest.as_str())
+                && journal.candidate_lock_digest.as_deref()
+                    == Some(record.candidate_lock_digest.as_str()),
+            "local result lock binding does not match its run journal"
+        );
+        anyhow::ensure!(
+            journal.result_path.as_deref() == Some(path.as_path()),
+            "local result path does not match its run journal"
+        );
         Ok(Some(record))
     }
 
@@ -90,7 +111,7 @@ impl LocalResultRecord {
     fn validate(&self, expected_run_id: &str) -> Result<()> {
         run_journal::validate_run_id(&self.run_id)?;
         anyhow::ensure!(
-            self.schema == "a3s.bench.local-result.v2",
+            self.schema == "a3s.bench.local-result.v3",
             "unsupported local result schema"
         );
         anyhow::ensure!(
@@ -111,6 +132,8 @@ impl LocalResultRecord {
         ] {
             anyhow::ensure!(!value.trim().is_empty(), "local result {name} is empty");
         }
+        crate::lock_identity::validate_digest(&self.task_lock_digest)?;
+        crate::lock_identity::validate_digest(&self.candidate_lock_digest)?;
         if let Some(model) = &self.model {
             anyhow::ensure!(!model.trim().is_empty(), "local result model is empty");
             anyhow::ensure!(
@@ -171,12 +194,31 @@ mod tests {
     fn roundtrip_binds_score_to_primary_metric() {
         let state = tempfile::tempdir().unwrap();
         let judge = judge();
-        let (saved, _) = LocalResultRecord::save(
+        let task_digest = format!("sha256:{}", "a".repeat(64));
+        let candidate_digest = format!("sha256:{}", "b".repeat(64));
+        let mut journal = run_journal::RunJournal::begin(state.path(), "task", "agent").unwrap();
+        journal
+            .advance(run_journal::RunStage::RuntimeReady)
+            .unwrap();
+        journal.bind_locks(&task_digest, &candidate_digest).unwrap();
+        journal
+            .advance(run_journal::RunStage::InputsResolved)
+            .unwrap();
+        journal
+            .advance(run_journal::RunStage::CandidateRunning)
+            .unwrap();
+        journal
+            .advance(run_journal::RunStage::CandidateCompleted)
+            .unwrap();
+        journal.advance(run_journal::RunStage::Judging).unwrap();
+        let (saved, path) = LocalResultRecord::save(
             state.path(),
             NewLocalResult {
-                run_id: "local-1-2-3",
+                run_id: &journal.run_id,
                 task_id: "task",
+                task_lock_digest: &task_digest,
                 agent: "agent",
+                candidate_lock_digest: &candidate_digest,
                 agent_identity: "sha256:agent",
                 judge_identity: "sha256:judge",
                 runtime_provider: "docker",
@@ -188,6 +230,7 @@ mod tests {
             },
         )
         .unwrap();
+        journal.complete(&path).unwrap();
         let loaded = LocalResultRecord::load(state.path(), &saved.run_id)
             .unwrap()
             .unwrap();
@@ -196,13 +239,19 @@ mod tests {
             LocalResultRecord::latest_run_id(state.path()).unwrap(),
             saved.run_id
         );
+        let mut substituted = saved;
+        substituted.task_lock_digest = format!("sha256:{}", "c".repeat(64));
+        state_fs::secure_atomic_write(&path, &serde_json::to_vec(&substituted).unwrap()).unwrap();
+        assert!(LocalResultRecord::load(state.path(), &journal.run_id).is_err());
     }
 
     #[test]
     fn rejects_unknown_fields_and_score_tampering() {
         let mut value = serde_json::json!({
-            "schema":"a3s.bench.local-result.v2", "governance_status":"local_unofficial",
+            "schema":"a3s.bench.local-result.v3", "governance_status":"local_unofficial",
             "run_id":"local-1", "task_id":"task", "agent":"agent",
+            "task_lock_digest":format!("sha256:{}", "a".repeat(64)),
+            "candidate_lock_digest":format!("sha256:{}", "b".repeat(64)),
             "agent_identity":"agent-id", "judge_identity":"judge-id",
             "runtime_provider":"docker", "model":null, "model_usage":null,
             "primary_metric":"score", "score":"0",
