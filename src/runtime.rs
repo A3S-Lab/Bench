@@ -111,6 +111,7 @@ pub fn execute_docker_candidate(
     if let Some(platform) = task.work_platform.as_deref() {
         command.args(["--platform", platform]);
     }
+    configure_mounted_tree_owner(&mut command, &candidate.root)?;
     let candidate_output = command
         .arg("--mount")
         .arg(format!(
@@ -166,26 +167,28 @@ print(json.dumps(getattr(mod,{})({{'submission_root':'/submission','hidden_bundl
         serde_json::to_string(&format!("/judge/{entrypoint_file}"))?,
         serde_json::to_string(entrypoint_function)?
     );
-    let output = Command::new("docker")
-        .args([
-            "run",
-            "--rm",
-            "--network",
-            "none",
-            "--read-only",
-            "--cap-drop",
-            "ALL",
-            "--security-opt",
-            "no-new-privileges",
-            "--pids-limit",
-            "128",
-            "--memory",
-            "1g",
-            "--cpus",
-            "1",
-            "--tmpfs",
-            "/tmp:rw,noexec,nosuid,size=64m",
-        ])
+    let mut command = Command::new("docker");
+    command.args([
+        "run",
+        "--rm",
+        "--network",
+        "none",
+        "--read-only",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges",
+        "--pids-limit",
+        "128",
+        "--memory",
+        "1g",
+        "--cpus",
+        "1",
+        "--tmpfs",
+        "/tmp:rw,noexec,nosuid,size=64m",
+    ]);
+    configure_mounted_tree_owner(&mut command, &judge.root)?;
+    let output = command
         .arg("--mount")
         .arg(format!(
             "type=bind,src={},dst=/submission,readonly",
@@ -218,6 +221,20 @@ print(json.dumps(getattr(mod,{})({{'submission_root':'/submission','hidden_bundl
     );
     validate_judge_result(task, &result)?;
     Ok(result)
+}
+
+fn configure_mounted_tree_owner(command: &mut Command, path: &Path) -> Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let metadata = std::fs::metadata(path)?;
+        command.args(["--user", &format!("{}:{}", metadata.uid(), metadata.gid())]);
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (command, path);
+    }
+    Ok(())
 }
 
 fn validate_judge_result(task: &TaskInfo, result: &JudgeResult) -> Result<()> {
