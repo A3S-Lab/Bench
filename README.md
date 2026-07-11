@@ -18,8 +18,9 @@ permanent task set.
 
 ## Current status
 
-The source tree is usable for local development, but it is not yet a production
-Bench release.
+The project is at preview maturity. Preview artifacts are intended for local
+development and contract validation; they are not signed production Bench
+components and cannot make an evaluation official.
 
 | Area | Current state |
 | --- | --- |
@@ -30,10 +31,22 @@ Bench release.
 | `a3s-box` selection | Parsed and preflighted; execution is not implemented yet |
 | Shared Runtime lifecycle | Contract, registry, and durable operation primitives exist; Bench migration is incomplete |
 | Built-in catalog | Current 51-source snapshot validates structurally; entries remain provisional and quarantined pending per-revision evidence |
-| Published component | Not released yet |
+| Published component | `v0.1.0-preview.1` prerelease through GitHub Actions |
 
 Quarantined built-ins are not presented as runnable or official. A local Task
 may run as `local_unofficial`.
+
+## Preview releases
+
+Git tags matching the Cargo package version trigger the release workflow. It
+validates formatting, the current built-in snapshot, unit and Docker smoke
+tests, and Clippy before producing native component archives for Linux and
+macOS. Each archive contains the binary, component manifest, and provisional
+built-in catalog together with a SHA-256 checksum.
+
+`v0.1.0-preview.1` is deliberately a GitHub prerelease. It is not accompanied
+by the A3S-signed component release statement or signed Task admissions required
+by the production design. All results remain `local_unofficial`.
 
 ## Quick start
 
@@ -41,9 +54,9 @@ Prerequisites:
 
 - Rust toolchain
 - a running Docker Engine
-- this monorepo with submodules initialized
+- this repository checkout
 
-From `crates/bench`:
+From the repository root:
 
 ```bash
 docker build -q -t a3s-bench-smoke-agent:test ./examples/smoke-candidate

@@ -1,6 +1,6 @@
 [package]
 name = "a3s-bench"
-version = "0.1.0"
+version = "0.1.0-preview.1"
 edition = "2021"
 description = "Reproducible benchmark control component for A3S agents"
 license = "MIT"
@@ -11,9 +11,9 @@ name = "a3s-bench"
 path = "src/main.rs"
 
 [dependencies]
-a3s-acl = { path = "../acl" }
-a3s-code-core = { path = "../code/core" }
-a3s-runtime = { path = "../runtime" }
+a3s-acl = { git = "https://github.com/A3S-Lab/ACL.git", rev = "4ce7a505958a66c5c27b72d5a2af7efc0e401f17" }
+a3s-code-core = "=4.3.3"
+a3s-runtime = { git = "https://github.com/A3S-Lab/Runtime.git", rev = "a8f467b683c424cd8cd62c890b0ebd716edc7af8" }
 anyhow = "1"
 async-trait = "0.1"
 serde = { version = "1", features = ["derive"] }

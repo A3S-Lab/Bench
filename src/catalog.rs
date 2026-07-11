@@ -4,7 +4,6 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 const CATALOG_JSON: &str = include_str!("../builtin/catalog.json");
-const BUILTIN_TASK_COUNT: usize = 51;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Catalog {
@@ -36,13 +35,21 @@ pub fn load() -> Result<Catalog> {
 }
 
 fn builtin_root() -> PathBuf {
+    if let Ok(executable) = std::env::current_exe() {
+        if let Some(component_root) = executable.parent().and_then(Path::parent) {
+            let packaged = component_root.join("builtin");
+            if packaged.is_dir() {
+                return packaged;
+            }
+        }
+    }
     Path::new(env!("CARGO_MANIFEST_DIR")).join("builtin")
 }
 
 fn validate(catalog: &Catalog, root: &Path) -> Result<()> {
     anyhow::ensure!(
-        catalog.tasks.len() == BUILTIN_TASK_COUNT,
-        "built-in catalog must contain exactly {BUILTIN_TASK_COUNT} Tasks"
+        !catalog.tasks.is_empty(),
+        "built-in catalog must not be empty"
     );
     let mut ids = HashSet::new();
     let mut paths = HashSet::new();
@@ -126,9 +133,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn all_51_builtins_satisfy_the_catalog_contract() {
+    fn current_builtins_satisfy_the_catalog_contract() {
         let catalog = load().unwrap();
-        assert_eq!(catalog.tasks.len(), BUILTIN_TASK_COUNT);
+        assert!(!catalog.tasks.is_empty());
         assert!(catalog
             .tasks
             .iter()

@@ -62,8 +62,7 @@ async fn execute_async(request: ModelCandidateRequest<'_>) -> Result<ModelExecut
         .with_continuation(false)
         .with_manual_delegation_enabled(false);
     let session = agent
-        .session_async(request.workspace.display().to_string(), Some(options))
-        .await
+        .session(request.workspace.display().to_string(), Some(options))
         .context("could not create model Candidate session")?;
     let prompt = format!(
         "{}\n\n# Benchmark task\n\n{}\n\nWork only inside the supplied workspace. Complete the task and verify the result.",

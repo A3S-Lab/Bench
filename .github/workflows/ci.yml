@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Check built-in snapshot
+        run: python3 tools/check_builtins.py
+      - name: Run tests
+        run: cargo test --locked
+      - name: Run Clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Build and verify component package
+        run: python3 tools/package_component.py
+
+  docker-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run Docker-backed integration tests
+        run: cargo test --locked -- --ignored --nocapture
+      - name: Run local Runtime smoke tests
+        run: ./tools/smoke_local.sh
+      - name: Run imported Task/Judge smoke test
+        run: ./tools/smoke_imported.sh
