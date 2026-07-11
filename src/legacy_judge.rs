@@ -41,7 +41,7 @@ pub fn execute(
     }
     let destination = shell_quote(&source.workspace_source_path);
     let judge_command = format!(
-        "cp -a /a3s/submission/. {destination}/ && chmod -R u+rwX {destination} && {}",
+        "cp -R /a3s/submission/. {destination}/ && chmod -R u+rwX {destination} && {}",
         source.command
     );
     let output = command
