@@ -40,7 +40,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Run Docker-backed integration tests
-        run: cargo test --locked -- --ignored --nocapture
+        run: cargo test --locked -- --ignored --nocapture --test-threads=1
       - name: Run local Runtime smoke tests
         run: ./tools/smoke_local.sh
       - name: Run imported Task/Judge smoke test
