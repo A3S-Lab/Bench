@@ -33,6 +33,7 @@ fn model_candidate_game_and_task_owned_judge_run_end_to_end() {
     let candidate = asset::LocalAgentAsset {
         root: candidate_root,
         entrypoint: "unused".into(),
+        definition_path: Some("agent.md".into()),
         identity: "test-candidate".into(),
     };
     let candidate_workspace = workspace::create(&task).unwrap();

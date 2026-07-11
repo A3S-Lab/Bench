@@ -114,7 +114,7 @@ fn execute_candidate(
         anyhow::anyhow!("--model requires project-local or user-local .a3s/config.acl")
     })?;
     let prompt = std::fs::read_to_string(task.root.join("public/prompt.md"))?;
-    let instructions_path = candidate.root.join("agent.md");
+    let instructions_path = candidate.model_instructions_path()?;
     let instructions = std::fs::read_to_string(&instructions_path).with_context(|| {
         format!(
             "model Candidate is missing instructions at {}",

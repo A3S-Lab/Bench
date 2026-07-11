@@ -101,6 +101,11 @@ pub fn create_candidate(
     let digest = crate::task_snapshot::capture(&asset.root, state_root)?;
     let captured = crate::task_snapshot::artifact_path(state_root, &digest)?;
     let locked_asset = crate::asset::load_local(&captured)?;
+    if model.is_some() {
+        locked_asset
+            .model_instructions_path()
+            .context("Candidate cannot be locked with a model")?;
+    }
     let mut value = CandidateLock {
         schema: "a3s.bench.candidate-lock.v1".into(),
         lock_digest: String::new(),

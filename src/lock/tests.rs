@@ -69,3 +69,38 @@ fn candidate_loader_rejects_semantic_field_tampering() {
     let error = load_candidate(&output, state.path()).unwrap_err();
     assert!(format!("{error:#}").contains("semantic digest mismatch"));
 }
+
+#[test]
+fn model_candidate_requires_declared_definition() {
+    let root = tempfile::tempdir().unwrap();
+    let output = root.path().join("candidate.lock.json");
+    let error = create_candidate(
+        "./examples/executable-candidate",
+        Some("openai/test".into()),
+        root.path(),
+        &output,
+    )
+    .unwrap_err();
+    let message = format!("{error:#}");
+    assert!(message.contains("source.definition_path"), "{message}");
+}
+
+#[test]
+fn model_candidate_uses_manifest_definition_path() {
+    let root = tempfile::tempdir().unwrap();
+    let output = root.path().join("candidate.lock.json");
+    let value = create_candidate(
+        "./examples/model-candidate",
+        Some("openai/test".into()),
+        root.path(),
+        &output,
+    )
+    .unwrap();
+    assert_eq!(value.model.as_deref(), Some("openai/test"));
+    let (_, captured) = load_candidate(&output, root.path()).unwrap();
+    let loaded = crate::asset::load_local(&captured).unwrap();
+    assert_eq!(
+        loaded.definition_path.as_deref(),
+        Some("prompts/controller.md")
+    );
+}

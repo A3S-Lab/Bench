@@ -196,6 +196,11 @@ For OCI sources:
 
 Candidate and task-owned Judge Assets use the same resolver.
 
+To add another Candidate, package its entrypoint and optional model-controller
+definition as an Agent Asset. See [Agent Asset authoring](docs/agent-assets.md)
+for the complete local, OCI, and CandidateLock workflow and the current boundary
+between generic model-backed Candidates and native Codex/Claude Code adapters.
+
 ## Running with a custom model
 
 Bench can use provider/model definitions from the normal local
@@ -412,6 +417,7 @@ OCI Judge. `smoke_imported.sh` executes the imported Juliet work/Judge path as
 - [Canonical design](docs/design.md) — normative P1 architecture, trust model,
   lifecycle, schemas, and roadmap
 - [Task Spec ACL](docs/task-spec-acl.md) — Task authoring reference
+- [Agent Asset authoring](docs/agent-assets.md) — add local or OCI Candidates
 - [Built-in catalog](builtin/README.md) — imported sources, quarantine, and
   admission requirements
 - [Smoke example](examples/smoke/README.md) — smallest runnable fixture

@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 pub struct LocalAgentAsset {
     pub root: PathBuf,
     pub entrypoint: String,
+    pub definition_path: Option<String>,
     pub identity: String,
 }
 
@@ -46,15 +47,55 @@ pub(crate) fn load_directory(reference: &Path, identity: String) -> Result<Local
         .and_then(Value::as_str)
         .ok_or_else(|| anyhow::anyhow!("source.entrypoint must be a string"))?;
     let file = entrypoint.split(':').next().unwrap_or(entrypoint);
+    validate_package_path(file, "source.entrypoint")?;
     anyhow::ensure!(
         reference.join(file).is_file(),
         "Agent Asset entrypoint is missing: {file}"
     );
+    let definition_path = source
+        .attributes
+        .get("definition_path")
+        .map(|value| {
+            value
+                .as_str()
+                .ok_or_else(|| anyhow::anyhow!("source.definition_path must be a string"))
+        })
+        .transpose()?;
+    if let Some(path) = definition_path {
+        validate_package_path(path, "source.definition_path")?;
+        anyhow::ensure!(
+            reference.join(path).is_file(),
+            "Agent Asset definition is missing: {path}"
+        );
+    }
     Ok(LocalAgentAsset {
         root: reference.canonicalize()?,
         entrypoint: entrypoint.to_owned(),
+        definition_path: definition_path.map(str::to_owned),
         identity,
     })
+}
+
+impl LocalAgentAsset {
+    pub fn model_instructions_path(&self) -> Result<PathBuf> {
+        let relative = self.definition_path.as_deref().ok_or_else(|| {
+            anyhow::anyhow!("model-backed Agent Asset must define source.definition_path")
+        })?;
+        Ok(self.root.join(relative))
+    }
+}
+
+fn validate_package_path(path: &str, field: &str) -> Result<()> {
+    use std::path::Component;
+
+    anyhow::ensure!(!path.is_empty(), "{field} must not be empty");
+    anyhow::ensure!(
+        Path::new(path)
+            .components()
+            .all(|component| matches!(component, Component::Normal(_))),
+        "{field} must be a normalized package-relative path"
+    );
+    Ok(())
 }
 
 pub(crate) fn load_manifest_entrypoint(manifest: &Path) -> Result<String> {
@@ -213,7 +254,16 @@ mod tests {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/smoke-candidate");
         let asset = load_local(&root).unwrap();
         assert_eq!(asset.entrypoint, "run.sh");
+        assert_eq!(asset.definition_path.as_deref(), Some("agent.md"));
         assert!(asset.identity.starts_with("sha256:"));
+    }
+
+    #[test]
+    fn rejects_paths_that_escape_the_asset() {
+        for path in ["../run.sh", "/run.sh", "nested/../run.sh", ""] {
+            assert!(validate_package_path(path, "source.entrypoint").is_err());
+        }
+        assert!(validate_package_path("nested/run.sh", "source.entrypoint").is_ok());
     }
 
     #[test]
