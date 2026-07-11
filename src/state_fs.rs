@@ -176,6 +176,43 @@ pub fn seal_tree_read_only(path: &Path) -> Result<()> {
     Ok(())
 }
 
+pub fn seal_role_input_tree(path: &Path) -> Result<()> {
+    for entry in std::fs::read_dir(path)? {
+        let entry = entry?;
+        let kind = entry.file_type()?;
+        anyhow::ensure!(!kind.is_symlink(), "role input tree contains a symlink");
+        if kind.is_dir() {
+            seal_role_input_tree(&entry.path())?;
+        } else if kind.is_file() {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(entry.path(), std::fs::Permissions::from_mode(0o444))?;
+            }
+            #[cfg(not(unix))]
+            {
+                let mut permissions = std::fs::metadata(entry.path())?.permissions();
+                permissions.set_readonly(true);
+                std::fs::set_permissions(entry.path(), permissions)?;
+            }
+        } else {
+            anyhow::bail!("role input tree contains a special file");
+        }
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o555))?;
+    }
+    #[cfg(not(unix))]
+    {
+        let mut permissions = std::fs::metadata(path)?.permissions();
+        permissions.set_readonly(true);
+        std::fs::set_permissions(path, permissions)?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 pub fn remove_sealed_tree(path: &Path) -> Result<()> {
     set_directory_owner_writable(path)?;
@@ -247,6 +284,32 @@ fn set_directory_owner_writable(path: &Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn role_input_tree_is_readable_but_not_writable() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = tempfile::tempdir().unwrap();
+        let tree = root.path().join("submission");
+        std::fs::create_dir(&tree).unwrap();
+        std::fs::write(tree.join("answer.txt"), "42\n").unwrap();
+        seal_role_input_tree(&tree).unwrap();
+
+        assert_eq!(
+            std::fs::metadata(&tree).unwrap().permissions().mode() & 0o777,
+            0o555
+        );
+        assert_eq!(
+            std::fs::metadata(tree.join("answer.txt"))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o444
+        );
+        remove_sealed_tree(&tree).unwrap();
+    }
 
     #[test]
     fn concurrent_atomic_writes_never_publish_partial_content() {

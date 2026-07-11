@@ -1,4 +1,4 @@
-use crate::state_fs::{seal_tree_read_only, secure_directory, set_owner_only_file};
+use crate::state_fs::{seal_role_input_tree, secure_directory, set_owner_only_file};
 use crate::task::{TaskInfo, WorkspaceSeed};
 use anyhow::Result;
 use std::path::{Path, PathBuf};
@@ -28,7 +28,7 @@ pub fn create_submission(task: &TaskInfo, workspace: &Path) -> Result<PathBuf> {
     let destination = run_directory("submissions", &task.id)?;
     replace_directory(&destination)?;
     crate::submission::project(workspace, &destination, &task.submission)?;
-    seal_tree_read_only(&destination)?;
+    seal_role_input_tree(&destination)?;
     Ok(destination.canonicalize()?)
 }
 
