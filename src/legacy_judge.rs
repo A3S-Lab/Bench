@@ -19,6 +19,8 @@ pub fn execute(
     command.args([
         "run",
         "--rm",
+        "--user",
+        "0:0",
         "--network",
         "none",
         "--cap-drop",
@@ -130,7 +132,8 @@ fn extract_structured(output: &str) -> Result<Value> {
             }
         }
     }
-    anyhow::bail!("Judge produced no structured result")
+    let diagnostic: String = output.chars().take(4096).collect();
+    anyhow::bail!("Judge produced no structured result: {diagnostic}")
 }
 
 fn json_object_end(value: &str) -> Option<usize> {
