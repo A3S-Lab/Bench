@@ -16,6 +16,7 @@ mod runtime;
 mod state_fs;
 mod submission;
 mod task;
+mod task_snapshot;
 mod workspace;
 
 use std::process::ExitCode;

@@ -41,6 +41,17 @@ closed typed schema, including their nested evaluation, image, workspace, and
 tagged rescale-hint variants; all 51 packaged descriptors are covered by one
 catalog-wide test.
 
+Local Task and Candidate locking now captures the source tree before parsing
+the locked input. The capture computes the initial generation, copies it into
+exclusive staging, recomputes both the staged bytes and the live source, and
+publishes only when file sets and digests still match. A mutation at any read
+boundary fails with `source_changed` and leaves no content-addressed artifact;
+Bench never retries into another generation. Parsing, image resolution, and
+revision identity then use only the immutable captured tree. Snapshot traversal
+also rejects symlinks, hard links, special files, non-UTF-8 or unsafe paths,
+and case-colliding names. This concern lives in `task_snapshot.rs`; lock schema
+and compilation remain in `lock.rs`.
+
 Until the shared Runtime checkpoint API lands, the local development path
 projects the Candidate terminal directory into a separate owner-only
 SubmissionSnapshot using the exact include, exclude, file-count, depth, and
