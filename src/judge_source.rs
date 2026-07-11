@@ -217,6 +217,9 @@ mod tests {
                 .unwrap()
                 .path()
                 .join("private/judge/judge.source.json");
+            if !path.is_file() {
+                continue;
+            }
             assert!(load(&path).unwrap().is_some(), "{}", path.display());
             count += 1;
         }

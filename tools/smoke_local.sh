@@ -10,6 +10,8 @@ docker build -q -t a3s-bench-smoke-judge:test ./examples/smoke/private/judge >/d
 
 local_output=$(cargo run --quiet -- run ./examples/smoke \
   --agent ./examples/smoke-candidate --json)
+builtin_output=$(cargo run --quiet -- run quick_file_edit \
+  --agent ./examples/smoke-candidate --json)
 oci_output=$(cargo run --quiet -- run ./examples/smoke-oci-judge \
   --agent oci://a3s-bench-smoke-agent:test --json)
 
@@ -38,7 +40,7 @@ failed_run_id=$(printf '%s\n' "$failure" | sed -n \
 test -n "$failed_run_id"
 failed_output=$(cargo run --quiet -- result "$failed_run_id" --json)
 
-python3 - "$root" "$local_output" "$oci_output" "$locked_output" \
+python3 - "$root" "$local_output" "$builtin_output" "$oci_output" "$locked_output" \
   "$locked_oci_judge_output" "$failed_output" <<'PY'
 import json
 from pathlib import Path
@@ -46,8 +48,8 @@ import sys
 
 root = Path(sys.argv[1])
 for raw, expected_task in zip(
-    sys.argv[2:6],
-    ("smoke_answer", "smoke_oci_judge", "smoke_answer", "smoke_oci_judge"),
+    sys.argv[2:7],
+    ("smoke_answer", "quick_file_edit", "smoke_oci_judge", "smoke_answer", "smoke_oci_judge"),
 ):
     value = json.loads(raw)
     assert value["schema"] == "a3s.bench.output.v1", value
@@ -69,7 +71,7 @@ for raw, expected_task in zip(
     assert result["task_lock_digest"] == journal["task_lock_digest"], (result, journal)
     assert result["candidate_lock_digest"] == journal["candidate_lock_digest"], (result, journal)
 
-failed = json.loads(sys.argv[6])
+failed = json.loads(sys.argv[7])
 assert failed["schema"] == "a3s.bench.output.v1", failed
 assert failed["command"] == "result" and failed["ok"] is True, failed
 assert failed["data"]["status"] == "failed", failed
@@ -77,4 +79,4 @@ assert "error" not in failed["data"], failed
 PY
 
 cargo run --quiet -- result --json >/dev/null
-echo "local Docker Runtime smoke passed (local, OCI, locked Candidate adapters, and offline locked OCI Judge)"
+echo "local Docker Runtime smoke passed (built-in, local, OCI, locked Candidate adapters, and offline locked OCI Judge)"

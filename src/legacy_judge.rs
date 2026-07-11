@@ -289,6 +289,9 @@ mod tests {
                 .unwrap()
                 .path()
                 .join("private/judge/judge.source.json");
+            if !path.is_file() {
+                continue;
+            }
             let value: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
             let mode = value
                 .pointer("/evaluation/mode")

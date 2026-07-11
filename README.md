@@ -31,7 +31,7 @@ components and cannot make an evaluation official.
 | OCI Candidate and Judge adapters | Docker-compatible images and generic ORAS artifacts supported |
 | `a3s-box` selection | Parsed and preflighted; execution is not implemented yet |
 | Shared Runtime lifecycle | Contract, registry, and durable operation primitives exist; Bench migration is incomplete |
-| Built-in catalog | Current 51-source snapshot validates structurally; entries remain provisional and quarantined pending per-revision evidence |
+| Built-in tasks | One short conformance task is runnable by ID; 51 imported long-horizon tasks remain provisional and quarantined |
 | Published component | `v0.1.0-preview.1` prerelease through GitHub Actions |
 
 Quarantined built-ins are not presented as runnable or official. A local Task
@@ -61,16 +61,15 @@ From the repository root:
 
 ```bash
 docker build -q -t a3s-bench-smoke-agent:test ./examples/smoke-candidate
-docker build -q -t a3s-bench-smoke-judge:test ./examples/smoke/private/judge
 
-cargo run -- run ./examples/smoke \
+cargo run -- run quick_file_edit \
   --agent ./examples/smoke-candidate
 ```
 
 Expected result:
 
 ```text
-COMPLETED  score=1  task=smoke_answer
+COMPLETED  score=1  task=quick_file_edit
 ```
 
 Show the most recent result again:
@@ -150,8 +149,9 @@ durable terminal state.
 ### List and inspect tasks
 
 ```bash
-# Admitted runnable built-ins only; currently empty.
+# Short, admitted built-ins suitable for installation checks.
 cargo run -- list
+cargo run -- run quick_file_edit --agent ./examples/smoke-candidate
 
 # Include quarantined imported sources.
 cargo run -- list --all
@@ -366,10 +366,16 @@ Important invariants:
 
 ## Built-in tasks
 
-The current repository snapshot contains 51 provisional imported Task/Judge
-descriptors under [`builtin/tasks`](builtin/tasks). That number is not a product
-boundary: tasks may be added, removed, replaced, or revised. The catalog-wide
-test proves only that the current snapshot is internally consistent:
+`quick_file_edit` is the default conformance task. It is deliberately small: it
+checks Task resolution, Candidate execution, submission projection, offline
+judging, and durable results without turning installation validation into a
+long-running benchmark.
+
+The repository also contains 51 provisional imported long-horizon Task/Judge
+descriptors under [`builtin/tasks`](builtin/tasks). They are not the default
+test suite and their count is not a product boundary. Tasks may be added,
+removed, replaced, or revised. The catalog-wide test proves only that the
+imported snapshot is internally consistent:
 
 - catalog IDs, paths, and metadata agree;
 - every Task ACL parses under the closed schema;
@@ -378,10 +384,9 @@ test proves only that the current snapshot is internally consistent:
 - the catalog exactly covers the packaged task directories.
 
 This is not admission or full execution evidence. Admission is per Task
-revision, so an unavailable provisional entry does not block unrelated admitted
-tasks. In the current snapshot every imported entry remains quarantined, and
-`list` intentionally returns no runnable built-in until signed admission and
-end-to-end evidence exist. Provenance and licensing information are in
+revision, so an unavailable provisional entry does not block the short admitted
+conformance task. Every imported long-horizon entry remains quarantined and is
+shown only by `list --all`. Provenance and licensing information are in
 [builtin/README.md](builtin/README.md) and
 [THIRD_PARTY_NOTICES.md](builtin/THIRD_PARTY_NOTICES.md).
 

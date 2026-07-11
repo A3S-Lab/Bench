@@ -2,6 +2,15 @@
   "schema": "a3s-bench/builtin-catalog/v1",
   "tasks": [
     {
+      "admission": "admitted",
+      "admission_reason": "bundled_conformance_task",
+      "category": "Conformance",
+      "id": "quick_file_edit",
+      "name": "Quick File Edit",
+      "path": "tasks/quick_file_edit",
+      "provenance_ref": "builtin/quick_file_edit"
+    },
+    {
       "admission": "quarantined",
       "admission_reason": "hidden_bundle_unavailable",
       "category": "Combinatorial Optimization",

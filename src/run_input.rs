@@ -67,15 +67,16 @@ impl RunOptions {
             );
             return load_locks(Path::new(&self.task), Path::new(&self.agent), state_root);
         }
-        anyhow::ensure!(
-            self.task.starts_with("./") || self.task.starts_with("../"),
-            "this development build currently executes local Tasks only"
-        );
+        let task_source = if self.task.starts_with("./") || self.task.starts_with("../") {
+            Path::new(&self.task).to_path_buf()
+        } else {
+            crate::catalog::runnable_task_path(&self.task)?
+        };
         let locks = state_root.join("locks");
         state_fs::secure_directory(&locks)?;
         let task_lock = locks.join(format!("{run_id}.task-lock.json"));
         let candidate_lock = locks.join(format!("{run_id}.candidate-lock.json"));
-        lock::create_task(Path::new(&self.task), state_root, &task_lock)?;
+        lock::create_task(&task_source, state_root, &task_lock)?;
         lock::create_candidate(&self.agent, self.model.clone(), state_root, &candidate_lock)?;
         load_locks(&task_lock, &candidate_lock, state_root)
     }

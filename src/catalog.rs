@@ -34,7 +34,7 @@ pub fn load() -> Result<Catalog> {
     Ok(catalog)
 }
 
-fn builtin_root() -> PathBuf {
+pub(crate) fn builtin_root() -> PathBuf {
     if let Ok(executable) = std::env::current_exe() {
         if let Some(component_root) = executable.parent().and_then(Path::parent) {
             let packaged = component_root.join("builtin");
@@ -44,6 +44,21 @@ fn builtin_root() -> PathBuf {
         }
     }
     Path::new(env!("CARGO_MANIFEST_DIR")).join("builtin")
+}
+
+pub fn runnable_task_path(id: &str) -> Result<PathBuf> {
+    let catalog = load()?;
+    let entry = catalog
+        .tasks
+        .iter()
+        .find(|entry| entry.id == id)
+        .ok_or_else(|| anyhow::anyhow!("unknown built-in Task {id:?}"))?;
+    anyhow::ensure!(
+        entry.admission == "admitted",
+        "built-in Task {id:?} is not runnable: {}",
+        entry.admission_reason
+    );
+    Ok(builtin_root().join(&entry.path))
 }
 
 fn validate(catalog: &Catalog, root: &Path) -> Result<()> {
@@ -93,23 +108,19 @@ fn validate(catalog: &Catalog, root: &Path) -> Result<()> {
             task.category == entry.category,
             "catalog category does not match Task descriptor"
         );
-        let source = task.legacy_judge.as_ref().ok_or_else(|| {
-            anyhow::anyhow!(
-                "built-in Task {:?} has no executable Judge source",
+        if let Some(source) = task.legacy_judge.as_ref() {
+            anyhow::ensure!(
+                matches!(source.mode.as_str(), "batch" | "game_server"),
+                "built-in Task {:?} uses unsupported Judge mode {:?}",
+                entry.id,
+                source.mode
+            );
+            anyhow::ensure!(
+                source.platform.as_deref() == Some("linux/amd64"),
+                "built-in Task {:?} must bind its Judge platform",
                 entry.id
-            )
-        })?;
-        anyhow::ensure!(
-            matches!(source.mode.as_str(), "batch" | "game_server"),
-            "built-in Task {:?} uses unsupported Judge mode {:?}",
-            entry.id,
-            source.mode
-        );
-        anyhow::ensure!(
-            source.platform.as_deref() == Some("linux/amd64"),
-            "built-in Task {:?} must bind its Judge platform",
-            entry.id
-        );
+            );
+        }
     }
     let task_directories = std::fs::read_dir(root.join("tasks"))?
         .filter_map(std::result::Result::ok)
@@ -140,5 +151,11 @@ mod tests {
             .tasks
             .iter()
             .all(|entry| builtin_root().join(&entry.path).is_dir()));
+    }
+
+    #[test]
+    fn admitted_builtin_resolves_to_a_task_bundle() {
+        let path = runnable_task_path("quick_file_edit").unwrap();
+        assert!(path.join("task.acl").is_file());
     }
 }

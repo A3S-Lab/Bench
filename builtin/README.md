@@ -9,7 +9,7 @@ products, runtimes, or command namespaces.
 An admitted built-in is referenced by its bare task ID:
 
 ~~~bash
-a3s bench run TASK_ID --agent codex
+a3s bench run quick_file_edit --agent ./candidate
 ~~~
 
 A bare ID searches admitted built-ins only. It never searches local paths, A3S
@@ -73,12 +73,15 @@ RuntimeSemanticsProfile and a per-execution attestation binding build,
 placement, spec, and result. An operator-trusted development provider may run a
 local Task, but the result remains `local_unofficial`.
 
+The short `quick_file_edit` task is admitted as a local conformance check. It
+exercises the complete run pipeline without requiring a long-horizon agent run.
+
 The 51 third-party task sources currently in this catalog are all quarantined.
 Their source records publish OCI tags and legacy evaluator commands, but do not
 provide enough evidence to admit those commands as A3S Judge Agent Assets. The
 image layers are referenced, not included or republished by this repository.
-Consequently, the default `a3s bench list` is empty in the current fixture
-snapshot; `--all` exposes the quarantined records for audit.
+Consequently, the default `a3s bench list` contains the short conformance task;
+`--all` additionally exposes the long-horizon quarantined records for audit.
 
 This is an incomplete development snapshot, not a fixed catalog or an
 acceptable released set. The current 51 sources are provisional: entries may be
