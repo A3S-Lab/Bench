@@ -199,14 +199,14 @@ fn print_result(
     path: &Path,
 ) -> Result<()> {
     if options.json {
-        println!(
-            "{}",
-            serde_json::to_string(&json!({
-                "schema":"a3s.bench.output.v1", "status":"completed",
-                "governance_status":"local_unofficial", "run_id":run_id,
-                "task_id":task_id, "score":score, "result_path":path
-            }))?
-        );
+        crate::output::print_success(
+            "run",
+            json!({
+                "status":"completed", "governance_status":"local_unofficial",
+                "run_id":run_id, "task_id":task_id, "score":score,
+                "result_path":path
+            }),
+        )?;
     } else {
         println!("COMPLETED  score={score}  task={task_id}");
         println!("run:    {run_id}");

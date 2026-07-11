@@ -80,7 +80,7 @@ def main() -> None:
         )
     packaged_catalog = json.loads(listing.stdout)
     source_catalog = json.loads((ROOT / "builtin" / "catalog.json").read_text())
-    if len(packaged_catalog["tasks"]) != len(source_catalog["tasks"]):
+    if len(packaged_catalog["data"]["tasks"]) != len(source_catalog["tasks"]):
         raise SystemExit("packaged built-in catalog is incomplete")
 
     archive = ROOT / "dist" / f"{package_name}.tar.gz"

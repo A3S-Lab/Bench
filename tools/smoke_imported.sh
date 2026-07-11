@@ -15,10 +15,12 @@ import sys
 
 value = json.loads(sys.argv[1])
 assert value["schema"] == "a3s.bench.output.v1", value
-assert value["status"] == "completed", value
-assert value["governance_status"] == "local_unofficial", value
-assert value["task_id"] == "juliet_vulnerability_analyzer", value
-score = float(value["score"])
+assert value["command"] == "run" and value["ok"] is True, value
+data = value["data"]
+assert data["status"] == "completed", value
+assert data["governance_status"] == "local_unofficial", value
+assert data["task_id"] == "juliet_vulnerability_analyzer", value
+score = float(data["score"])
 assert 0.0 <= score <= 1.0, value
 PY
 

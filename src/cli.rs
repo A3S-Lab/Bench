@@ -3,7 +3,7 @@ use anyhow::Result;
 use serde_json::json;
 use std::path::Path;
 
-const USAGE: &str = "a3s bench\n\nUsage:\n  a3s bench list [--all] [--json]\n  a3s bench info <task> [--all] [--json]\n  a3s bench run <task> --agent <candidate> [--model <provider/model>] [--locked] [--json]\n  a3s bench result [run-id] [--json]\n  a3s bench advanced check <./task>\n  a3s bench advanced doctor [--json]\n";
+const USAGE: &str = "a3s bench\n\nUsage:\n  a3s bench list [--all] [--json]\n  a3s bench info <task> [--all] [--json]\n  a3s bench run <task> --agent <candidate> [--model <provider/model>] [--locked] [--json]\n  a3s bench result [run-id] [--json]\n  a3s bench advanced check <./task>\n  a3s bench advanced doctor [--json]\n  a3s bench advanced task lock <source> --out <file>\n  a3s bench advanced candidate lock <candidate> [--model <provider/model>] --out <file>\n";
 
 pub fn run(args: Vec<String>) -> Result<u8> {
     if args.as_slice() == ["--component-info", "--json"] {
@@ -59,10 +59,7 @@ fn list(args: &[String]) -> Result<u8> {
         .filter(|task| all || task.admission == "admitted")
         .collect();
     if json_output {
-        println!(
-            "{}",
-            serde_json::to_string(&json!({"schema":"a3s.bench.output.v1","tasks":tasks}))?
-        );
+        crate::output::print_success("list", json!({"tasks":tasks}))?;
     } else {
         for task in tasks {
             println!("{:<40} {:<12} {}", task.id, task.admission, task.name);
@@ -74,11 +71,12 @@ fn list(args: &[String]) -> Result<u8> {
 fn info(args: &[String]) -> Result<u8> {
     anyhow::ensure!(!args.is_empty(), "info requires exactly one Task reference");
     let reference = &args[0];
-    let (_, json_output) = parse_flags(&args[1..], &["--all", "--json"])?;
+    let (all, json_output) = parse_flags(&args[1..], &["--all", "--json"])?;
     if reference.starts_with("./") || reference.starts_with("../") {
+        anyhow::ensure!(!all, "--all applies only to a built-in Task ID");
         let info = task::load_local(Path::new(reference))?;
         if json_output {
-            println!("{}", serde_json::to_string(&info)?);
+            crate::output::print_success("info", json!({"task":info}))?;
         } else {
             println!(
                 "{}\n  name: {}\n  category: {}\n  judge: {}",
@@ -92,8 +90,12 @@ fn info(args: &[String]) -> Result<u8> {
         .into_iter()
         .find(|task| task.id == *reference)
         .ok_or_else(|| anyhow::anyhow!("unknown built-in Task {reference:?}"))?;
+    anyhow::ensure!(
+        all || entry.admission == "admitted",
+        "built-in Task {reference:?} is not admitted; use --all to inspect it"
+    );
     if json_output {
-        println!("{}", serde_json::to_string(&entry)?);
+        crate::output::print_success("info", json!({"task":entry}))?;
     } else {
         println!(
             "{}\n  admission: {}\n  reason: {}",
@@ -167,12 +169,10 @@ fn doctor(args: &[String]) -> Result<u8> {
     let config = config::discover(&cwd)?;
     let status = runtime::preflight(&config.runtime)?;
     if json_output {
-        println!(
-            "{}",
-            serde_json::to_string(
-                &json!({"schema":"a3s.bench.doctor.v1","config":config.path,"runtime":status})
-            )?
-        );
+        crate::output::print_success(
+            "advanced doctor",
+            json!({"config":config.path,"runtime":status}),
+        )?;
     } else {
         println!("Runtime {} is ready ({})", status.provider, status.detail);
     }
@@ -209,7 +209,7 @@ fn result(args: &[String]) -> Result<u8> {
             );
             let projection = journal.public_projection();
             if json_output {
-                println!("{}", serde_json::to_string(&projection)?);
+                crate::output::print_success("result", projection)?;
             } else {
                 println!(
                     "{}  task={}",
@@ -228,7 +228,7 @@ fn print_completed_result(
     json_output: bool,
 ) -> Result<()> {
     if json_output {
-        println!("{}", serde_json::to_string(record)?);
+        crate::output::print_success("result", record.public_projection())?;
     } else {
         println!("COMPLETED  score={}  task={}", record.score, record.task_id);
         println!("run:    {}", record.run_id);
@@ -264,6 +264,8 @@ mod tests {
     #[test]
     fn usage_names_the_product_neutral_candidate() {
         assert!(USAGE.contains("--agent <candidate>"));
+        assert!(USAGE.contains("advanced task lock <source> --out <file>"));
+        assert!(USAGE.contains("advanced candidate lock <candidate>"));
         assert!(!USAGE.contains("--agent <agent>"));
         assert!(!USAGE.contains("--agent <asset>"));
     }

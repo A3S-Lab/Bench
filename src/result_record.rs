@@ -115,6 +115,25 @@ impl LocalResultRecord {
         Ok(run_id)
     }
 
+    pub fn public_projection(&self) -> serde_json::Value {
+        serde_json::json!({
+            "status": "completed",
+            "governance_status": self.governance_status,
+            "run_id": self.run_id,
+            "task_id": self.task_id,
+            "task_lock_digest": self.task_lock_digest,
+            "candidate_lock_digest": self.candidate_lock_digest,
+            "candidate_identity": self.agent_identity,
+            "judge_identity": self.judge_identity,
+            "runtime_provider": self.runtime_provider,
+            "model": self.model,
+            "model_usage": self.model_usage,
+            "primary_metric": self.primary_metric,
+            "score": self.score,
+            "result_digest": self.result_digest,
+        })
+    }
+
     fn validate(&self, expected_run_id: &str) -> Result<()> {
         run_journal::validate_run_id(&self.run_id)?;
         anyhow::ensure!(
@@ -274,5 +293,24 @@ mod tests {
         assert!(record.validate("local-1").is_err());
         value["unexpected"] = serde_json::json!(true);
         assert!(serde_json::from_value::<LocalResultRecord>(value).is_err());
+    }
+
+    #[test]
+    fn public_projection_omits_private_diagnostics_and_source_reference() {
+        let record: LocalResultRecord = serde_json::from_value(serde_json::json!({
+            "schema":"a3s.bench.local-result.v4",
+            "result_digest":format!("sha256:{}", "c".repeat(64)),
+            "governance_status":"local_unofficial", "run_id":"local-1",
+            "task_id":"task", "task_lock_digest":format!("sha256:{}", "a".repeat(64)),
+            "agent":"./private/adapter", "candidate_lock_digest":format!("sha256:{}", "b".repeat(64)),
+            "agent_identity":"candidate-id", "judge_identity":"judge-id",
+            "runtime_provider":"docker", "model":null, "model_usage":null,
+            "primary_metric":"score", "score":"1",
+            "judge_result":{"schema":"bench.judge.result.v1","solution_verdict":"valid","metrics":{"score":"1"},"diagnostics":{"private":"secret"}}
+        })).unwrap();
+        let projection = record.public_projection();
+        assert!(projection.get("agent").is_none());
+        assert!(projection.get("judge_result").is_none());
+        assert_eq!(projection["candidate_identity"], "candidate-id");
     }
 }

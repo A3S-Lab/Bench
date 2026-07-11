@@ -34,7 +34,7 @@ if failure=$(cargo run --quiet -- run ./examples/smoke \
   exit 1
 fi
 failed_run_id=$(printf '%s\n' "$failure" | sed -n \
-  's/^a3s bench: run \(local-[A-Za-z0-9-]*\) failed:.*/\1/p')
+  's/.*"message":"run \(local-[A-Za-z0-9-]*\) failed:.*/\1/p')
 test -n "$failed_run_id"
 failed_output=$(cargo run --quiet -- result "$failed_run_id" --json)
 
@@ -51,17 +51,19 @@ for raw, expected_task in zip(
 ):
     value = json.loads(raw)
     assert value["schema"] == "a3s.bench.output.v1", value
-    assert value["status"] == "completed", value
-    assert value["task_id"] == expected_task, value
-    assert value["score"] == "1", value
-    journal_path = root / ".a3s" / "bench" / "runs" / f'{value["run_id"]}.json'
+    assert value["command"] == "run" and value["ok"] is True, value
+    data = value["data"]
+    assert data["status"] == "completed", value
+    assert data["task_id"] == expected_task, value
+    assert data["score"] == "1", value
+    journal_path = root / ".a3s" / "bench" / "runs" / f'{data["run_id"]}.json'
     journal = json.loads(journal_path.read_text())
     assert journal["schema"] == "a3s.bench.run-journal.v3", journal
     assert journal["task_lock_digest"].startswith("sha256:"), journal
     assert journal["candidate_lock_digest"].startswith("sha256:"), journal
     assert journal["stage"] == "completed", journal
-    assert journal["result_path"] == value["result_path"], (journal, value)
-    result = json.loads(Path(value["result_path"]).read_text())
+    assert journal["result_path"] == data["result_path"], (journal, value)
+    result = json.loads(Path(data["result_path"]).read_text())
     assert result["schema"] == "a3s.bench.local-result.v4", result
     assert result["result_digest"] == journal["result_digest"], (result, journal)
     assert result["task_lock_digest"] == journal["task_lock_digest"], (result, journal)
@@ -69,9 +71,10 @@ for raw, expected_task in zip(
 
 failed = json.loads(sys.argv[6])
 assert failed["schema"] == "a3s.bench.output.v1", failed
-assert failed["status"] == "failed", failed
-assert "error" not in failed, failed
+assert failed["command"] == "result" and failed["ok"] is True, failed
+assert failed["data"]["status"] == "failed", failed
+assert "error" not in failed["data"], failed
 PY
 
 cargo run --quiet -- result --json >/dev/null
-echo "local Docker Runtime smoke passed (local, OCI, locked Agent Assets, and offline locked OCI Judge)"
+echo "local Docker Runtime smoke passed (local, OCI, locked Candidate adapters, and offline locked OCI Judge)"

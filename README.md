@@ -80,7 +80,8 @@ cargo run -- result
 ```
 
 Use `--json` with `list`, `info`, `run`, `result`, or `advanced doctor` for
-machine-readable output.
+machine-readable output. Every response is one `a3s.bench.output.v1` object with
+`command`, `ok`, and exactly one of `data` or `error`.
 
 ## What a run does
 

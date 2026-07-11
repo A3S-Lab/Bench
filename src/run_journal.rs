@@ -200,7 +200,6 @@ impl RunJournal {
 
     pub fn public_projection(&self) -> serde_json::Value {
         serde_json::json!({
-            "schema":"a3s.bench.output.v1",
             "status":self.stage,
             "run_id":self.run_id,
             "task_reference":self.task_reference,
