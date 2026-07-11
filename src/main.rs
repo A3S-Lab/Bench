@@ -8,6 +8,7 @@ mod game_judge;
 mod judge_source;
 mod legacy_judge;
 mod lock;
+mod lock_identity;
 mod model_candidate;
 mod oci_asset;
 mod result_record;

@@ -770,6 +770,15 @@ path directly and never follows the original OCI selector. The local smoke gate
 locks an OCI Judge, deletes its source Docker image, and completes the locked
 run offline.
 
+Both exported lock schemas also carry a canonical `lock_digest` computed from
+their closed semantic fields while excluding the digest field itself. Loading
+validates that digest before artifact lookup, so changes to a Candidate model,
+revision, resolved Task image, or Judge binding fail as lock tampering. Artifact
+verification remains a separate check, and Candidate loading recomputes the
+Agent package identity and compares it with `candidate_revision`. This local
+integrity digest is not an admission signature and cannot grant official
+authority.
+
 Use `--locked` when resolution must not contact a registry or A3S OS. It accepts
 only explicitly immutable inputs whose referenced bytes already exist locally:
 

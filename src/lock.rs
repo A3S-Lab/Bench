@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 #[serde(deny_unknown_fields)]
 pub struct TaskLock {
     pub schema: String,
+    pub lock_digest: String,
     pub task_revision: String,
     pub artifact_digest: String,
     pub judge_revision: String,
@@ -24,6 +25,7 @@ pub struct LoadedTaskLock {
 #[serde(deny_unknown_fields)]
 pub struct CandidateLock {
     pub schema: String,
+    pub lock_digest: String,
     pub candidate_revision: String,
     pub artifact_digest: String,
     pub model: Option<String>,
@@ -47,14 +49,16 @@ pub fn create_task(source: &Path, state_root: &Path, output: &Path) -> Result<Ta
         let resolved = crate::runtime::resolve_image(reference, platform)?;
         resolved_images.insert(image_key(reference, platform), resolved.immutable_ref);
     }
-    let value = TaskLock {
+    let mut value = TaskLock {
         schema: "a3s.bench.task-lock.v1".into(),
+        lock_digest: String::new(),
         task_revision: digest.clone(),
         artifact_digest: digest,
         judge_revision: locked_judge.identity,
         judge_artifact_digest,
         resolved_images,
     };
+    value.lock_digest = crate::lock_identity::task(&value)?;
     write_exclusive(output, &serde_json::to_vec_pretty(&value)?)?;
     Ok(value)
 }
@@ -97,12 +101,14 @@ pub fn create_candidate(
     let digest = crate::task_snapshot::capture(&asset.root, state_root)?;
     let captured = crate::task_snapshot::artifact_path(state_root, &digest)?;
     let locked_asset = crate::asset::load_local(&captured)?;
-    let value = CandidateLock {
+    let mut value = CandidateLock {
         schema: "a3s.bench.candidate-lock.v1".into(),
+        lock_digest: String::new(),
         candidate_revision: locked_asset.identity,
         artifact_digest: digest,
         model,
     };
+    value.lock_digest = crate::lock_identity::candidate(&value)?;
     write_exclusive(output, &serde_json::to_vec_pretty(&value)?)?;
     Ok(value)
 }
@@ -112,6 +118,11 @@ pub fn load_task(path: &Path, state_root: &Path) -> Result<LoadedTaskLock> {
     anyhow::ensure!(
         value.schema == "a3s.bench.task-lock.v1",
         "invalid TaskLock schema"
+    );
+    crate::lock_identity::validate_digest(&value.lock_digest)?;
+    anyhow::ensure!(
+        crate::lock_identity::task(&value)? == value.lock_digest,
+        "TaskLock semantic digest mismatch"
     );
     anyhow::ensure!(
         value.task_revision == value.artifact_digest,
@@ -147,6 +158,11 @@ pub fn load_candidate(path: &Path, state_root: &Path) -> Result<(CandidateLock, 
         value.schema == "a3s.bench.candidate-lock.v1",
         "invalid CandidateLock schema"
     );
+    crate::lock_identity::validate_digest(&value.lock_digest)?;
+    anyhow::ensure!(
+        crate::lock_identity::candidate(&value)? == value.lock_digest,
+        "CandidateLock semantic digest mismatch"
+    );
     anyhow::ensure!(
         !value.candidate_revision.trim().is_empty(),
         "CandidateLock revision is empty"
@@ -154,6 +170,12 @@ pub fn load_candidate(path: &Path, state_root: &Path) -> Result<(CandidateLock, 
     let artifact = crate::task_snapshot::artifact_path(state_root, &value.artifact_digest)?;
     crate::task_snapshot::verify(&artifact, &value.artifact_digest)
         .context("locked Candidate artifact is unavailable or corrupt")?;
+    let candidate = crate::asset::load_local(&artifact)
+        .context("locked Candidate artifact is not an Agent Asset")?;
+    anyhow::ensure!(
+        candidate.identity == value.candidate_revision,
+        "CandidateLock revision does not match artifact"
+    );
     Ok((value, artifact))
 }
 
