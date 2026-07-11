@@ -3,7 +3,7 @@ use anyhow::Result;
 use serde_json::json;
 use std::path::Path;
 
-const USAGE: &str = "a3s bench\n\nUsage:\n  a3s bench list [--all] [--json]\n  a3s bench info <task> [--all] [--json]\n  a3s bench run <task> --agent <asset> [--model <provider/model>] [--locked] [--json]\n  a3s bench result [run-id] [--json]\n  a3s bench advanced check <./task>\n  a3s bench advanced doctor [--json]\n";
+const USAGE: &str = "a3s bench\n\nUsage:\n  a3s bench list [--all] [--json]\n  a3s bench info <task> [--all] [--json]\n  a3s bench run <task> --agent <candidate> [--model <provider/model>] [--locked] [--json]\n  a3s bench result [run-id] [--json]\n  a3s bench advanced check <./task>\n  a3s bench advanced doctor [--json]\n";
 
 pub fn run(args: Vec<String>) -> Result<u8> {
     if args.as_slice() == ["--component-info", "--json"] {
@@ -133,7 +133,10 @@ fn advanced_task_lock(args: &[String]) -> Result<u8> {
 }
 
 fn advanced_candidate_lock(args: &[String]) -> Result<u8> {
-    anyhow::ensure!(!args.is_empty(), "candidate lock requires an Agent Asset");
+    anyhow::ensure!(
+        !args.is_empty(),
+        "candidate lock requires a Candidate adapter"
+    );
     let source = &args[0];
     let mut output = None;
     let mut model = None;
@@ -256,6 +259,13 @@ mod tests {
         let value = component_info();
         assert_eq!(value["component"], "bench");
         assert_eq!(value["cli_protocol"], "a3s-bench-cli/v1");
+    }
+
+    #[test]
+    fn usage_names_the_product_neutral_candidate() {
+        assert!(USAGE.contains("--agent <candidate>"));
+        assert!(!USAGE.contains("--agent <agent>"));
+        assert!(!USAGE.contains("--agent <asset>"));
     }
 
     #[test]

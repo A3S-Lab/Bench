@@ -96,7 +96,7 @@ fn start_game(task: &task::TaskInfo, state_root: &Path) -> Result<Option<game_ju
 
 fn execute_candidate(
     task: &task::TaskInfo,
-    candidate: &asset::LocalAgentAsset,
+    candidate: &asset::LocalAssetPackage,
     model: Option<&str>,
     config: &config::LocalConfig,
     candidate_workspace: &Path,
@@ -143,7 +143,7 @@ fn execute_candidate(
 
 fn execute_judge(
     task: &task::TaskInfo,
-    judge: &asset::LocalAgentAsset,
+    judge: &asset::LocalAssetPackage,
     submission: &Path,
     game: Option<&game_judge::GameSession>,
 ) -> Result<runtime::JudgeResult> {

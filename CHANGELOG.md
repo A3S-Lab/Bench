@@ -2,6 +2,16 @@
 
 All notable changes to a3s-bench are documented in this file.
 
+## [Unreleased]
+
+### Changed
+
+- Defined Candidate as a product-neutral coding agent, automated system, or
+  deterministic tool, with the A3S Asset schema serving only as the current
+  adapter wire format.
+- Renamed user-facing Agent Asset authoring language to Candidate adapter
+  authoring while preserving the existing CLI and package protocol.
+
 ## [0.1.0-preview.1] - 2026-07-11
 
 Initial development preview.
@@ -28,3 +38,4 @@ Initial development preview.
 - Preview artifacts produce only `local_unofficial` results.
 
 [0.1.0-preview.1]: https://github.com/A3S-Lab/Bench/releases/tag/v0.1.0-preview.1
+[Unreleased]: https://github.com/A3S-Lab/Bench/compare/v0.1.0-preview.1...HEAD

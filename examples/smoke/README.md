@@ -48,20 +48,20 @@ cargo run -- run ./examples/smoke --agent ./examples/smoke-candidate
 ~~~
 
 The repository integration smoke builds both Candidate and Judge OCI fixtures,
-runs the local-directory path and the all-OCI Agent Asset path, validates their
-machine output, and reopens the latest persisted result:
+runs the local-directory path and the all-OCI Candidate/Judge adapter path,
+validates their machine output, and reopens the latest persisted result:
 
 ~~~bash
 ./tools/smoke_local.sh
 ~~~
 
-`run` validates the task, resolves and locks the Candidate and Judge Agent
-Assets, asks A3S OS Runtime to execute their role-specific sandboxes, and prints
+`run` validates the task, resolves and locks the Candidate and Judge adapters,
+asks A3S OS Runtime to execute their role-specific sandboxes, and prints
 the final result and report location. Retries and resume reuse the sealed plan;
 they may recompute a pure step or reattach using the same Runtime operation ID,
 but never create another logical Candidate/Judge execution or re-resolve input.
 Changing authored source creates a new immutable revision for a new run.
 
-The component currently supports the deterministic local Candidate above. Model
-Candidates, OCI Agent Asset resolution, durable checkpoints, and the shared
-Runtime client remain release work.
+The component supports the deterministic local Candidate above, generic
+model-backed Candidates, and local or OCI adapter packages. Migration to the
+complete shared Runtime lifecycle remains release work.

@@ -4,34 +4,34 @@ use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
-pub struct LocalAgentAsset {
+pub struct LocalAssetPackage {
     pub root: PathBuf,
     pub entrypoint: String,
     pub definition_path: Option<String>,
     pub identity: String,
 }
 
-pub fn load_local(reference: &Path) -> Result<LocalAgentAsset> {
+pub fn load_local(reference: &Path) -> Result<LocalAssetPackage> {
     let metadata = std::fs::symlink_metadata(reference)
-        .with_context(|| format!("Agent Asset does not exist: {}", reference.display()))?;
+        .with_context(|| format!("Asset package does not exist: {}", reference.display()))?;
     anyhow::ensure!(
         metadata.is_dir() && !metadata.file_type().is_symlink(),
-        "local Agent Asset must be a real directory"
+        "local Asset package must be a real directory"
     );
     load_directory(reference, tree_identity(reference)?)
 }
 
-pub fn resolve(reference: &str, state_root: &Path) -> Result<LocalAgentAsset> {
+pub fn resolve(reference: &str, state_root: &Path) -> Result<LocalAssetPackage> {
     if reference.starts_with("./") || reference.starts_with("../") {
         return load_local(Path::new(reference));
     }
     let image = reference
         .strip_prefix("oci://")
-        .ok_or_else(|| anyhow::anyhow!("unsupported Agent Asset reference {reference:?}"))?;
+        .ok_or_else(|| anyhow::anyhow!("unsupported Asset package reference {reference:?}"))?;
     crate::oci_asset::resolve(image, state_root)
 }
 
-pub(crate) fn load_directory(reference: &Path, identity: String) -> Result<LocalAgentAsset> {
+pub(crate) fn load_directory(reference: &Path, identity: String) -> Result<LocalAssetPackage> {
     let manifest = reference.join(".a3s/asset.acl");
     let source = std::fs::read_to_string(&manifest)
         .with_context(|| format!("could not read {}", manifest.display()))?;
@@ -50,7 +50,7 @@ pub(crate) fn load_directory(reference: &Path, identity: String) -> Result<Local
     validate_package_path(file, "source.entrypoint")?;
     anyhow::ensure!(
         reference.join(file).is_file(),
-        "Agent Asset entrypoint is missing: {file}"
+        "Asset package entrypoint is missing: {file}"
     );
     let definition_path = source
         .attributes
@@ -65,10 +65,10 @@ pub(crate) fn load_directory(reference: &Path, identity: String) -> Result<Local
         validate_package_path(path, "source.definition_path")?;
         anyhow::ensure!(
             reference.join(path).is_file(),
-            "Agent Asset definition is missing: {path}"
+            "Asset package definition is missing: {path}"
         );
     }
-    Ok(LocalAgentAsset {
+    Ok(LocalAssetPackage {
         root: reference.canonicalize()?,
         entrypoint: entrypoint.to_owned(),
         definition_path: definition_path.map(str::to_owned),
@@ -76,10 +76,10 @@ pub(crate) fn load_directory(reference: &Path, identity: String) -> Result<Local
     })
 }
 
-impl LocalAgentAsset {
+impl LocalAssetPackage {
     pub fn model_instructions_path(&self) -> Result<PathBuf> {
         let relative = self.definition_path.as_deref().ok_or_else(|| {
-            anyhow::anyhow!("model-backed Agent Asset must define source.definition_path")
+            anyhow::anyhow!("model-backed Candidate adapter must define source.definition_path")
         })?;
         Ok(self.root.join(relative))
     }
@@ -128,7 +128,7 @@ fn validate_asset_schema(document: &Document) -> Result<()> {
     for block in &document.blocks {
         anyhow::ensure!(
             SCALARS.contains(&block.name.as_str()) || STRUCTURED.contains(&block.name.as_str()),
-            "Agent Asset contains unknown top-level field or block {:?}",
+            "Asset package contains unknown top-level field or block {:?}",
             block.name
         );
         if SCALARS.contains(&block.name.as_str()) {
@@ -159,7 +159,7 @@ fn validate_asset_schema(document: &Document) -> Result<()> {
         };
         validate_block(
             block,
-            &format!("Agent Asset {}", block.name),
+            &format!("Asset package {}", block.name),
             BlockSchema {
                 attributes,
                 children: &[],
@@ -178,7 +178,7 @@ fn validate_asset_schema(document: &Document) -> Result<()> {
                 .filter(|block| block.name == *name)
                 .count()
                 <= 1,
-            "Agent Asset contains duplicate {name}"
+            "Asset package contains duplicate {name}"
         );
     }
     Ok(())
@@ -189,13 +189,16 @@ fn tree_identity(root: &Path) -> Result<String> {
         for entry in std::fs::read_dir(directory)? {
             let entry = entry?;
             let kind = entry.file_type()?;
-            anyhow::ensure!(!kind.is_symlink(), "Agent Asset must not contain symlinks");
+            anyhow::ensure!(
+                !kind.is_symlink(),
+                "Asset package must not contain symlinks"
+            );
             if kind.is_dir() {
                 visit(root, &entry.path(), files)?;
             } else if kind.is_file() {
                 files.push(entry.path().strip_prefix(root)?.to_path_buf());
             } else {
-                anyhow::bail!("Agent Asset contains a special file");
+                anyhow::bail!("Asset package contains a special file");
             }
         }
         Ok(())
@@ -222,12 +225,12 @@ fn require_top(document: &Document, key: &str, expected: &str) -> Result<()> {
         .collect();
     anyhow::ensure!(
         matches.len() == 1,
-        "Agent Asset must define {key} exactly once"
+        "Asset package must define {key} exactly once"
     );
     let actual = matches[0].attributes.get(key).and_then(Value::as_str);
     anyhow::ensure!(
         actual == Some(expected),
-        "Agent Asset {key} must be {expected:?}"
+        "Asset package {key} must be {expected:?}"
     );
     Ok(())
 }
@@ -240,7 +243,7 @@ fn unique_top_block<'a>(document: &'a Document, name: &str) -> Result<&'a Block>
         .collect();
     anyhow::ensure!(
         matches.len() == 1,
-        "Agent Asset must contain exactly one {name} block"
+        "Asset package must contain exactly one {name} block"
     );
     Ok(matches[0])
 }

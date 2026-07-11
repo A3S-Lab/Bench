@@ -1,14 +1,15 @@
 # a3s-bench
 
-`a3s-bench` evaluates an A3S Agent against a reproducible Task and its
-task-owned Judge. It freezes every mutable input before execution, runs the
-Candidate in an isolated workspace, gives the Judge only the projected
-submission, and stores an identity-bound result.
+`a3s-bench` evaluates a Candidate against a reproducible Task and its task-owned
+Judge. A Candidate can be a coding agent, another automated system, or a
+deterministic tool. Bench freezes every mutable input before execution, runs the
+Candidate through a packaged adapter in an isolated workspace, gives the Judge
+only the projected submission, and stores an identity-bound result.
 
 The intended command is:
 
 ```bash
-a3s bench run <task> --agent <agent>
+a3s bench run <task> --agent <candidate>
 ```
 
 This repository contains the Bench control component, its protocol design,
@@ -24,10 +25,10 @@ components and cannot make an evaluation official.
 
 | Area | Current state |
 | --- | --- |
-| Local Task and Agent Assets | Runnable without an A3S OS login |
+| Local Tasks and Candidate adapters | Runnable without an A3S OS login |
 | Docker Runtime | Default for signed-out local runs and covered by smoke tests |
 | Local `.a3s/config.acl` models | Supported without an A3S OS login |
-| OCI Agent and Judge Assets | Docker-compatible images and generic ORAS artifacts supported |
+| OCI Candidate and Judge adapters | Docker-compatible images and generic ORAS artifacts supported |
 | `a3s-box` selection | Parsed and preflighted; execution is not implemented yet |
 | Shared Runtime lifecycle | Contract, registry, and durable operation primitives exist; Bench migration is incomplete |
 | Built-in catalog | Current 51-source snapshot validates structurally; entries remain provisional and quarantined pending per-revision evidence |
@@ -85,7 +86,7 @@ machine-readable output.
 
 ```text
 Task source       -> stable TaskSourceSnapshot -> TaskLock
-Candidate source  -> immutable Agent snapshot  -> CandidateLock
+Candidate source  -> immutable adapter snapshot -> CandidateLock
 TaskLock + CandidateLock                        -> one run
 Candidate workspace -> SubmissionSnapshot       -> task-owned Judge
 JudgeResult + input locks                       -> durable result
@@ -112,8 +113,9 @@ These local digests provide integrity, not official admission authority.
 | Concept | Meaning |
 | --- | --- |
 | TaskBundle | Task ACL, public prompt/workspace, hidden Judge inputs, and the Judge selector |
-| Candidate | The Agent Asset being evaluated |
-| Judge | An Agent Asset selected by the Task, never by the benchmark user |
+| Candidate | The coding agent, automated system, or tool being evaluated |
+| Candidate adapter | The package that exposes a Candidate through Bench's execution contract |
+| Judge | The task-owned evaluator, supplied through a locked Judge adapter |
 | TaskLock | Immutable Task snapshot, Judge snapshot, and resolved work images |
 | CandidateLock | Immutable Candidate snapshot and optional model binding |
 | SubmissionSnapshot | Locked-policy projection of the terminal Candidate workspace |
@@ -130,13 +132,13 @@ The implemented development CLI is:
 ```text
 a3s bench list [--all] [--json]
 a3s bench info <task> [--all] [--json]
-a3s bench run <task> --agent <asset> [--model <provider/model>] [--locked] [--json]
+a3s bench run <task> --agent <candidate> [--model <provider/model>] [--locked] [--json]
 a3s bench result [run-id] [--json]
 
 a3s bench advanced check <./task>
 a3s bench advanced doctor [--json]
 a3s bench advanced task lock <source> --out <file>
-a3s bench advanced candidate lock <asset> [--model <provider/model>] --out <file>
+a3s bench advanced candidate lock <candidate> [--model <provider/model>] --out <file>
 ```
 
 The canonical design also specifies `advanced init` and `advanced cancel`.
@@ -178,22 +180,24 @@ cargo run -- run "$tmp/task.lock.json" \
 ```
 
 `--locked` accepts only explicit TaskLock and CandidateLock files. It rejects
-paths to mutable Task/Agent sources, aliases, and OCI selectors. Every required
-artifact must already exist locally.
+paths to mutable Task/Candidate sources, aliases, and OCI selectors. Every
+required artifact must already exist locally.
 
-## Agent and Judge sources
+## Candidate and Judge sources
 
 The development resolver supports:
 
 | Source | Example |
 | --- | --- |
-| Local Agent Asset directory | `./examples/smoke-candidate` |
-| OCI Agent Asset | `oci://registry.example.com/team/agent:tag` |
+| Local Candidate adapter directory | `./examples/smoke-candidate` |
+| OCI Candidate adapter | `oci://registry.example.com/team/agent:tag` |
 | Exported CandidateLock | `./candidate.lock.json` with `--locked` |
 
-A local Agent Asset must contain `.a3s/asset.acl`. An OCI artifact must contain
-the same closed A3S Agent Asset package; Bench does not infer an Agent from an
-arbitrary image.
+A local Candidate adapter must contain `.a3s/asset.acl`. An OCI artifact must
+contain the same closed package contract; Bench does not infer a Candidate from
+an arbitrary image or executable. The current wire format is
+`a3s.asset.v1`, `category = "agent"`, but that format does not restrict the
+Candidate to an A3S-native agent.
 
 For OCI sources:
 
@@ -207,12 +211,14 @@ For OCI sources:
 - registry credentials remain owned by Docker or ORAS and never enter a lock,
   workspace, or result.
 
-Candidate and task-owned Judge Assets use the same resolver.
+Candidate and task-owned Judge adapters use the same resolver and
+immutable snapshot machinery, while remaining different benchmark roles.
 
 To add another Candidate, package its entrypoint and optional model-controller
-definition as an Agent Asset. See [Agent Asset authoring](docs/agent-assets.md)
-for the complete local, OCI, and CandidateLock workflow and the current boundary
-between generic model-backed Candidates and native Codex/Claude Code adapters.
+definition as a Candidate adapter. See
+[Candidate adapter authoring](docs/candidate-adapters.md) for the complete local,
+OCI, and CandidateLock workflow and the current boundary between generic
+model-backed Candidates and native Codex/Claude Code adapters.
 
 ## Running with a custom model
 
@@ -250,9 +256,9 @@ Rules:
 
 ## Comparing Codex and Claude Code
 
-Bench compares immutable Agent Assets, not brand names or bare executables. A
-Codex or Claude Code integration should therefore be a small standard Agent
-Asset adapter that freezes:
+Bench compares immutable Candidate adapters, not brand names or bare
+executables. A Codex or Claude Code integration should therefore use a small
+standard adapter that freezes:
 
 - the coding-agent product and adapter version;
 - its non-interactive entrypoint and controller instructions;
@@ -272,7 +278,7 @@ agent adapter and model. This produces two independent result IDs whose scores
 and evidence can be compared without introducing a special benchmark mode.
 
 Today, `codex` and `claude` bare aliases are not implemented by this development
-binary. Use local or OCI Agent Asset adapters and lock them explicitly:
+binary. Use local or OCI Candidate adapters and lock them explicitly:
 
 ```bash
 cargo run -- advanced task lock ./my_task --out ./task.lock.json
@@ -282,7 +288,7 @@ cargo run -- advanced candidate lock oci://registry.example.com/agents/claude-co
   --model anthropic/my-claude-model --out ./claude.candidate.lock.json
 ```
 
-For a model-only comparison, use the same Agent Asset adapter for both
+For a model-only comparison, use the same Candidate adapter for both
 CandidateLocks and change only `--model`. For a full coding-agent comparison,
 use distinct Codex and Claude Code adapters; otherwise the experiment compares
 models under one controller rather than the two products.
@@ -385,7 +391,7 @@ Runs create owner-only state under the current project:
 ```text
 .a3s/bench/
   artifacts/       content-addressed Task, Candidate, and Judge snapshots
-  assets/          OCI Agent Asset cache
+  assets/          OCI Candidate/Judge package cache
   locks/           internal TaskLock and CandidateLock files
   runs/            durable run journals
   workspaces/      private Candidate workspaces
@@ -421,16 +427,16 @@ python3 tools/package_component.py
 git diff --check
 ```
 
-`smoke_local.sh` covers local, OCI, locked Agent Assets, and an offline locked
-OCI Judge. `smoke_imported.sh` executes the imported Juliet work/Judge path as
-`local_unofficial`.
+`smoke_local.sh` covers local, OCI, and locked Candidate adapters plus an
+offline locked OCI Judge. `smoke_imported.sh` executes the imported Juliet
+work/Judge path as `local_unofficial`.
 
 ## Documentation
 
 - [Canonical design](docs/design.md) — normative P1 architecture, trust model,
   lifecycle, schemas, and roadmap
 - [Task Spec ACL](docs/task-spec-acl.md) — Task authoring reference
-- [Agent Asset authoring](docs/agent-assets.md) — add local or OCI Candidates
+- [Candidate adapter authoring](docs/candidate-adapters.md) — add local or OCI Candidates
 - [Built-in catalog](builtin/README.md) — imported sources, quarantine, and
   admission requirements
 - [Smoke example](examples/smoke/README.md) — smallest runnable fixture

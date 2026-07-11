@@ -1,8 +1,15 @@
-# Agent Asset authoring
+# Candidate adapter authoring
 
-Bench accepts Candidates as standard A3S Agent Assets. Adding an Agent does not
-require a product-specific branch in Bench: create a local package, publish the
-same package as an OCI artifact, or export a CandidateLock from either source.
+Bench evaluates Candidates, not one vendor's Agent type. A Candidate may be a
+coding agent, another automated system, or a deterministic tool. It joins Bench
+through a Candidate adapter: create a local package, publish the same package as
+an OCI artifact, or export a CandidateLock from either source. Adding a
+Candidate does not require a product-specific branch in Bench.
+
+The current adapter wire format reuses `a3s.asset.v1`, `category = "agent"` so
+Candidate and Judge packages can share resolution, snapshotting, and Runtime
+machinery. This is a packaging contract, not a requirement that the underlying
+Candidate was built with A3S.
 
 ## Package contract
 
@@ -70,7 +77,7 @@ capabilities without placing secrets in the Candidate sandbox.
 
 ## Lock before comparing
 
-Create one TaskLock and one CandidateLock per exact Agent/model combination:
+Create one TaskLock and one CandidateLock per exact adapter/model combination:
 
 ```bash
 a3s bench advanced task lock ./task --out ./task.lock.json
@@ -83,9 +90,9 @@ a3s bench run ./task.lock.json \
   --locked
 ```
 
-Use distinct Agent Asset revisions to compare complete coding-agent products.
-Use one Agent Asset revision with different model bindings to isolate model
-behavior. In both cases, run the CandidateLocks against the same TaskLock.
+Use distinct Candidate adapter revisions to compare complete coding-agent
+products. Use one adapter revision with different model bindings to isolate
+model behavior. In both cases, run the CandidateLocks against the same TaskLock.
 
 ## OCI publication
 

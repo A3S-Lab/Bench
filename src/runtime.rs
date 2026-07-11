@@ -1,4 +1,4 @@
-use crate::{asset::LocalAgentAsset, task::TaskInfo};
+use crate::{asset::LocalAssetPackage, task::TaskInfo};
 use a3s_runtime::{ProviderId, RuntimeSelection};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -80,7 +80,7 @@ pub struct JudgeResult {
 
 pub fn execute_docker_candidate(
     task: &TaskInfo,
-    candidate: &LocalAgentAsset,
+    candidate: &LocalAssetPackage,
     workspace: &Path,
 ) -> Result<()> {
     let entrypoint = candidate
@@ -138,7 +138,7 @@ pub fn execute_docker_candidate(
 
 pub fn execute_docker_judge(
     task: &TaskInfo,
-    judge: &LocalAgentAsset,
+    judge: &LocalAssetPackage,
     submission: &Path,
 ) -> Result<JudgeResult> {
     let hidden_root = task.root.join("private/bundle").canonicalize()?;

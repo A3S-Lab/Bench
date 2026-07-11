@@ -13,8 +13,8 @@ pub struct RunOptions {
 
 pub struct LoadedRun {
     pub task: task::TaskInfo,
-    pub candidate: asset::LocalAgentAsset,
-    pub judge: asset::LocalAgentAsset,
+    pub candidate: asset::LocalAssetPackage,
+    pub judge: asset::LocalAssetPackage,
     pub model: Option<String>,
     pub resolved_images: BTreeMap<String, String>,
     pub task_lock_digest: String,

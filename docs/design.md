@@ -11,17 +11,21 @@ mode.
 a3s-bench is a benchmark control component, not an Agent runtime. It owns the
 meaning of an evaluation: Task compilation, immutable identity, Trial planning,
 Judge selection, score validation, persistence, and reporting. A3S OS Runtime
-owns all Agent execution.
+owns all Candidate-adapter and Judge execution.
 
 The design has eight foundational rules:
 
 1. `a3s bench` is the only public entrypoint. There is no public `a3s-bench`
    executable, second account, or second configuration tree.
-2. Candidate and Judge are both ordinary immutable A3S OS Agent Asset snapshots.
-   The task owns its Judge; an entrant cannot replace it.
+2. Candidate is the product-neutral system being evaluated: a coding agent,
+   another automated system, or a deterministic tool. A Candidate adapter and
+   the Judge are packaged through the standard immutable Asset contract. The
+   task owns its Judge; an entrant cannot replace it, and the Candidate need
+   not be implemented with A3S.
 3. Bench imports one shared A3S OS execution API: `A3sRuntimeClient`. Candidate
-   and Judge use the same `RuntimeExecutionSpec` and `RuntimeExecutionResult`,
-   distinguished only by a locked role and capability policy.
+   adapters and Judges use the same `RuntimeExecutionSpec` and
+   `RuntimeExecutionResult`, distinguished only by a locked role and capability
+   policy.
 4. Runtime provider selection belongs to the shared A3S OS Runtime. An explicit
    operator selection in `.a3s/config.acl` wins and may name any conforming
    provider, including `a3s-box`. Otherwise authenticated OS policy applies
@@ -270,8 +274,8 @@ Every conforming execution MUST satisfy all of the following:
 2. Local TaskBundle input is atomically captured as one TaskSourceSnapshot
    before compilation. A source change during capture fails the run; compilation
    never accepts a torn mix of file generations.
-3. Candidate and Judge execute from immutable, content-addressed Agent Asset
-   snapshots.
+3. Candidate adapters and Judges execute from immutable, content-addressed
+   Asset snapshots.
 4. A TaskLock fixes the Judge snapshot and its `bench.judge.v1` capability. No
    CLI option can override the Judge.
 5. Candidate receives only public Task inputs. It never receives the Judge
@@ -283,7 +287,7 @@ Every conforming execution MUST satisfy all of the following:
 7. Judge receives only that SubmissionSnapshot read-only, the hidden bundle
    through a separate protected read-only mount, bounded scratch, and no
    Candidate capability. It never receives the full TerminalCheckpoint,
-   Candidate Agent Asset, controller state, credentials, or private logs.
+   Candidate adapter package, controller state, credentials, or private logs.
 8. Judge output is accepted only from the protected typed result channel.
    stdout, stderr, exit text, and files in ordinary workspace are never result
    protocols.
@@ -455,7 +459,8 @@ inspected but `run` rejects them before external or billable work.
 
 ### 4.2 Candidate references
 
-`--agent` accepts the standard A3S Agent Asset reference family:
+`--agent` names the Candidate for CLI compatibility. It accepts the standard
+Candidate adapter reference family:
 
 ~~~bash
 a3s bench run ./examples/smoke --agent codex
@@ -470,14 +475,16 @@ a3s bench run ./task.lock.json --agent ./reviewer.candidate.lock.json --locked
 immutable Candidate snapshot. The word itself is not identity and a component
 update may map a new unlocked run to a new CandidateRevision; every run records
 the resolved revision, and `--locked` rejects the alias. Local, OCI, and A3S OS
-assets pass through the same shared Asset resolver and produce the same
+packages pass through the same shared Asset resolver and produce the same
 AssetSnapshot identity when their canonical package trees and semantic
-configuration are identical.
+configuration are identical. The adapter currently uses the `a3s.asset.v1`,
+`category = "agent"` wire format; this is a packaging and execution contract,
+not a restriction on the Candidate implementation.
 
 An installed component may provide `claude` under exactly the same embedded
 selector contract. These names are convenience selectors, not product-specific
-execution modes. Bench resolves either selector to a normal Agent Asset and
-then uses the same Candidate, Runtime, locking, and result pipeline.
+execution modes. Bench resolves either selector to a normal Candidate adapter
+and then uses the same Candidate, Runtime, locking, and result pipeline.
 
 A Codex-versus-Claude Code comparison is two ordinary runs over the same
 TaskLock, with one CandidateLock for each exact adapter and model combination.
@@ -497,12 +504,12 @@ an internal asset file, and extension-based guessing are rejected. Candidate
 lock commands accept an Asset source, while `run --locked` accepts only the
 lock; neither command wraps an existing lock into another lock.
 
-An OCI Candidate reference may name any OCI Distribution-compatible registry;
+An OCI Candidate adapter may name any OCI Distribution-compatible registry;
 it is not restricted to Docker Hub or an A3S-operated registry. Its artifact
 must be a complete standard `a3s.asset.v1`, `category = "agent"` package. A
 plain container image without that package contract is not inferred or wrapped
-as an Agent Asset. An unlocked mutable OCI tag is a source selector only: the
-resolver records the exact manifest digest and canonical package-content digest
+as a Candidate adapter. An unlocked mutable OCI tag is a source selector only:
+the resolver records the exact manifest digest and canonical package-content digest
 before CandidateLock construction. Registry authentication is scoped to the
 original authority, credentials are never forwarded across an authority change,
 and no credential bytes enter AssetSnapshot, CandidateLock, or an Agent
@@ -515,7 +522,7 @@ OS bearer credential is never sent to an origin learned from task content or a
 pasted foreign URL. Selecting another OS origin is an explicit top-level A3S
 account/configuration operation performed before Bench starts.
 
-`--model` is fill-only. It is accepted only when the Candidate Asset leaves its
+`--model` is fill-only. It is accepted only when the Candidate adapter leaves its
 model unbound, and the selected model must be allowed by the Asset, Task limits,
 and operator policy. It cannot override an Asset-bound model. CandidateLock
 also freezes model parameters, prompt/controller configuration, tools, memory
@@ -598,7 +605,7 @@ The normal interface has four commands:
 ~~~bash
 a3s bench list
 a3s bench info <task-id-or-./path>
-a3s bench run <task-id-or-./path> --agent <asset-ref>
+a3s bench run <task-id-or-./path> --agent <candidate-ref>
 a3s bench result [run-id] [--out <public-result.json>]
 ~~~
 
@@ -614,7 +621,7 @@ The Bench-specific P1 grammar is closed:
 | `advanced check` | exactly one local authored TaskBundle directory or root `task.acl` | none |
 | `advanced doctor` | none | none |
 | `advanced task lock` | exactly one non-lock Task source | exactly one `--out` |
-| `advanced candidate lock` | exactly one non-lock Candidate Asset reference | optional `--model`; exactly one `--out` |
+| `advanced candidate lock` | exactly one non-lock Candidate adapter reference | optional `--model`; exactly one `--out` |
 | `advanced cancel` | exactly one run ID | none |
 
 Each singleton option may occur once. Options have only the spellings above;
@@ -724,15 +731,17 @@ offline; Bench neither ignores it nor refreshes it under `--locked`.
 
 | Term | Meaning |
 | --- | --- |
+| Candidate | Product-neutral coding agent, automated system, or deterministic tool being evaluated. |
+| Candidate adapter | Immutable package that exposes a Candidate through Bench's execution contract; currently encoded with the shared `a3s.asset.v1`, `category = "agent"` wire format. |
 | TaskSourceSnapshot | Atomic immutable capture of one authored TaskBundle generation before parsing or external resolution. |
 | TaskBundle | Authored Task content split into public inputs, hidden Judge inputs, and a task-owned Judge Asset reference. |
-| AssetSnapshot | Immutable canonical snapshot of a standard A3S OS Agent Asset. |
+| AssetSnapshot | Immutable canonical snapshot of a shared Asset package used by a Candidate adapter or Judge. |
 | TaskLock | Immutable compiled Task semantics, public input digests, hidden input digest, metrics, and locked Judge snapshot/capability. |
 | CandidateLock | Immutable Candidate snapshot plus admitted model and parameter bindings. |
 | ExperimentPlan | Root commitment to one TaskLock, one CandidateLock, limits, Runtime requirements, and scoring contract. |
 | Experiment | User-visible evaluation instance of one ExperimentPlan. |
 | Trial | The one logical Candidate-to-Judge evaluation in the P1 Experiment. |
-| RuntimeExecutionSpec | Provider-neutral sealed request for one Candidate or Judge Agent execution. |
+| RuntimeExecutionSpec | Provider-neutral sealed request for one Candidate-adapter or Judge execution. |
 | RuntimeExecutionResult | Provider-neutral, identity-bound completion record returned by A3S OS Runtime. |
 | TerminalCheckpoint | Candidate-private Runtime-owned immutable snapshot of the complete terminal workspace; never mounted into Judge. |
 | SubmissionSnapshot | Runtime-derived immutable projection of TerminalCheckpoint under the locked submission policy; the only Candidate output mounted into Judge. |
@@ -889,8 +898,8 @@ admission policy.
 
 ### 6.4 Asset snapshot rules
 
-Candidate and Judge use one shared A3S AssetSnapshot implementation. Snapshot
-creation:
+Candidate adapters and Judges use one shared A3S AssetSnapshot implementation.
+Snapshot creation:
 
 - reads `.a3s/asset.acl` and the complete declared package atomically;
 - normalizes UTF-8 paths, modes, ordering, and file manifests;
@@ -1007,7 +1016,7 @@ Task-governance responsibilities and must not be implied by a successful run.
 - ExperimentPlan and Trial identity bindings;
 - SubmissionSnapshot digest and read-only submission mount name;
 - no TerminalCheckpoint identity, mount, digest, or ArtifactRef; Runtime binds
-  checkpoint-to-submission evidence outside the Agent-visible request;
+  checkpoint-to-submission evidence outside the Candidate-visible request;
 - hidden bundle digest and protected mount name;
 - declared metric schema and scoring-relevant constraints;
 - time, resource, output, and ModelGateway budgets;
@@ -1136,10 +1145,10 @@ For `role = candidate`:
 - result contract requires a Runtime-owned private TerminalCheckpoint, its
   derived SubmissionSnapshot, and usage evidence.
 
-The Agent Asset defines the controller entrypoint and controller runtime. The
-Task's `work.image` defines the writable tool/workspace sandbox attached to that
+The Candidate adapter defines the controller entrypoint and controller runtime.
+The Task's `work.image` defines the writable tool/workspace sandbox attached to that
 controller; it never replaces or merges with the Asset runtime image. P1 admits
-only Candidate Assets that implement this standard external-workspace
+only Candidate adapters that implement this standard external-workspace
 capability. Provider-specific image-composition rules are forbidden.
 
 For `role = judge`:
@@ -1820,8 +1829,8 @@ paper over any of these gaps.
 
 - Add generic named capabilities to the shared `a3s.asset.v1` schema and freeze
   the exact `bench.judge.v1` fields shown in this document.
-- Freeze shared AssetSnapshot resolution for embedded, local, and A3S OS Agent
-  Assets.
+- Freeze shared AssetSnapshot resolution for embedded, local, OCI, and A3S
+  OS-hosted Candidate/Judge packages.
 - Freeze atomic TaskSourceSnapshot capture and `source_changed` behavior for
   local TaskBundles.
 - Add/freeze the shared A3S OS execution client,
@@ -1871,9 +1880,10 @@ statistics, distributed Bench workers, or leaderboards.
 
 - Wire the four normal commands through the main A3S CLI and lazy Bench control
   component; implement only the closed P1 Advanced set from section 4.4.
-- Resolve bare built-in Task IDs, explicit local paths, embedded Candidate alias,
-  local Agent Assets, arbitrary OCI Agent Assets, and A3S OS Agent Assets.
-- Run embedded/local Candidate and Judge Assets through the local OS Runtime
+- Resolve bare built-in Task IDs, explicit local paths, embedded Candidate
+  aliases, local Candidate adapters, arbitrary OCI Candidate adapters, and A3S
+  OS-hosted adapter packages.
+- Run embedded/local Candidate and Judge adapters through the local OS Runtime
   provider without requiring a cloud login; only remote Asset resolution or a
   remote provider requires an OS account.
 - Compile one TaskLock, CandidateLock, and direct one-Trial ExperimentPlan.
@@ -1967,7 +1977,8 @@ The first usable release is complete only when evidence proves every item:
   `.a3s/bench/`, no `.a3s-bench` path exists, and no `--state-dir` option exists;
   Runtime and ArtifactStore global roots remain opaque platform state; created
   state is owner-only and no-follow/path-identity checks fail closed;
-- Candidate and Judge both resolve as ordinary A3S Agent AssetSnapshots;
+- Candidate adapters and Judges both resolve through the ordinary A3S
+  AssetSnapshot contract without restricting the Candidate implementation;
 - local Task, Asset, Runtime, and `.a3s/config.acl` provider/model resolution
   run without an A3S OS login; only a selected remote Asset or provider may
   require OS authority;
@@ -2037,7 +2048,7 @@ The first usable release is complete only when evidence proves every item:
   the local Runtime without an OS session, including custom endpoints, explicit
   model selection, secret non-disclosure, and rejection of implicit
   `default_model` inheritance;
-- Candidate and Judge Agent Asset resolution from arbitrary OCI-compatible
+- Candidate adapter and Judge Asset resolution from arbitrary OCI-compatible
   registries, exact manifest/package digest locking, mutable-tag elimination,
   rejection of plain non-Asset images, and authority-scoped registry
   credentials;
@@ -2090,10 +2101,10 @@ The first usable release is complete only when evidence proves every item:
   AssetSnapshot digests;
 - archive re-encoding and provenance changes do not change semantic identity;
 - mutable source movement does not change an existing TaskLock or plan;
-- Candidate `--model` is fill-only, explicit Asset model cannot be overridden,
+- Candidate `--model` is fill-only, an adapter-bound model cannot be overridden,
   ambient account/session/Memory/MCP/tool/shell/environment state is ignored,
   and every capability grant equals the locked three-way intersection;
-- Candidate Asset lacking normal Agent requirements and Judge Asset lacking or
+- Candidate adapter lacking normal execution requirements and Judge Asset lacking or
   duplicating `bench.judge.v1` are rejected;
 - old `benchmark {}`, handler, runner, SDK ABI, and Judge-runtime-index fields
   are rejected rather than silently translated;
@@ -2153,7 +2164,7 @@ The first usable release is complete only when evidence proves every item:
   model/route/budget scope and no raw credential;
 - Judge cannot widen capabilities, access Candidate runtime state, or write the
   read-only submission and hidden mounts;
-- Judge cannot access the full TerminalCheckpoint, Candidate Asset/controller
+- Judge cannot access the full TerminalCheckpoint, Candidate adapter/controller
   source, private logs, credentials, or live workspace;
 - Candidate cannot write, inherit, or spoof the protected result capability;
 - stdout/stderr and ordinary workspace files cannot substitute for typed result;

@@ -260,7 +260,7 @@ not select a separate Judge executor. For the Judge role, the Runtime:
 - starts the locked Agent AssetSnapshot using its normal runtime contract;
 - exposes the Runtime-derived SubmissionSnapshot and locked hidden bundle
   through distinct protected read-only mounts;
-- never exposes the Candidate-private TerminalCheckpoint, Candidate Agent Asset,
+- never exposes the Candidate-private TerminalCheckpoint, Candidate adapter,
   controller state, credentials, or private logs;
 - provides a typed `bench.judge.request.v1` request;
 - accepts only `bench.judge.result.v1` from the protected result channel;
@@ -416,18 +416,18 @@ lock records the manifest digest and normalized extracted workspace manifest.
 Official admission rejects content that cannot be licensed, scanned, resolved
 immutably, or materialized without unsafe file types and reserved-path escapes.
 
-`work.image` selects the agent-visible workspace/tool sandbox. P1 accepts an
+`work.image` selects the Candidate-visible workspace/tool sandbox. P1 accepts an
 immutable OCI reference or an authoring OCI reference resolved to an exact
 manifest digest at lock time. It does not execute an inline Dockerfile, build
 hook, package install, or Task command. Authors must produce an image through a
 separate trusted build workflow before locking; adding a future hermetic builder
 requires a shared platform contract and does not make Bench an image builder.
-The Agent Asset still defines the controller entrypoint and controller runtime;
-A3S OS Runtime attaches that controller to the sandbox via the standard
+The Candidate adapter still defines the controller entrypoint and controller
+runtime; A3S OS Runtime attaches that controller to the sandbox via the standard
 workspace capability instead of merging or replacing images. The lock records
 the resolved content and provenance. `network_need` describes task egress only;
-model inference uses the separately scoped ModelGateway selected from the agent
-asset and operator policy.
+model inference uses the separately scoped ModelGateway selected from the
+Candidate adapter and operator policy.
 
 P1 admits only `network_need = "none"`. A Task that requires general egress is
 portable-valid only under a future schema/profile and cannot run in P1. Model
@@ -456,7 +456,7 @@ rules, file-type rules, and size/count bounds to derive one immutable
 SubmissionSnapshot.
 
 The Judge receives only SubmissionSnapshot. It never receives the full
-TerminalCheckpoint, Candidate Agent Asset/controller source, credentials,
+TerminalCheckpoint, Candidate adapter/controller source, credentials,
 private logs, or live workspace. Bench and Candidate cannot provide an
 authoritative submission path, manifest, digest, bytes, or ArtifactRef. Runtime
 evidence binds the SubmissionSnapshot digest to the source checkpoint and
@@ -527,7 +527,8 @@ Task ACL intentionally excludes:
 
 - registry mirrors, signatures, credentials, and retention;
 - trial seeds, budgets, checkpoint times, feedback quota, and aggregation;
-- candidate agent, model, prompt wrapper, tools, and memory policy;
+- Candidate implementation, model, adapter instructions, tools, and memory
+  policy;
 - Flow Asset references, authored workflow definitions, and orchestration
   selectors;
 - executor selection, host fallback, and concrete secret bindings;
@@ -541,12 +542,12 @@ proxy variables, shell expansion, current-session values, and
 `A3S_BENCH_*`/`BENCH_*` overrides are invalid Task semantics. Platform
 credentials may authorize the configured resolver. The local Runtime may also
 use project-local or user-local `.a3s/config.acl` to resolve the provider route
-and credential for an exact model selected by the Candidate Asset or
+and credential for an exact model selected by the Candidate adapter or
 `--model`, without an A3S OS login. It never inherits `default_model` for a
 Bench run. Resolved outcome-affecting choices are locked, while secret bytes
 never enter the ACL, lock, report, evidence, or Agent environment.
 
-These belong to the selected candidate Agent Asset, `CandidateLock`, operator
+These belong to the selected Candidate adapter, `CandidateLock`, operator
 policy, `ExperimentPlan`, or generated `RuntimeExecutionSpec`. Bench's internal
 run workflow is implementation code executed by its embedded `a3s-flow` engine;
 it is not a Flow Asset, is not benchmark input, and cannot be selected from

@@ -66,7 +66,7 @@ pub fn create_task(source: &Path, state_root: &Path, output: &Path) -> Result<Ta
 fn resolve_judge(
     task: &crate::task::TaskInfo,
     state_root: &Path,
-) -> Result<crate::asset::LocalAgentAsset> {
+) -> Result<crate::asset::LocalAssetPackage> {
     if task.judge_asset.starts_with("oci://") {
         crate::asset::resolve(&task.judge_asset, state_root)
     } else {
@@ -145,7 +145,7 @@ pub fn load_task(path: &Path, state_root: &Path) -> Result<LoadedTaskLock> {
     crate::task_snapshot::verify(&judge_artifact, &value.judge_artifact_digest)
         .context("locked Judge artifact is unavailable or corrupt")?;
     let judge = crate::asset::load_local(&judge_artifact)
-        .context("locked Judge artifact is not an Agent Asset")?;
+        .context("locked Judge artifact is not an Asset package")?;
     anyhow::ensure!(
         judge.identity == value.judge_revision,
         "TaskLock Judge revision does not match artifact"
@@ -176,7 +176,7 @@ pub fn load_candidate(path: &Path, state_root: &Path) -> Result<(CandidateLock, 
     crate::task_snapshot::verify(&artifact, &value.artifact_digest)
         .context("locked Candidate artifact is unavailable or corrupt")?;
     let candidate = crate::asset::load_local(&artifact)
-        .context("locked Candidate artifact is not an Agent Asset")?;
+        .context("locked Candidate artifact is not a Candidate adapter")?;
     anyhow::ensure!(
         candidate.identity == value.candidate_revision,
         "CandidateLock revision does not match artifact"

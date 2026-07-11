@@ -1,10 +1,13 @@
-use crate::asset::{self, LocalAgentAsset};
+use crate::asset::{self, LocalAssetPackage};
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-pub fn resolve(reference: &str, state_root: &Path) -> Result<LocalAgentAsset> {
-    anyhow::ensure!(!reference.is_empty(), "OCI Agent Asset reference is empty");
+pub fn resolve(reference: &str, state_root: &Path) -> Result<LocalAssetPackage> {
+    anyhow::ensure!(
+        !reference.is_empty(),
+        "OCI Asset package reference is empty"
+    );
     match resolve_docker_image(reference, state_root) {
         Ok(asset) => Ok(asset),
         Err(docker_error) => resolve_oras_with("oras", reference, state_root).with_context(|| {
@@ -15,7 +18,7 @@ pub fn resolve(reference: &str, state_root: &Path) -> Result<LocalAgentAsset> {
     }
 }
 
-fn resolve_docker_image(reference: &str, state_root: &Path) -> Result<LocalAgentAsset> {
+fn resolve_docker_image(reference: &str, state_root: &Path) -> Result<LocalAssetPackage> {
     let image_id = match docker_output(&["image", "inspect", "--format", "{{.Id}}", reference]) {
         Ok(value) => value,
         Err(_) => {
@@ -25,7 +28,7 @@ fn resolve_docker_image(reference: &str, state_root: &Path) -> Result<LocalAgent
                 .context("could not start Docker OCI pull")?;
             anyhow::ensure!(
                 output.status.success(),
-                "could not pull Docker-compatible OCI Agent Asset {reference:?}: {}",
+                "could not pull Docker-compatible OCI Asset package {reference:?}: {}",
                 String::from_utf8_lossy(&output.stderr).trim()
             );
             docker_output(&["image", "inspect", "--format", "{{.Id}}", reference])?
@@ -62,7 +65,11 @@ fn resolve_docker_image(reference: &str, state_root: &Path) -> Result<LocalAgent
     publish_cache(state_root, staging, &image_id)
 }
 
-fn resolve_oras_with(program: &str, reference: &str, state_root: &Path) -> Result<LocalAgentAsset> {
+fn resolve_oras_with(
+    program: &str,
+    reference: &str,
+    state_root: &Path,
+) -> Result<LocalAssetPackage> {
     let digest = command_output(program, &["resolve", reference])?;
     validate_digest(&digest)?;
     if let Some(asset) = load_cache(state_root, &digest)? {
@@ -88,11 +95,11 @@ fn resolve_oras_with(program: &str, reference: &str, state_root: &Path) -> Resul
     let validation = (|| -> Result<()> {
         let manifest = staging.join(".a3s/asset.acl");
         let entrypoint = asset::load_manifest_entrypoint(&manifest)
-            .context("ORAS artifact is not an A3S Agent Asset")?;
+            .context("ORAS artifact is not an A3S Asset package")?;
         let file = safe_entrypoint_file(&entrypoint)?;
         anyhow::ensure!(
             staging.join(file).is_file(),
-            "ORAS Agent Asset entrypoint is missing: {file}"
+            "ORAS Asset package entrypoint is missing: {file}"
         );
         Ok(())
     })();
@@ -102,7 +109,7 @@ fn resolve_oras_with(program: &str, reference: &str, state_root: &Path) -> Resul
     publish_cache(state_root, staging, &digest)
 }
 
-fn publish_cache(state_root: &Path, staging: PathBuf, digest: &str) -> Result<LocalAgentAsset> {
+fn publish_cache(state_root: &Path, staging: PathBuf, digest: &str) -> Result<LocalAssetPackage> {
     crate::state_fs::secure_atomic_write(
         &staging.join(".complete"),
         format!("{digest}\n").as_bytes(),
@@ -121,7 +128,7 @@ fn publish_cache(state_root: &Path, staging: PathBuf, digest: &str) -> Result<Lo
     asset::load_directory(&cache, digest.to_owned())
 }
 
-fn load_cache(state_root: &Path, digest: &str) -> Result<Option<LocalAgentAsset>> {
+fn load_cache(state_root: &Path, digest: &str) -> Result<Option<LocalAssetPackage>> {
     let cache = cache_path(state_root, digest)?;
     if valid_cache(&cache, digest)? {
         return Ok(Some(asset::load_directory(&cache, digest.to_owned())?));
@@ -227,7 +234,7 @@ fn docker_copy(container: &str, source: &str, destination: &Path) -> Result<()> 
         .context("could not start Docker OCI extraction")?;
     anyhow::ensure!(
         output.status.success(),
-        "OCI Agent Asset is missing {source}: {}",
+        "OCI Asset package is missing {source}: {}",
         String::from_utf8_lossy(&output.stderr).trim()
     );
     Ok(())

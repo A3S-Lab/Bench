@@ -2,7 +2,7 @@
 name = "a3s-bench"
 version = "0.1.0-preview.1"
 edition = "2021"
-description = "Reproducible benchmark control component for A3S agents"
+description = "Reproducible evaluation of coding agents and automated systems"
 license = "MIT"
 repository = "https://github.com/A3S-Lab/Bench"
 
