@@ -80,16 +80,21 @@ image layers are referenced, not included or republished by this repository.
 Consequently, the default `a3s bench list` is empty in the current fixture
 snapshot; `--all` exposes the quarantined records for audit.
 
-This is an incomplete development snapshot, not an acceptable release state.
-The first usable a3s-bench release must admit and ship all 51 as out-of-the-box
-built-ins. For every entry, release preparation must resolve immutable work and
-Judge OCI manifests, provide any required protected hidden input, adapt legacy
-evaluator output to `bench.judge.result.v1`, validate the complete Task/Judge
-supply chain, and attach the required admission and Runtime-conformance
-evidence. Normal first use may pull those locked OCI artifacts, but users must
-not clone an upstream dataset, run the import tool, construct a Judge, place a
-hidden bundle, edit the catalog, or log in to A3S OS when using the local
-Runtime. Any one of the 51 remaining quarantined or unavailable blocks release.
+This is an incomplete development snapshot, not a fixed catalog or an
+acceptable released set. The current 51 sources are provisional: entries may be
+added, removed, replaced, or revised as their provenance and execution
+contracts are validated. Admission is per Task revision. A quarantined or
+unavailable provisional entry is excluded from the released built-in set and
+does not block unrelated admitted revisions.
+
+Every Task revision that is shipped as a built-in must still be genuinely out
+of the box. Release preparation must resolve immutable work and Judge OCI
+manifests, provide any required protected hidden input, adapt legacy evaluator
+output to `bench.judge.result.v1`, validate the complete Task/Judge supply
+chain, and attach the required admission and Runtime-conformance evidence.
+Normal first use may pull those locked OCI artifacts, but users must not clone
+an upstream dataset, run the import tool, construct a Judge, place a hidden
+bundle, edit the catalog, or log in to A3S OS when using the local Runtime.
 
 Once a revision is admitted, it becomes visible in the default `list` and its
 bare ID works with the normal command:

@@ -43,10 +43,11 @@ The design has eight foundational rules:
    retries, reapers, or workspace lifecycle.
 8. Each P1 run is deliberately one Task, one Candidate execution, one private
    Runtime-owned terminal checkpoint, one derived SubmissionSnapshot, one Judge
-   execution, and one result. The first usable release must nevertheless ship
-   all 51 built-in Tasks as admitted, runnable, out-of-the-box choices. Suites,
-   trajectory evaluation, campaigns, statistics, and leaderboards come only
-   after this per-Task vertical slice is proven across the complete catalog.
+   execution, and one result. Every built-in included in a release must be
+   admitted, runnable, and out of the box, but the released set is revisioned
+   and may grow or change independently of the current provisional import
+   snapshot. Suites, trajectory evaluation, campaigns, statistics, and
+   leaderboards come only after this per-Task vertical slice is proven.
 
 The common path is:
 
@@ -472,6 +473,21 @@ the resolved revision, and `--locked` rejects the alias. Local, OCI, and A3S OS
 assets pass through the same shared Asset resolver and produce the same
 AssetSnapshot identity when their canonical package trees and semantic
 configuration are identical.
+
+An installed component may provide `claude` under exactly the same embedded
+selector contract. These names are convenience selectors, not product-specific
+execution modes. Bench resolves either selector to a normal Agent Asset and
+then uses the same Candidate, Runtime, locking, and result pipeline.
+
+A Codex-versus-Claude Code comparison is two ordinary runs over the same
+TaskLock, with one CandidateLock for each exact adapter and model combination.
+Distinct adapters compare the complete coding-agent systems. To isolate model
+behavior, use the same adapter revision and create CandidateLocks that differ
+only in their configured model route. Reports compare the resulting locked run
+identities; Bench does not infer experimental equivalence from product names.
+Bare selectors are convenient for unlocked exploration, but reproducible
+comparisons resolve and save their CandidateLocks first, and `--locked` always
+rejects selectors.
 
 A local Candidate reference beginning `./` or `../` is classified by `lstat`
 and schema content. A directory must contain the standard root
@@ -1869,10 +1885,12 @@ statistics, distributed Bench workers, or leaderboards.
   and reattaching Runtime handles.
 - Enforce hard resource, time, token, tool, output, and model-cost limits through
   locked Runtime grants.
-- Materialize, adapt, validate, and admit all 51 built-in Tasks and their Judge
-  supply chains. A missing hidden bundle, mutable Judge image, legacy stdout
+- Materialize, adapt, validate, and admit each Task revision selected for the
+  P1 released built-in set together with its Judge supply chain. A selected
+  revision with a missing hidden bundle, mutable Judge image, legacy stdout
   parser, absent typed-result adapter, or missing Runtime conformance evidence
-  blocks the release rather than leaving that built-in quarantined.
+  is excluded from that released set. It does not block unrelated admitted
+  revisions, and it must never appear as runnable in the default catalog.
 
 P1 is the first usable release. It is complete before any advanced evaluation
 surface is added.
@@ -1933,10 +1951,10 @@ The first usable release is complete only when evidence proves every item:
   no component/provider lazy install, update, network/source resolution,
   credential refresh, or heuristic cache lookup, and fails when digest-pinned
   bytes or current-principal authorization are unavailable locally;
-- all 51 built-ins are admitted, appear in the default list, and complete end to
-  end with their locked task-owned Judges; the release may not ship with a
-  catalog entry quarantined, unavailable, or dependent on authoring-time source
-  materialization;
+- every Task revision in the released built-in set is admitted, appears in the
+  default list, and completes end to end with its locked task-owned Judge; a
+  provisional, quarantined, or unavailable import is excluded from that set and
+  does not block unrelated admitted revisions;
 - every built-in works after normal Bench installation without an A3S OS login
   when using local assets and the local Runtime; first use may pull its locked
   work/Judge OCI artifacts from their declared registries, including with
