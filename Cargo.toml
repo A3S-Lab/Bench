@@ -1,6 +1,6 @@
 [package]
 name = "a3s-bench"
-version = "0.1.0-preview.1"
+version = "0.1.0"
 edition = "2021"
 description = "Reproducible evaluation of coding agents and automated systems"
 license = "MIT"

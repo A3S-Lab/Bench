@@ -4,6 +4,26 @@ All notable changes to a3s-bench are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-07-12
+
+First stable release of the local Bench component and its v1 CLI, TaskLock,
+CandidateLock, and result contracts.
+
+### Added
+
+- One short, offline `quick_file_edit` conformance Task and 51 locally runnable
+  long-horizon Task/Judge adapters.
+- Product-neutral Candidate adapters loaded from local directories, arbitrary
+  OCI artifacts, or immutable CandidateLocks.
+- Bundled `a3s-code` model controller for reproducible provider/model
+  comparisons using local `.a3s/config.acl` routes without A3S OS login.
+- Task-owned Judges loaded from local packages or arbitrary OCI artifacts,
+  including model-backed Judge routes bound into TaskLock and result identity.
+- Signed-out Docker Runtime selection by default, with explicit Runtime
+  provider configuration and `a3s-box` preflight support.
+- GitHub Actions release packaging for Linux and macOS with component manifests
+  and SHA-256 checksums.
+
 ### Changed
 
 - Defined Candidate as a product-neutral coding agent, automated system, or
@@ -37,5 +57,6 @@ Initial development preview.
   execution, and native Codex/Claude Code adapters remain incomplete.
 - Preview artifacts produce only `local_unofficial` results.
 
+[0.1.0]: https://github.com/A3S-Lab/Bench/releases/tag/v0.1.0
 [0.1.0-preview.1]: https://github.com/A3S-Lab/Bench/releases/tag/v0.1.0-preview.1
-[Unreleased]: https://github.com/A3S-Lab/Bench/compare/v0.1.0-preview.1...HEAD
+[Unreleased]: https://github.com/A3S-Lab/Bench/compare/v0.1.0...HEAD

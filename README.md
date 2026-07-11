@@ -15,9 +15,9 @@ Candidates and Judges can be loaded from local directories or any
 OCI Distribution-compatible registry.
 
 > [!NOTE]
-> Bench is currently a preview. Local runs produce `local_unofficial` results;
-> official evaluation additionally requires signed component and Task
-> admission.
+> A stable Bench component does not make every evaluation official. Local runs
+> produce `local_unofficial` results; official evaluation additionally requires
+> signed component and Task admission.
 
 ## Quick start
 
@@ -185,9 +185,9 @@ done
 ```
 
 The Codex and Claude Code paths above are examples of adapters you supply; the
-preview does not yet bundle native adapters or bare `codex` and `claude`
+current release does not bundle native adapters or bare `codex` and `claude`
 aliases. Do not add `--model` to those native locks unless their adapter
-contract explicitly supports it. In the current preview, `--model` selects the
+contract explicitly supports it. In the current release, `--model` selects the
 generic A3S Code model controller.
 
 ## Task-owned Judges
@@ -240,7 +240,7 @@ a3s bench advanced doctor
 a3s bench advanced doctor --json
 ```
 
-The current preview executes with Docker. `a3s-box` selection and preflight are
+The current release executes with Docker. `a3s-box` selection and preflight are
 implemented, but execution awaits completion of the shared Runtime lifecycle
 migration. The architecture accepts other conforming Runtime providers through
 the same platform registry rather than adding provider-specific Bench flags.
@@ -328,11 +328,11 @@ python3 tools/check_builtins.py
 ./tools/smoke_imported.sh
 ```
 
-The project is at preview maturity. `advanced init` and `advanced cancel` are
-specified but not implemented, `a3s-box` execution is pending, and the shared
-Runtime lifecycle migration is incomplete. The packaged 51-task catalog is
-locally runnable, but catalog consistency is not full execution evidence or
-official admission.
+Version 0.1 establishes the stable local CLI and lock/result formats implemented
+by this release. `advanced init` and `advanced cancel` are specified but not
+implemented, `a3s-box` execution is pending, and the shared Runtime lifecycle
+migration is incomplete. The packaged 51-task catalog is locally runnable, but
+catalog consistency is not full execution evidence or official admission.
 
 ## Documentation
 
