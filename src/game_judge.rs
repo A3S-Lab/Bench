@@ -36,10 +36,11 @@ impl GameSession {
             &script,
             include_bytes!("../runtime_assets/game_server_app.py"),
         )?;
+        make_runtime_asset_readable(&script)?;
         let command =
             source_command.replace("/tmp/game_server_app.py", "/opt/a3s/game_server_app.py");
         let mut process = Command::new("docker");
-        process.args(["run", "-d", "--rm"]);
+        process.args(["run", "-d"]);
         if let Some(platform) = source.platform.as_deref() {
             process.args(["--platform", platform]);
         }
@@ -151,8 +152,14 @@ impl GameSession {
             }
             std::thread::sleep(Duration::from_millis(500));
         }
-        let logs = docker(&["logs", &self.container]).unwrap_or_default();
-        anyhow::bail!("game Judge did not become ready: {logs}")
+        let logs = docker_output(&["logs", &self.container])?;
+        let inspect = docker_output(&[
+            "inspect",
+            "--format",
+            "status={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}}",
+            &self.container,
+        ])?;
+        anyhow::bail!("game Judge did not become ready: {inspect}\n{logs}")
     }
 }
 
@@ -176,6 +183,33 @@ fn docker(args: &[&str]) -> Result<String> {
         String::from_utf8_lossy(&output.stdout).trim()
     );
     Ok(String::from_utf8(output.stdout)?.trim().to_owned())
+}
+
+fn docker_output(args: &[&str]) -> Result<String> {
+    let output = Command::new("docker")
+        .args(args)
+        .output()
+        .context("could not run Docker for game Judge diagnostics")?;
+    Ok(format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    )
+    .trim()
+    .to_owned())
+}
+
+fn make_runtime_asset_readable(path: &Path) -> Result<()> {
+    let mut permissions = std::fs::metadata(path)?.permissions();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        permissions.set_mode(0o444);
+    }
+    #[cfg(not(unix))]
+    permissions.set_readonly(true);
+    std::fs::set_permissions(path, permissions)?;
+    Ok(())
 }
 
 fn epoch_millis() -> Result<u128> {
