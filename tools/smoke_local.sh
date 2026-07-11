@@ -22,6 +22,12 @@ cargo run --quiet -- advanced candidate lock ./examples/smoke-candidate \
 locked_output=$(cargo run --quiet -- run "$lock_dir/task.lock.json" \
   --agent "$lock_dir/candidate.lock.json" --locked --json)
 
+cargo run --quiet -- advanced task lock ./examples/smoke-oci-judge \
+  --out "$lock_dir/oci-task.lock.json" >/dev/null
+docker image rm --force a3s-bench-smoke-judge:test >/dev/null
+locked_oci_judge_output=$(cargo run --quiet -- run "$lock_dir/oci-task.lock.json" \
+  --agent "$lock_dir/candidate.lock.json" --locked --json)
+
 if failure=$(cargo run --quiet -- run ./examples/smoke \
   --agent ./examples/does-not-exist --json 2>&1); then
   echo "expected missing Candidate run to fail" >&2
@@ -32,14 +38,16 @@ failed_run_id=$(printf '%s\n' "$failure" | sed -n \
 test -n "$failed_run_id"
 failed_output=$(cargo run --quiet -- result "$failed_run_id" --json)
 
-python3 - "$root" "$local_output" "$oci_output" "$locked_output" "$failed_output" <<'PY'
+python3 - "$root" "$local_output" "$oci_output" "$locked_output" \
+  "$locked_oci_judge_output" "$failed_output" <<'PY'
 import json
 from pathlib import Path
 import sys
 
 root = Path(sys.argv[1])
 for raw, expected_task in zip(
-    sys.argv[2:], ("smoke_answer", "smoke_oci_judge", "smoke_answer")
+    sys.argv[2:6],
+    ("smoke_answer", "smoke_oci_judge", "smoke_answer", "smoke_oci_judge"),
 ):
     value = json.loads(raw)
     assert value["schema"] == "a3s.bench.output.v1", value
@@ -52,11 +60,11 @@ for raw, expected_task in zip(
     assert journal["stage"] == "completed", journal
     assert journal["result_path"] == value["result_path"], (journal, value)
 
-failed = json.loads(sys.argv[5])
+failed = json.loads(sys.argv[6])
 assert failed["schema"] == "a3s.bench.output.v1", failed
 assert failed["status"] == "failed", failed
 assert "error" not in failed, failed
 PY
 
 cargo run --quiet -- result --json >/dev/null
-echo "local Docker Runtime smoke passed (local, OCI, and locked Agent Assets)"
+echo "local Docker Runtime smoke passed (local, OCI, locked Agent Assets, and offline locked OCI Judge)"

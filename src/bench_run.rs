@@ -39,7 +39,6 @@ fn execute_inner(
         status.provider
     );
     resolve_task_images(&mut loaded.task, loaded.locked_images.as_ref())?;
-    let judge = resolve_judge(&loaded.task, state_root)?;
     journal.advance(RunStage::InputsResolved)?;
     let game = start_game(&loaded.task, state_root)?;
     let candidate_workspace = workspace::create(&loaded.task)?;
@@ -55,7 +54,7 @@ fn execute_inner(
     journal.advance(RunStage::CandidateCompleted)?;
     let submission = workspace::create_submission(&loaded.task, &candidate_workspace)?;
     journal.advance(RunStage::Judging)?;
-    let judge_result = execute_judge(&loaded.task, &judge, &submission, game.as_ref())?;
+    let judge_result = execute_judge(&loaded.task, &loaded.judge, &submission, game.as_ref())?;
     let primary = primary_metric(&loaded.task);
     let score = judge_result
         .metrics
@@ -69,7 +68,7 @@ fn execute_inner(
             task_id: &loaded.task.id,
             agent: &options.agent,
             agent_identity: &loaded.candidate.identity,
-            judge_identity: &judge.identity,
+            judge_identity: &loaded.judge.identity,
             runtime_provider: &status.provider,
             model: loaded.model.as_deref(),
             model_usage: model_execution.as_ref(),
@@ -94,6 +93,7 @@ struct RunOptions {
 struct LoadedRun {
     task: task::TaskInfo,
     candidate: asset::LocalAgentAsset,
+    judge: asset::LocalAgentAsset,
     model: Option<String>,
     locked_images: Option<BTreeMap<String, String>>,
 }
@@ -142,23 +142,27 @@ impl RunOptions {
                 self.model.is_none(),
                 "--model cannot alter a locked Candidate"
             );
-            let (task_lock, task_artifact) = lock::load_task(Path::new(&self.task), state_root)?;
+            let locked_task = lock::load_task(Path::new(&self.task), state_root)?;
             let (candidate_lock, candidate_artifact) =
                 lock::load_candidate(Path::new(&self.agent), state_root)?;
             return Ok(LoadedRun {
-                task: task::load_local(&task_artifact)?,
+                task: task::load_local(&locked_task.task_artifact)?,
                 candidate: asset::load_local(&candidate_artifact)?,
+                judge: asset::load_local(&locked_task.judge_artifact)?,
                 model: candidate_lock.model,
-                locked_images: Some(task_lock.resolved_images),
+                locked_images: Some(locked_task.lock.resolved_images),
             });
         }
         anyhow::ensure!(
             self.task.starts_with("./") || self.task.starts_with("../"),
             "this development build currently executes local Tasks only"
         );
+        let task = task::load_local(Path::new(&self.task))?;
+        let judge = resolve_judge(&task, state_root)?;
         Ok(LoadedRun {
-            task: task::load_local(Path::new(&self.task))?,
+            task,
             candidate: asset::resolve(&self.agent, state_root)?,
+            judge,
             model: self.model.clone(),
             locked_images: None,
         })

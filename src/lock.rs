@@ -9,7 +9,15 @@ pub struct TaskLock {
     pub schema: String,
     pub task_revision: String,
     pub artifact_digest: String,
+    pub judge_revision: String,
+    pub judge_artifact_digest: String,
     pub resolved_images: BTreeMap<String, String>,
+}
+
+pub struct LoadedTaskLock {
+    pub lock: TaskLock,
+    pub task_artifact: PathBuf,
+    pub judge_artifact: PathBuf,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,6 +38,10 @@ pub fn create_task(source: &Path, state_root: &Path, output: &Path) -> Result<Ta
     let digest = crate::task_snapshot::capture(root, state_root)?;
     let captured = crate::task_snapshot::artifact_path(state_root, &digest)?;
     let task = crate::task::load_local(&captured)?;
+    let judge = resolve_judge(&task, state_root)?;
+    let judge_artifact_digest = crate::task_snapshot::capture(&judge.root, state_root)?;
+    let judge_artifact = crate::task_snapshot::artifact_path(state_root, &judge_artifact_digest)?;
+    let locked_judge = crate::asset::load_local(&judge_artifact)?;
     let mut resolved_images = BTreeMap::new();
     for (reference, platform) in task_image_references(&task) {
         let resolved = crate::runtime::resolve_image(reference, platform)?;
@@ -39,10 +51,23 @@ pub fn create_task(source: &Path, state_root: &Path, output: &Path) -> Result<Ta
         schema: "a3s.bench.task-lock.v1".into(),
         task_revision: digest.clone(),
         artifact_digest: digest,
+        judge_revision: locked_judge.identity,
+        judge_artifact_digest,
         resolved_images,
     };
     write_exclusive(output, &serde_json::to_vec_pretty(&value)?)?;
     Ok(value)
+}
+
+fn resolve_judge(
+    task: &crate::task::TaskInfo,
+    state_root: &Path,
+) -> Result<crate::asset::LocalAgentAsset> {
+    if task.judge_asset.starts_with("oci://") {
+        crate::asset::resolve(&task.judge_asset, state_root)
+    } else {
+        crate::asset::load_local(&task.root.join(&task.judge_asset))
+    }
 }
 
 fn task_image_references(task: &crate::task::TaskInfo) -> Vec<(&str, Option<&str>)> {
@@ -82,7 +107,7 @@ pub fn create_candidate(
     Ok(value)
 }
 
-pub fn load_task(path: &Path, state_root: &Path) -> Result<(TaskLock, PathBuf)> {
+pub fn load_task(path: &Path, state_root: &Path) -> Result<LoadedTaskLock> {
     let value: TaskLock = serde_json::from_slice(&read_lock_file(path)?)?;
     anyhow::ensure!(
         value.schema == "a3s.bench.task-lock.v1",
@@ -92,10 +117,28 @@ pub fn load_task(path: &Path, state_root: &Path) -> Result<(TaskLock, PathBuf)> 
         value.task_revision == value.artifact_digest,
         "TaskLock revision does not match artifact digest"
     );
+    anyhow::ensure!(
+        !value.judge_revision.trim().is_empty(),
+        "TaskLock Judge revision is empty"
+    );
     let artifact = crate::task_snapshot::artifact_path(state_root, &value.artifact_digest)?;
     crate::task_snapshot::verify(&artifact, &value.artifact_digest)
         .context("locked Task artifact is unavailable or corrupt")?;
-    Ok((value, artifact))
+    let judge_artifact =
+        crate::task_snapshot::artifact_path(state_root, &value.judge_artifact_digest)?;
+    crate::task_snapshot::verify(&judge_artifact, &value.judge_artifact_digest)
+        .context("locked Judge artifact is unavailable or corrupt")?;
+    let judge = crate::asset::load_local(&judge_artifact)
+        .context("locked Judge artifact is not an Agent Asset")?;
+    anyhow::ensure!(
+        judge.identity == value.judge_revision,
+        "TaskLock Judge revision does not match artifact"
+    );
+    Ok(LoadedTaskLock {
+        lock: value,
+        task_artifact: artifact,
+        judge_artifact,
+    })
 }
 
 pub fn load_candidate(path: &Path, state_root: &Path) -> Result<(CandidateLock, PathBuf)> {

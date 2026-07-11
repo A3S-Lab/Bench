@@ -760,6 +760,16 @@ reuses the same immutable records; changed local content or a moved mutable OS
 reference creates a new revision. Retries and resumed operations always use the
 run's existing locks and never follow the original selectors again.
 
+The development TaskLock now carries the task-owned Judge revision and its
+separate artifact digest in addition to the TaskSourceSnapshot and resolved
+work images. Lock creation resolves a local or arbitrary-OCI Judge once,
+captures its validated Agent package, and seals that snapshot. Locked loading
+verifies both artifact trees and checks that the Judge package identity still
+equals the locked revision. A locked run receives that verified local Judge
+path directly and never follows the original OCI selector. The local smoke gate
+locks an OCI Judge, deletes its source Docker image, and completes the locked
+run offline.
+
 Use `--locked` when resolution must not contact a registry or A3S OS. It accepts
 only explicitly immutable inputs whose referenced bytes already exist locally:
 

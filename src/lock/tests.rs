@@ -6,6 +6,8 @@ fn lock_schemas_reject_unknown_fields() {
         "schema":"a3s.bench.task-lock.v1",
         "task_revision":"sha256:test",
         "artifact_digest":"sha256:test",
+        "judge_revision":"sha256:test",
+        "judge_artifact_digest":"sha256:test",
         "resolved_images":{},
         "unexpected":true
     });
@@ -17,6 +19,13 @@ fn lock_schemas_reject_unknown_fields() {
         "unexpected":true
     });
     assert!(serde_json::from_value::<TaskLock>(task).is_err());
+    assert!(serde_json::from_value::<TaskLock>(serde_json::json!({
+        "schema":"a3s.bench.task-lock.v1",
+        "task_revision":"sha256:test",
+        "artifact_digest":"sha256:test",
+        "resolved_images":{}
+    }))
+    .is_err());
     assert!(serde_json::from_value::<CandidateLock>(candidate).is_err());
 }
 
