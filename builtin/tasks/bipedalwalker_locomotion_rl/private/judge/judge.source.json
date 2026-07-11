@@ -1,0 +1,47 @@
+{
+  "admission": "quarantined",
+  "evaluation": {
+    "mode": "batch",
+    "source_command": "cd /home/workspace/loco-rl && SEBENCH_LOCO_EVAL_EPISODES=${SEBENCH_LOCO_EVAL_EPISODES:-10} python sebench_eval.py",
+    "source_game_server_command": null,
+    "timeout_sec": 900
+  },
+  "image": {
+    "digest_resolution": "required_at_task_lock",
+    "platform": "linux/amd64",
+    "ref": "docker.io/seededge/edgebench.judge.bipedalwalker_locomotion_rl:2db504ff563a"
+  },
+  "kind": "oci",
+  "requirements": [
+    "oci_judge_admission"
+  ],
+  "schema": "a3s-bench/judge-source/v1",
+  "source_result": {
+    "kind": "legacy_stdout",
+    "parser": "structured_json",
+    "rescale_hint": {
+      "kind": "linear",
+      "lower": 0.0,
+      "upper": 100.0
+    },
+    "score_direction": "maximize",
+    "selection_hint": "valid_then_score",
+    "target_metric": "score"
+  },
+  "workspace": {
+    "source_path": "/home/workspace/loco-rl",
+    "submission_exclude": [
+      "submission/eval_results.json",
+      "submission/checkpoints",
+      "submission/*.log",
+      "submission/*.tmp",
+      "__pycache__",
+      "eval",
+      "sebench_eval.py",
+      ".git"
+    ],
+    "submission_paths": [
+      "submission/"
+    ]
+  }
+}

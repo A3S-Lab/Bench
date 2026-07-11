@@ -1,0 +1,42 @@
+{
+  "admission": "quarantined",
+  "evaluation": {
+    "mode": "batch",
+    "source_command": "cd /home/workspace/vibrating_path && python3 /tmp/eval_vibrating_path.py",
+    "source_game_server_command": null,
+    "timeout_sec": 600
+  },
+  "image": {
+    "digest_resolution": "required_at_task_lock",
+    "platform": "linux/amd64",
+    "ref": "docker.io/seededge/edgebench.judge.vibrating_path_graph_coloring:eb22343ce84e"
+  },
+  "kind": "oci",
+  "requirements": [
+    "oci_judge_admission"
+  ],
+  "schema": "a3s-bench/judge-source/v1",
+  "source_result": {
+    "kind": "legacy_stdout",
+    "parser": "score_sum",
+    "rescale_hint": {
+      "baseline": 31051708.0,
+      "kind": "piecewise_log_min",
+      "rank1": 2181554.0,
+      "rank30": 3288665.0,
+      "super_anchor": 1904776.25
+    },
+    "score_direction": "minimize",
+    "selection_hint": "score_first",
+    "target_metric": "score"
+  },
+  "workspace": {
+    "source_path": "/home/workspace/vibrating_path",
+    "submission_exclude": [
+      "tests"
+    ],
+    "submission_paths": [
+      "solution.py"
+    ]
+  }
+}

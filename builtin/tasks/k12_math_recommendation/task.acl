@@ -1,0 +1,59 @@
+# Third-party source details: ../../provenance/edgebench.json
+bench "k12_math_recommendation" {
+  schema  = "a3s-bench/task/v1"
+  version = "0.1.0"
+
+  name        = "K12 Math Recommendation"
+  category    = "Professional Knowledge Work"
+  description = "Complete the task described in public/prompt.md."
+
+  workspace {
+    oci {
+      ref         = "docker.io/seededge/edgebench.work.k12_math_recommendation:fecdcfb17904"
+      platform    = "linux/amd64"
+      source_path = "/home/workspace"
+    }
+  }
+
+  work {
+    image {
+      ref = "docker.io/seededge/edgebench.work.k12_math_recommendation:fecdcfb17904"
+    }
+    network_need = "none"
+  }
+
+  submission {
+    include = [
+      "train.py",
+      "infer.py",
+      "models",
+      "submission.json",
+      "requirements.txt",
+      "README.md",
+    ]
+    exclude = [
+      ".git",
+      "__pycache__",
+      "*.pyc",
+      "node_modules",
+      "bin",
+      "obj",
+    ]
+  }
+
+  judge {
+    asset                = "private/judge"
+    solution_timeout_sec = 900
+  }
+
+  metric "score" {
+    type                   = "ratio"
+    role                   = "primary"
+    direction              = "maximize"
+    min                    = 0
+    max                    = 1
+    normalization          = "linear_range_v1"
+    solution_failure_value = "0"
+    public_report          = true
+  }
+}

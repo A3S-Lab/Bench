@@ -1,0 +1,78 @@
+# Third-party source details: ../../provenance/edgebench.json
+bench "cta_risk_budget_optimization" {
+  schema  = "a3s-bench/task/v1"
+  version = "0.1.0"
+
+  name        = "Cta Risk Budget Optimization"
+  category    = "Professional Knowledge Work"
+  description = "Complete the task described in public/prompt.md."
+
+  workspace {
+    oci {
+      ref         = "docker.io/seededge/edgebench.work.cta_risk_budget_optimization:d799d7f632c3"
+      platform    = "linux/amd64"
+      source_path = "/home/workspace"
+    }
+  }
+
+  work {
+    image {
+      ref = "docker.io/seededge/edgebench.work.cta_risk_budget_optimization:d799d7f632c3"
+    }
+    network_need = "none"
+  }
+
+  submission {
+    include = [
+      "run.py",
+      "main.py",
+      "config.json",
+      "config.yaml",
+      "nav_history.csv",
+      "signal_matrix.csv",
+      "positions.csv",
+      "trades.csv",
+      "risk_budget_allocation.csv",
+      "performance_report.md",
+      "performance_report.xlsx",
+      "stress_test_report.md",
+      "stress_test_results.xlsx",
+      "sensitivity_analysis_report.md",
+      "sensitivity_analysis.xlsx",
+      "diagnostics.json",
+      "outputs",
+    ]
+    exclude = [
+      ".git",
+      "__pycache__",
+      "*.pyc",
+      "node_modules",
+      "bin",
+      "obj",
+      "attachments",
+      "task_instruction.md",
+      "requirements.txt",
+      "futures_price_data.xlsx",
+      "futures_contract_specs.xlsx",
+      "macro_factors_data.xlsx",
+      "risk_policy_doc.docx",
+      "strategy_research_notes.docx",
+    ]
+  }
+
+  judge {
+    asset                = "private/judge"
+    solution_timeout_sec = 600
+  }
+
+  metric "score" {
+    type                   = "ratio"
+    role                   = "primary"
+    direction              = "maximize"
+    min                    = 0
+    max                    = 1
+    normalization          = "linear_range_v1"
+    solution_failure_value = "0"
+    public_report          = true
+  }
+}

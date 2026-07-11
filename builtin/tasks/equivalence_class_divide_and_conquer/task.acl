@@ -1,0 +1,52 @@
+# Third-party source details: ../../provenance/edgebench.json
+bench "equivalence_class_divide_and_conquer" {
+  schema  = "a3s-bench/task/v1"
+  version = "0.1.0"
+
+  name        = "Equivalence Class Divide And Conquer"
+  category    = "Combinatorial Optimization"
+  description = "Complete the task described in public/prompt.md."
+
+  workspace {
+    oci {
+      ref         = "docker.io/seededge/edgebench.work.equivalence_class_divide_and_conquer:7d6371e4948e"
+      platform    = "linux/amd64"
+      source_path = "/home/workspace/p2"
+    }
+  }
+
+  work {
+    image {
+      ref = "docker.io/seededge/edgebench.work.equivalence_class_divide_and_conquer:7d6371e4948e"
+    }
+    network_need = "none"
+  }
+
+  submission {
+    include = [
+      "T1.cpp",
+      "T2.cpp",
+      "T3.cpp",
+      "T4.cpp",
+      "T5.cpp",
+      "T6.cpp",
+    ]
+    exclude = []
+  }
+
+  judge {
+    asset                = "private/judge"
+    solution_timeout_sec = 900
+  }
+
+  metric "score" {
+    type                   = "ratio"
+    role                   = "primary"
+    direction              = "maximize"
+    min                    = 0
+    max                    = 1
+    normalization          = "linear_range_v1"
+    solution_failure_value = "0"
+    public_report          = true
+  }
+}

@@ -1,0 +1,32 @@
+version = "a3s.asset.v1"
+category = "agent"
+kind = "tool"
+name = "a3s-box-pnpm-judge"
+description = "Offline deterministic judge for the A3S Box pnpm benchmark."
+service = "Function as a Service"
+created_by = "a3s-bench"
+
+source {
+  package_path = "."
+  entrypoint = "judge.py:evaluate"
+  definition_path = "agent.md"
+}
+
+metadata {
+  asset_acl_path = ".a3s/asset.acl"
+}
+
+runtime {
+  kind = "tool"
+  isolation = "serving"
+  runtime_kind = "a3s-function-service"
+  protocol = "agent-tool"
+  agent_kind = "tool"
+}
+
+capability "bench.judge.v1" {
+  input_schema  = "bench.judge.request.v1"
+  output_schema = "bench.judge.result.v1"
+  network       = "none"
+  model_gateway = "none"
+}

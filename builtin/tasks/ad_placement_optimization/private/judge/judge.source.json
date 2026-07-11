@@ -1,0 +1,42 @@
+{
+  "admission": "quarantined",
+  "evaluation": {
+    "mode": "batch",
+    "source_command": "cd /home/workspace/ad-placement && bash /tmp/eval_ahc.sh",
+    "source_game_server_command": null,
+    "timeout_sec": 600
+  },
+  "image": {
+    "digest_resolution": "required_at_task_lock",
+    "platform": "linux/amd64",
+    "ref": "docker.io/seededge/edgebench.judge.ad_placement_optimization:56cbfc81cfa1"
+  },
+  "kind": "oci",
+  "requirements": [
+    "oci_judge_admission"
+  ],
+  "schema": "a3s-bench/judge-source/v1",
+  "source_result": {
+    "kind": "legacy_stdout",
+    "parser": "score_sum",
+    "rescale_hint": {
+      "baseline": 0.0,
+      "kind": "piecewise_max",
+      "rank1": 49702568341.0,
+      "rank30": 47169682940.0,
+      "super_anchor": 50000000000.0
+    },
+    "score_direction": "maximize",
+    "selection_hint": "score_first",
+    "target_metric": "score"
+  },
+  "workspace": {
+    "source_path": "/home/workspace/ad-placement",
+    "submission_exclude": [
+      "tests"
+    ],
+    "submission_paths": [
+      "solution.cpp"
+    ]
+  }
+}

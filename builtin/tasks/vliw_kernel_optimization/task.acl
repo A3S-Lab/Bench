@@ -1,0 +1,55 @@
+# Third-party source details: ../../provenance/edgebench.json
+bench "vliw_kernel_optimization" {
+  schema  = "a3s-bench/task/v1"
+  version = "0.1.0"
+
+  name        = "Vliw Kernel Optimization"
+  category    = "Systems & Software Engineering"
+  description = "Complete the task described in public/prompt.md."
+
+  workspace {
+    oci {
+      ref         = "docker.io/seededge/edgebench.work.vliw_kernel_optimization:9fa380a0ebef"
+      platform    = "linux/amd64"
+      source_path = "/home/workspace/sebench_performance_takehome"
+    }
+  }
+
+  work {
+    image {
+      ref = "docker.io/seededge/edgebench.work.vliw_kernel_optimization:9fa380a0ebef"
+    }
+    network_need = "none"
+  }
+
+  submission {
+    include = [
+      "solution.py",
+    ]
+    exclude = [
+      "runner.py",
+      "verifier.py",
+      "problem.py",
+      "test_cases",
+      "public_tests",
+      "__pycache__",
+      ".DS_Store",
+    ]
+  }
+
+  judge {
+    asset                = "private/judge"
+    solution_timeout_sec = 700
+  }
+
+  metric "score" {
+    type                   = "ratio"
+    role                   = "primary"
+    direction              = "maximize"
+    min                    = 0
+    max                    = 1
+    normalization          = "linear_range_v1"
+    solution_failure_value = "0"
+    public_report          = true
+  }
+}

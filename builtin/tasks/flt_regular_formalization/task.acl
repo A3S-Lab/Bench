@@ -1,0 +1,49 @@
+# Third-party source details: ../../provenance/edgebench.json
+bench "flt_regular_formalization" {
+  schema  = "a3s-bench/task/v1"
+  version = "0.1.0"
+
+  name        = "Flt Regular Formalization"
+  category    = "Formal Math & Theorem Proving"
+  description = "Complete the task described in public/prompt.md."
+
+  workspace {
+    oci {
+      ref         = "docker.io/seededge/edgebench.work.flt_regular_formalization:9800b0787b20"
+      platform    = "linux/amd64"
+      source_path = "/home/workspace/"
+    }
+  }
+
+  work {
+    image {
+      ref = "docker.io/seededge/edgebench.work.flt_regular_formalization:9800b0787b20"
+    }
+    network_need = "none"
+  }
+
+  submission {
+    include = [
+      "se-bmk-intern/FltRegular",
+    ]
+    exclude = [
+      "se-bmk-intern/FltRegular/.lake",
+    ]
+  }
+
+  judge {
+    asset                = "private/judge"
+    solution_timeout_sec = 2400
+  }
+
+  metric "score" {
+    type                   = "ratio"
+    role                   = "primary"
+    direction              = "maximize"
+    min                    = 0
+    max                    = 1
+    normalization          = "linear_range_v1"
+    solution_failure_value = "0"
+    public_report          = true
+  }
+}

@@ -1,0 +1,49 @@
+# Third-party source details: ../../provenance/edgebench.json
+bench "wireless_electricity_layout" {
+  schema  = "a3s-bench/task/v1"
+  version = "0.1.0"
+
+  name        = "Wireless Electricity Layout"
+  category    = "Combinatorial Optimization"
+  description = "Complete the task described in public/prompt.md."
+
+  workspace {
+    oci {
+      ref         = "docker.io/seededge/edgebench.work.wireless_electricity_layout:c3179795f69f"
+      platform    = "linux/amd64"
+      source_path = "/home/workspace/wirel"
+    }
+  }
+
+  work {
+    image {
+      ref = "docker.io/seededge/edgebench.work.wireless_electricity_layout:c3179795f69f"
+    }
+    network_need = "none"
+  }
+
+  submission {
+    include = [
+      "solution.cpp",
+    ]
+    exclude = [
+      "tests",
+    ]
+  }
+
+  judge {
+    asset                = "private/judge"
+    solution_timeout_sec = 600
+  }
+
+  metric "score" {
+    type                   = "ratio"
+    role                   = "primary"
+    direction              = "maximize"
+    min                    = 0
+    max                    = 1
+    normalization          = "linear_range_v1"
+    solution_failure_value = "0"
+    public_report          = true
+  }
+}

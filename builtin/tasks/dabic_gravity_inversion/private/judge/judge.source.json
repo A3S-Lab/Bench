@@ -1,0 +1,40 @@
+{
+  "admission": "quarantined",
+  "evaluation": {
+    "mode": "batch",
+    "source_command": "cd /home/workspace/dabic_gravity_vinton && PYTHONPATH=/opt/evaluator python /opt/evaluator/eval_dabic_v2.py /home/workspace/dabic_gravity_vinton/outputs/",
+    "source_game_server_command": null,
+    "timeout_sec": 21600
+  },
+  "image": {
+    "digest_resolution": "required_at_task_lock",
+    "platform": "linux/amd64",
+    "ref": "docker.io/seededge/edgebench.judge.dabic_gravity_inversion:517eb738b87b"
+  },
+  "kind": "oci",
+  "requirements": [
+    "oci_judge_admission"
+  ],
+  "schema": "a3s-bench/judge-source/v1",
+  "source_result": {
+    "kind": "legacy_stdout",
+    "parser": "structured_json",
+    "rescale_hint": null,
+    "score_direction": "maximize",
+    "selection_hint": "valid_then_score",
+    "target_metric": "score"
+  },
+  "workspace": {
+    "source_path": "/home/workspace/dabic_gravity_vinton",
+    "submission_exclude": [
+      "tests",
+      "__pycache__",
+      "*.pyc",
+      "*.npy",
+      ".ipynb_checkpoints"
+    ],
+    "submission_paths": [
+      "outputs/"
+    ]
+  }
+}

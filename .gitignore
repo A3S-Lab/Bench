@@ -1,8 +1,9 @@
 # Build artifacts
 /target/
+/dist/
 
 # Local benchmark output
-/results/
+**/.a3s/bench/
 *.profraw
 *.profdata
 

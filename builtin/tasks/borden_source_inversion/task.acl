@@ -1,0 +1,54 @@
+# Third-party source details: ../../provenance/edgebench.json
+bench "borden_source_inversion" {
+  schema  = "a3s-bench/task/v1"
+  version = "0.1.0"
+
+  name        = "Borden Source Inversion"
+  category    = "Scientific Problems & ML"
+  description = "Complete the task described in public/prompt.md."
+
+  workspace {
+    oci {
+      ref         = "docker.io/seededge/edgebench.work.borden_source_inversion:f389fcf94240"
+      platform    = "linux/amd64"
+      source_path = "/home/workspace/borden_inverse"
+    }
+  }
+
+  work {
+    image {
+      ref = "docker.io/seededge/edgebench.work.borden_source_inversion:f389fcf94240"
+    }
+    network_need = "none"
+  }
+
+  submission {
+    include = [
+      ".",
+    ]
+    exclude = [
+      "scoring",
+      "__pycache__",
+      ".pytest_cache",
+      "*.pyc",
+      "private_generation_record_not_for_agent.json",
+      "score.json",
+    ]
+  }
+
+  judge {
+    asset                = "private/judge"
+    solution_timeout_sec = 600
+  }
+
+  metric "score" {
+    type                   = "ratio"
+    role                   = "primary"
+    direction              = "maximize"
+    min                    = 0
+    max                    = 1
+    normalization          = "linear_range_v1"
+    solution_failure_value = "0"
+    public_report          = true
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "admission": "quarantined",
+  "evaluation": {
+    "mode": "batch",
+    "source_command": "cd /home/workspace/cas_rust_benchmark && rm -rf /tmp/cas_eval /tmp/cas_score.out /tmp/cas_submitted_agent_start && mkdir -p /tmp/cas_eval && if [ -d agent-start ]; then cp -a agent-start /tmp/cas_submitted_agent_start; rm -rf /tmp/cas_submitted_agent_start/target /tmp/cas_submitted_agent_start/vendor-deps /tmp/cas_submitted_agent_start/.git; fi && tar -xzf cas_rust_benchmark.tar.gz -C /tmp/cas_eval && mkdir -p /tmp/cas_eval/run && cp -a /tmp/cas_eval/cas_rust_benchmark/workspace/. /tmp/cas_eval/run/ && cp -a /tmp/cas_eval/cas_rust_benchmark/judge/. /tmp/cas_eval/run/ && if [ -d /tmp/cas_submitted_agent_start ]; then cp -a /tmp/cas_submitted_agent_start/. /tmp/cas_eval/run/agent-start/; fi && cd /tmp/cas_eval/run && cc -c agent-start/.ghostty-stub/ghostty_vt_stub.c -o agent-start/.ghostty-stub/ghostty_vt_stub.o && ar rcs agent-start/.ghostty-stub/libghostty_vt.a agent-start/.ghostty-stub/ghostty_vt_stub.o && chmod +x score.sh verify_task.sh agent-start/score.sh && bash score.sh agent-start > /tmp/cas_score.out 2>&1; cat /tmp/cas_score.out; python3 -c 'import json,pathlib,re\nPASSED=\"PASSED\"; FAILED=\"FAILED\"; ERROR=\"ERROR\"\ntxt=pathlib.Path(\"/tmp/cas_score.out\").read_text(errors=\"replace\") if pathlib.Path(\"/tmp/cas_score.out\").exists() else \"\"\nscore_json=pathlib.Path(\"/tmp/cas_eval/run/score-results.json\")\ndef grab(pattern, default=None):\n    m=re.search(pattern, txt, re.M)\n    return m.group(1) if m else default\nscore_s=grab(r\"^SCORE=([0-9]+(?:\\.[0-9]+)?)\", \"0\")\nstatus=grab(r\"^SCORE_STATUS=(\\S+)\", \"MISSING\")\nrawp_s=grab(r\"^RAW_PASSED=(\\d+)\", \"0\")\nrawt_s=grab(r\"^RAW_TOTAL=(\\d+)\", \"0\")\ntry:\n    score=float(score_s)\nexcept Exception:\n    score=0.0\nraw_passed=int(rawp_s or 0)\nraw_total=int(rawt_s or 0)\nscore_data={}\nif score_json.exists():\n    try:\n        score_data=json.loads(score_json.read_text(errors=\"replace\"))\n    except Exception:\n        score_data={}\nif score_data:\n    score=float(score_data.get(\"total_score\", score))\n    status=str(score_data.get(\"score_status\", status))\n    raw_passed=int(score_data.get(\"raw_passed\", raw_passed) or 0)\n    raw_total=int(score_data.get(\"raw_total\", raw_total) or 0)\npass_rate=(raw_passed/raw_total) if raw_total else (1.0 if score>0 and status==\"OK\" else 0.0)\nok=(status==\"OK\")\nsummary=f\"score={score:.4f}; status={status}; raw_passed={raw_passed}; raw_total={raw_total}; pass_rate={pass_rate:.6f}\"\ndef detail_status(passed,total,crate_status=None):\n    if crate_status in {\"ERROR\",\"TIMEOUT\",\"NO_TESTS\"}:\n        return ERROR\n    return PASSED if total and passed==total else FAILED\ndef pct(passed,total):\n    return (100.0*passed/total) if total else 0.0\ndetails=[\n    {\n        \"name\":\"overall_score\",\n        \"status\":PASSED if ok and score>0 else (FAILED if status in {\"OK\",\"FAIL\",\"FAILED\",\"WA\"} else ERROR),\n        \"score\":score,\n        \"weight\":1.0,\n        \"message\":summary,\n    },\n    {\n        \"name\":\"raw_test_pass_rate\",\n        \"status\":PASSED if raw_total and raw_passed==raw_total else FAILED,\n        \"score\":pct(raw_passed, raw_total),\n        \"weight\":1.0,\n        \"message\":f\"raw_passed={raw_passed}; raw_total={raw_total}; pass_rate={pass_rate:.6f}\",\n    },\n]\nlayer_metrics=[]\nfor layer in score_data.get(\"layers\", []):\n    passed=int(layer.get(\"passed\", 0) or 0)\n    total=int(layer.get(\"total\", 0) or 0)\n    lname=str(layer.get(\"layer\", \"layer\"))\n    lstatus=str(layer.get(\"status\", \"UNKNOWN\"))\n    lscore=float(layer.get(\"score\", 0.0) or 0.0)\n    weight=float(layer.get(\"weight\", 0.0) or 0.0)\n    crates=\", \".join(layer.get(\"crates\", []))\n    layer_metrics.append({\"layer\": lname, \"passed\": passed, \"total\": total, \"score\": lscore, \"status\": lstatus, \"crates\": layer.get(\"crates\", [])})\n    details.append({\n        \"name\":f\"layer_{lname}\",\n        \"status\":detail_status(passed,total,lstatus),\n        \"score\":lscore,\n        \"weight\":weight,\n        \"message\":f\"status={lstatus}; passed={passed}; total={total}; crates={crates}\",\n    })\ncrate_metrics=[]\nfor crate in score_data.get(\"crates\", []):\n    cname=str(crate.get(\"crate_name\", crate.get(\"package_name\", \"crate\")))\n    passed=int(crate.get(\"passed\", 0) or 0)\n    total=int(crate.get(\"total\", 0) or 0)\n    cstatus=str(crate.get(\"status\", \"UNKNOWN\"))\n    public_passed=int(crate.get(\"public_passed\", 0) or 0)\n    public_failed=int(crate.get(\"public_failed\", 0) or 0)\n    hidden_passed=int(crate.get(\"hidden_passed\", 0) or 0)\n    hidden_failed=int(crate.get(\"hidden_failed\", 0) or 0)\n    crate_metrics.append({\n        \"crate\": cname, \"status\": cstatus, \"passed\": passed, \"total\": total,\n        \"public_passed\": public_passed, \"public_failed\": public_failed,\n        \"hidden_passed\": hidden_passed, \"hidden_failed\": hidden_failed,\n    })\n    details.append({\n        \"name\":f\"crate_{cname}\",\n        \"status\":detail_status(passed,total,cstatus),\n        \"score\":pct(passed,total),\n        \"weight\":0.0,\n        \"message\":f\"status={cstatus}; passed={passed}; total={total}; public_passed={public_passed}; public_failed={public_failed}; hidden_passed={hidden_passed}; hidden_failed={hidden_failed}\",\n    })\nscore_lines=[line for line in txt.splitlines() if line.startswith((\"SCORE=\",\"SCORE_STATUS=\",\"RAW_PASSED=\",\"RAW_TOTAL=\",\"WEIGHTED_PASSED=\",\"WEIGHTED_TOTAL=\"))]\nresult={\n    \"valid\": bool(ok),\n    \"score\": score,\n    \"pass_rate\": pass_rate,\n    \"summary\": summary,\n    \"metrics\": {\n        \"score_status\": status,\n        \"raw_passed\": raw_passed,\n        \"raw_total\": raw_total,\n        \"weighted_passed\": score_data.get(\"weighted_passed\", score),\n        \"weighted_total\": score_data.get(\"weighted_total\", 100.0),\n        \"total_duration_sec\": score_data.get(\"total_duration_sec\"),\n        \"layers\": layer_metrics,\n        \"crates\": crate_metrics,\n        \"score_lines\": score_lines,\n    },\n    \"details\": details,\n}\nprint(\">>>>> Start Structured Result\")\nprint(json.dumps(result, indent=2, sort_keys=True))\nprint(\">>>>> End Structured Result\")'",
+    "source_game_server_command": null,
+    "timeout_sec": 3600
+  },
+  "image": {
+    "digest_resolution": "required_at_task_lock",
+    "platform": "linux/amd64",
+    "ref": "docker.io/seededge/edgebench.judge.rust_multicrate_reconstruction:b749374fe7bc"
+  },
+  "kind": "oci",
+  "requirements": [
+    "oci_judge_admission"
+  ],
+  "schema": "a3s-bench/judge-source/v1",
+  "source_result": {
+    "kind": "legacy_stdout",
+    "parser": "structured_json",
+    "rescale_hint": {
+      "kind": "linear",
+      "lower": 0.0,
+      "upper": 100.0
+    },
+    "score_direction": "maximize",
+    "selection_hint": "score_first",
+    "target_metric": "score"
+  },
+  "workspace": {
+    "source_path": "/home/workspace/cas_rust_benchmark",
+    "submission_exclude": [
+      "agent-start/target",
+      "agent-start/.git",
+      "agent-start/__pycache__",
+      "agent-start/**/*.pyc",
+      "agent-start/score-results.json",
+      "agent-start/vendor-deps",
+      "agent-start/.cargo/registry",
+      "agent-start/.cargo/git"
+    ],
+    "submission_paths": [
+      "agent-start/"
+    ]
+  }
+}

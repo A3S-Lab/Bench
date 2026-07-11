@@ -1,0 +1,60 @@
+{
+  "admission": "quarantined",
+  "evaluation": {
+    "mode": "batch",
+    "source_command": "python3 /opt/sebench/ordinal_notation_wf_eval.py",
+    "source_game_server_command": null,
+    "timeout_sec": 7200
+  },
+  "image": {
+    "digest_resolution": "required_at_task_lock",
+    "platform": "linux/amd64",
+    "ref": "docker.io/seededge/edgebench.judge.ordinal_notation_well_foundedness:064b4eb91e22"
+  },
+  "kind": "oci",
+  "requirements": [
+    "oci_judge_admission"
+  ],
+  "schema": "a3s-bench/judge-source/v1",
+  "source_result": {
+    "kind": "legacy_stdout",
+    "parser": "structured_json",
+    "rescale_hint": {
+      "kind": "linear",
+      "lower": 0.0,
+      "upper": 85.0
+    },
+    "score_direction": "maximize",
+    "selection_hint": "score_first",
+    "target_metric": "score"
+  },
+  "workspace": {
+    "source_path": "/home/workspace/ordinal_notation_wf",
+    "submission_exclude": [
+      ".git",
+      ".coq-native",
+      "_CoqProject",
+      "Makefile.coq",
+      "Makefile.coq.conf",
+      "*.aux",
+      ".*.aux",
+      "*.d",
+      "*.glob",
+      "*.vo",
+      "*.vos",
+      "*.vok",
+      "*.vio",
+      "eval_task*.v",
+      "ChildOf.v",
+      "debug*.v",
+      "test*.v",
+      "check*.v",
+      "explore*.v",
+      "tmp*.v",
+      "scratch*.v"
+    ],
+    "submission_paths": [
+      "."
+    ]
+  }
+}

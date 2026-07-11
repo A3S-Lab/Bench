@@ -1,0 +1,72 @@
+# Third-party source details: ../../provenance/edgebench.json
+bench "college_english_exam_bank" {
+  schema  = "a3s-bench/task/v1"
+  version = "0.1.0"
+
+  name        = "College English Exam Bank"
+  category    = "Professional Knowledge Work"
+  description = "Complete the task described in public/prompt.md."
+
+  workspace {
+    oci {
+      ref         = "docker.io/seededge/edgebench.work.college_english_exam_bank:9b1f87c2906b"
+      platform    = "linux/amd64"
+      source_path = "/home/workspace"
+    }
+  }
+
+  work {
+    image {
+      ref = "docker.io/seededge/edgebench.work.college_english_exam_bank:9b1f87c2906b"
+    }
+    network_need = "public_internet"
+  }
+
+  submission {
+    include = [
+      "A卷原卷.docx",
+      "A卷原卷.pdf",
+      "A卷答案和评分细则.docx",
+      "A卷答案和评分细则.pdf",
+      "B卷原卷.docx",
+      "B卷原卷.pdf",
+      "B卷答案和评分细则.docx",
+      "B卷答案和评分细则.pdf",
+      "C卷原卷.docx",
+      "C卷原卷.pdf",
+      "C卷答案和评分细则.docx",
+      "C卷答案和评分细则.pdf",
+      "D卷原卷.docx",
+      "D卷原卷.pdf",
+      "D卷答案和评分细则.docx",
+      "D卷答案和评分细则.pdf",
+      "E卷原卷.docx",
+      "E卷原卷.pdf",
+      "E卷答案和评分细则.docx",
+      "E卷答案和评分细则.pdf",
+      "五套组卷蓝图表.xlsx",
+      "套间重复率自检表.xlsx",
+    ]
+    exclude = [
+      ".git",
+      "__pycache__",
+      "*.pyc",
+    ]
+  }
+
+  judge {
+    asset                = "private/judge"
+    solution_timeout_sec = 900
+  }
+
+  metric "score" {
+    type                   = "ratio"
+    role                   = "primary"
+    direction              = "maximize"
+    min                    = 0
+    max                    = 1
+    normalization          = "linear_range_v1"
+    solution_failure_value = "0"
+    public_report          = true
+  }
+}

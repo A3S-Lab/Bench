@@ -1,0 +1,42 @@
+{
+  "admission": "quarantined",
+  "evaluation": {
+    "mode": "batch",
+    "source_command": "cd /home/workspace/triangulation_coloring && python3 /tmp/eval_triangulation_coloring.py",
+    "source_game_server_command": null,
+    "timeout_sec": 1200
+  },
+  "image": {
+    "digest_resolution": "required_at_task_lock",
+    "platform": "linux/amd64",
+    "ref": "docker.io/seededge/edgebench.judge.triangulation_coloring_optimization:568aa1a5a8ff"
+  },
+  "kind": "oci",
+  "requirements": [
+    "oci_judge_admission"
+  ],
+  "schema": "a3s-bench/judge-source/v1",
+  "source_result": {
+    "kind": "legacy_stdout",
+    "parser": "score_sum",
+    "rescale_hint": {
+      "baseline": 6102378.0,
+      "kind": "piecewise_log_min",
+      "rank1": 200033.0,
+      "rank30": 3372655.0,
+      "super_anchor": 100016.5
+    },
+    "score_direction": "minimize",
+    "selection_hint": "score_first",
+    "target_metric": "score"
+  },
+  "workspace": {
+    "source_path": "/home/workspace/triangulation_coloring",
+    "submission_exclude": [
+      "tests"
+    ],
+    "submission_paths": [
+      "solution.py"
+    ]
+  }
+}

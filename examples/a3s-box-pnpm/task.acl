@@ -1,0 +1,54 @@
+bench "a3s_box_pnpm_cache" {
+  schema  = "a3s-bench/task/v1"
+  version = "0.1.0"
+
+  name        = "A3S Box pnpm cache benchmark"
+  category    = "systems"
+  description = "Improve dependency install throughput without changing dependency semantics."
+  tags        = ["a3s-box", "pnpm", "optimization"]
+
+  work {
+    image {
+      ref = "docker.io/library/node:22-bookworm-slim"
+    }
+  }
+
+  judge {
+    asset = "private/judge"
+
+    requirements {
+      cohort = "linux-amd64-perf-v1"
+    }
+  }
+
+  metric "correctness" {
+    type      = "ratio"
+    role      = "gate"
+    direction = "maximize"
+    min       = 0
+    max       = 1
+    gate      = "eq:1"
+    gate_failure_score_basis_points = 0
+    solution_failure_value = "0"
+    public_report = true
+  }
+
+  metric "install_p95_ms" {
+    type          = "duration_ms"
+    role          = "primary"
+    direction     = "minimize"
+    min           = 0
+    max           = 600000
+    normalization = "linear_range_v1"
+    solution_failure_value = "600000"
+    public_report = true
+
+    measurement {
+      warmup_repeats   = 3
+      measured_repeats = 10
+      estimator        = "p95"
+      outlier_policy   = "none"
+      tolerance        = "1"
+    }
+  }
+}

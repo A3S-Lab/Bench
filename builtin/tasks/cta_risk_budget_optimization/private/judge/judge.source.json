@@ -1,0 +1,65 @@
+{
+  "admission": "quarantined",
+  "evaluation": {
+    "mode": "batch",
+    "source_command": "cd /home/workspace && python3 scoring/score.py",
+    "source_game_server_command": null,
+    "timeout_sec": 600
+  },
+  "image": {
+    "digest_resolution": "required_at_task_lock",
+    "platform": "linux/amd64",
+    "ref": "docker.io/seededge/edgebench.judge.cta_risk_budget_optimization:a9651058ecef"
+  },
+  "kind": "oci",
+  "requirements": [
+    "oci_judge_admission"
+  ],
+  "schema": "a3s-bench/judge-source/v1",
+  "source_result": {
+    "kind": "legacy_stdout",
+    "parser": "structured_json",
+    "rescale_hint": null,
+    "score_direction": "maximize",
+    "selection_hint": "score_first",
+    "target_metric": "score"
+  },
+  "workspace": {
+    "source_path": "/home/workspace",
+    "submission_exclude": [
+      ".git",
+      "__pycache__",
+      "*.pyc",
+      "node_modules",
+      "bin",
+      "obj",
+      "attachments",
+      "task_instruction.md",
+      "requirements.txt",
+      "futures_price_data.xlsx",
+      "futures_contract_specs.xlsx",
+      "macro_factors_data.xlsx",
+      "risk_policy_doc.docx",
+      "strategy_research_notes.docx"
+    ],
+    "submission_paths": [
+      "run.py",
+      "main.py",
+      "config.json",
+      "config.yaml",
+      "nav_history.csv",
+      "signal_matrix.csv",
+      "positions.csv",
+      "trades.csv",
+      "risk_budget_allocation.csv",
+      "performance_report.md",
+      "performance_report.xlsx",
+      "stress_test_report.md",
+      "stress_test_results.xlsx",
+      "sensitivity_analysis_report.md",
+      "sensitivity_analysis.xlsx",
+      "diagnostics.json",
+      "outputs"
+    ]
+  }
+}

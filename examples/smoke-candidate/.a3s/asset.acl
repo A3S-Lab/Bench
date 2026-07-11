@@ -1,0 +1,10 @@
+version = "a3s.asset.v1"
+category = "agent"
+kind = "tool"
+name = "smoke-candidate"
+
+source {
+  package_path = "."
+  entrypoint = "run.sh"
+  definition_path = "agent.md"
+}

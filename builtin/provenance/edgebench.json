@@ -1,0 +1,739 @@
+{
+  "adaptation": [
+    "Converted source task fields into native a3s-bench TaskBundle files.",
+    "Copied each source agent query verbatim to public/prompt.md.",
+    "Generated one quarantined A3S Judge Agent Asset at private/judge per task.",
+    "Marked the terminal hidden bundle unavailable; no upstream hidden bytes were copied or represented as an empty bundle.",
+    "Renamed the normalized primary metric to the native name score."
+  ],
+  "dataset": {
+    "commit": "47846a4c3669ad447e0ea984833b0d352460c5f9",
+    "license": "CC-BY-4.0",
+    "repository": "https://huggingface.co/datasets/ByteDance-Seed/EdgeBench"
+  },
+  "harness": {
+    "commit": "f59bcb0f024d4bc8baedeac271306050e4bb0d33",
+    "license": "Apache-2.0",
+    "repository": "https://github.com/ByteDance-Seed/EdgeBench"
+  },
+  "records": [
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:9b05655e696093b9147ad652aff214510c82ade97b932da2f9a273d0d9da0ec3",
+        "private/judge/agent.md": "sha256:6b728ad274c336d358c3b2ba235d062bfe7ad63907e0ecb4f7359b2abfbbcd29",
+        "private/judge/judge.source.json": "sha256:aca493a55565fc4c4c483c076d7af948e9ed0c44024d0f7d0babe6aaddadd5c2",
+        "public/prompt.md": "sha256:21820ba5da7f393a20b0eb4b878023ee8fc51d868891d1ad5215c09cbe374bef",
+        "task.acl": "sha256:e0062531d1fdeea6077737ee93c77aeab61f40282486b8df5321176982268f58"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "ad_placement_optimization.json",
+      "source_sha256": "sha256:972a31a5fa45545f6fcd8d8cada27f4148fb290bf83477df2745a56a7e5b7531",
+      "task_id": "ad_placement_optimization"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:39694a9668a46880556ccb914a36a7361bd4ea34fc137e5bd919e8be16a96f3c",
+        "private/judge/agent.md": "sha256:326b6b409b9984e661c28d1fcff45b11131d5ddcea57a6747d138b98fe845b41",
+        "private/judge/judge.source.json": "sha256:ef8a39eca99574c697be95190803137d58100dc4836faabbb8f505d0635bb345",
+        "public/prompt.md": "sha256:cd9d44f02a90a35fcd6afa7b928e25d130104447ef7d6588dc67bb6c5595fc3b",
+        "task.acl": "sha256:e09a37e87adb1a8825e765f4ce71d1a418e8d0aedec2fa7f676c462847f22d7d"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "anchorhead_text_adventure.json",
+      "source_sha256": "sha256:4b92b45a34d83e21d60fa1529ec078f44f8593b0a2457345c92e82c343031cb2",
+      "task_id": "anchorhead_text_adventure"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:a4a9b553465d28b3ea0627f627c7b2578a45999c1b1727ddd1d8fd69d8aa2845",
+        "private/judge/agent.md": "sha256:0782ad271a7ac879ae0e6a62453103edc7d11e2bd624281d7cb8abd407f3e074",
+        "private/judge/judge.source.json": "sha256:8a8d70663324658256378dcf59cd7361b913c07a341dbc50716be04e9075bd4a",
+        "public/prompt.md": "sha256:2e5fe4c782d1e54163e146c7b9ecc8e0d7acad6e995238e983f87213e07013a5",
+        "task.acl": "sha256:fb4ab725a00bcda481907f36efa7f50b49e3a3ee7e0de8d58576ff38e95923a7"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "ann_vector_search_qps.json",
+      "source_sha256": "sha256:1ba7ddb5c135b6aea5a160613d756d733feef12343ccb030535c5a365b8835cf",
+      "task_id": "ann_vector_search_qps"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:ed7f5019efc7ebb6efd85e470f1bb8f0da393066a5064af8351e98c79b2cf0bd",
+        "private/judge/agent.md": "sha256:d38b65079b5d05cccf772c89dd88b93a7fd9e1e9a052965b9254bb3bad00ae8e",
+        "private/judge/judge.source.json": "sha256:b965683581847f8c25b1e96765063bd0b9a51e980f81ab4d6bae1e93ef42b5e2",
+        "public/prompt.md": "sha256:43f6d4f8810a8954be3f265ce961539fce7d4a89fdd071ac704e2b539053ab2b",
+        "task.acl": "sha256:1f0887dc9184127a2f173ba463d5f2ea3f1fd245c3e2bd95f3ef8f30ba41efae"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "apple_incremental_game.json",
+      "source_sha256": "sha256:19021ddcbcaf966d7d43300b439862290a5c6c283aa6e6641f96efa07b34a25c",
+      "task_id": "apple_incremental_game"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:b65dc90c016912601432f927f8f2b81b142c4224cb24be1d77485cd31f82ac65",
+        "private/judge/agent.md": "sha256:3c94c83b92b5c7c31a7f4021aec15e81db58275db4d91773d4b857858dacf2e8",
+        "private/judge/judge.source.json": "sha256:70d435637daed5e1a160f11b818c85e63a55df9872eef3d6b5981a16d60dac0f",
+        "public/prompt.md": "sha256:f58bf7c84205996d6100e6c56c497570e450bdacb2f4e393e483043cc60f5000",
+        "task.acl": "sha256:a36eb05ee0ebac716a630711a0de808ad83b9bb87911e99b4685e26f1482c7ce"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "arc_compiler_runtime.json",
+      "source_sha256": "sha256:b79ca27d72c70b75ba4ce2fc9927ce851e0279717d50e2b06117ec0508de9052",
+      "task_id": "arc_compiler_runtime"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:8b638e688cb90440ca051ee79994dcde1bd225b12538911ae20c74c0bcbc792d",
+        "private/judge/agent.md": "sha256:c1d6ff86e7102f5007fe87adb737590428a669740ad2d266cdd2a1c70c154113",
+        "private/judge/judge.source.json": "sha256:7db7a06b53f2d659fd809d2ebe701ce0bd4df42b6a4ec41bf52879636689a6a7",
+        "public/prompt.md": "sha256:d2e37a345c5be59b33255641c4040c082d42007a6a9923a4486be0897db4564e",
+        "task.acl": "sha256:cd977ae1a5292dd93bb68a48741b0b687b15e7f5d7a75302346cd8723aaadf43"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "bipedalwalker_locomotion_rl.json",
+      "source_sha256": "sha256:48c3ebf72861e30c116494df5258c278454fd503caba16de9adf971c1bc03ecb",
+      "task_id": "bipedalwalker_locomotion_rl"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:3113670171810367db5c5293e5456330f114a9a7e5ddee6a1a24ecb54a08cc88",
+        "private/judge/agent.md": "sha256:65cbe7e4a4ad55af3018bef3b1364c6170cba388036bc07118e272216d6cd1a6",
+        "private/judge/judge.source.json": "sha256:131590519c256f099772d6cb780001bb497d1ab11c21d8809722d880b66061ca",
+        "public/prompt.md": "sha256:3a599e2801581f859f8714e8cec42bc57d02901a7c17ec0c6257e9c319899b66",
+        "task.acl": "sha256:31a566d8843ed1678149c743d95c694ecde5fb635f30c176ae4ebf8fd48662f2"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "borden_source_inversion.json",
+      "source_sha256": "sha256:9218658263fb2217768ff8c75d06410e9811e5022aa387f88e3c62c3e1457195",
+      "task_id": "borden_source_inversion"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:395a47dc577322e5a7ee7378fda95c466612552f4b8ceb03fbf6378af74c3bf1",
+        "private/judge/agent.md": "sha256:a69bcdf6729cf30a9e898c1caed06ad0cac0338e5f8df939c2e127d9231246b1",
+        "private/judge/judge.source.json": "sha256:632fced2eac6cd4b3d0693f17a95f35157bf1945afbfd02960458a46474218c3",
+        "public/prompt.md": "sha256:b33bbd6fe28b095d80bef83fae535e80891e7d84213afdc91d246b0c99c5bb0f",
+        "task.acl": "sha256:30e4bccad17dfb66aeb319f6b909d059db5738a726bb1fda75a3f5644eeb2918"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "carleson_formalization.json",
+      "source_sha256": "sha256:361cef52c1cf5168e48b4be094c95d72a8d02d398a8bff90dad74ee1cf4d8526",
+      "task_id": "carleson_formalization"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:4dad0b48dca1eab4bc929eb34635e8e92826261b4cefd64ab6e372ffcfd98e4a",
+        "private/judge/agent.md": "sha256:51e9b507429aa6cd38feceb6a57cf14515fd6266be1c861564896ec8b4109f1b",
+        "private/judge/judge.source.json": "sha256:19b999cff35f3109556d070d40a6f17fd844e5d2c03c63dcdfcdf3eb39425d50",
+        "public/prompt.md": "sha256:c9593d37712bf1067c1869e2dd0543cf0d660ac13f78b3464ef7577d2e41a8ba",
+        "task.acl": "sha256:b82c216f28d022b771258b190d39cc166dfea68f278dea65e425421f5f56262d"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "college_english_exam_bank.json",
+      "source_sha256": "sha256:93e112ed9d4b899cff8c7f41552e0a35ce6ae2bb0bc45d109706cf39eaf0406f",
+      "task_id": "college_english_exam_bank"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:e3fb2dd5d2f17917ad0dd9acda6a1a7e2dcecb21586d4401cd91e11a41299a15",
+        "private/judge/agent.md": "sha256:31037731fb0e1b9e141a8521aafb09b67cec1acaf3dbfa6a65c91760e059e66f",
+        "private/judge/judge.source.json": "sha256:8b0627e48125b16d3309c0f1bc983057a9f953d529e79527c8bd88ae52d1c4f3",
+        "public/prompt.md": "sha256:dde1b0e5759561757dd74931b0dd40f2b0b9270f375458ef95f7ec112f229415",
+        "task.acl": "sha256:b270ba4299d957d9236ac49d9ae3e6328ad51678bb2c924606400ffdb06b0bf3"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "combinatorial_games_formalization.json",
+      "source_sha256": "sha256:fca494f2aa4fd9d6efda689b846f0df908d7093c89970ea98864eca98894f531",
+      "task_id": "combinatorial_games_formalization"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:21280731244a23d0c43a572d34920e90e34ddbf61b0efbac861439062cd1f803",
+        "private/judge/agent.md": "sha256:b31e94fc3288c9c7c0ff282db565ac07cbb4b64d5be42970ecc712def545c15a",
+        "private/judge/judge.source.json": "sha256:0847f17322906aaea4bd156a5f78185556c99a3bd41622f9c44661656eda8258",
+        "public/prompt.md": "sha256:60f75c73ae7fbf6d05f6bfe2833801bf976b85cc80ad4aa231315bb3468b7365",
+        "task.acl": "sha256:ec595ffcabb08564b18741f5b016a9a01513399b86a6869dc227d367bacf1732"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "cta_risk_budget_optimization.json",
+      "source_sha256": "sha256:4681d022290b1809e48481dab632a67e333b099e89cca031b41a57fd385a805c",
+      "task_id": "cta_risk_budget_optimization"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:30b52ac6765f82fec9c3143477f05ef777bc199c87af880abed17783f6131fc0",
+        "private/judge/agent.md": "sha256:b286d8d6c6f565a46afb053b847bb25493912464e2542e9ace01c27dbd62f214",
+        "private/judge/judge.source.json": "sha256:7069697578d60de525117d93b6f76d9246135f62fb6f43e5992f82c0f235800e",
+        "public/prompt.md": "sha256:e2e34247bda26a78db7e91880a0ee7e46b076ffef4f11bd02d73044615ce6411",
+        "task.acl": "sha256:d754ab8f05a3717c34b461cecf457713f99916af9545bfc9812148e6e29a2fda"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "dabic_gravity_inversion.json",
+      "source_sha256": "sha256:d40941617e380d97ea7e623a1e2acaa343974f1eb33ba8d86da338d04777eb34",
+      "task_id": "dabic_gravity_inversion"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:e3d4eeebd904b5b311cdea8d4799ed7b6d75b6162dede98287831308cc2ec97f",
+        "private/judge/agent.md": "sha256:09c0444b81e35c53b66769a0840ea735a486103830036c0b697da737f981c4df",
+        "private/judge/judge.source.json": "sha256:8ddce44a38975fc629ee75f7b359943b79e65d679eb7ebf3e37e1eff441a131a",
+        "public/prompt.md": "sha256:d6a3077c923819f101046cbb9efcd273ae817f676dbcec0b3d86a372eaeeb209",
+        "task.acl": "sha256:ad16c8c6cb8f9dc4cb1a76a57d342a2e06b30974a4e1a54aeb251736aaf0ee77"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "dcss_dungeon_ai.json",
+      "source_sha256": "sha256:7d89425a7b6e072e3ff3b4faf4cd171b60946584c4dd33cabdad298af20a42a4",
+      "task_id": "dcss_dungeon_ai"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:2abfa3b82110e3ffde96b91f8828f9e66080d3815265b399eab058c7440e195f",
+        "private/judge/agent.md": "sha256:f8ef2da23e1a7e3ade3c6bc0bb955bd266ab5450571d1aaac7e23ce61fc2f6d4",
+        "private/judge/judge.source.json": "sha256:423ea896af8134fadb82bc3075073ae19d2a0795211ba871a60a5a571f893f59",
+        "public/prompt.md": "sha256:9b9aeb978e557bb5a11ba5e1e006f1fd6ad857f348add8c6e4e5b5fe1c13109d",
+        "task.acl": "sha256:889120c840ccdd1ee1cbb9a3a41f968f54759cc4c2c18e2eec38358e7caf6f2e"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "equivalence_class_divide_and_conquer.json",
+      "source_sha256": "sha256:df4775dfc899bb408dab3b5da808a1afecbfd86adbae9cf0d3508185c686db8e",
+      "task_id": "equivalence_class_divide_and_conquer"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:e128f37fcb7f8e0bc6af1f327e9e3aac361e8192c149c74682279e4ad0c03067",
+        "private/judge/agent.md": "sha256:b3f33f0aa5dcbc60e4b4dd5d60ffabd45f11f31d3b6e36d6c2415c5144c6590c",
+        "private/judge/judge.source.json": "sha256:da83ba823283479f1297e2e4419111d579bd1c648ab6ce7ebc11ab42049fd24d",
+        "public/prompt.md": "sha256:d0439781d7e312a469833b36f18d08a40e439b38161fda9ad72c8f2bae61bc52",
+        "task.acl": "sha256:24f6eda2247d4de57d30be9c96cf509b7a78937025e65c75620fedb24fbbd260"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "exchange_core_throughput.json",
+      "source_sha256": "sha256:fc64c74d1aadd48547407dd4ed66d7473dc8d49e05b66fe460d2513361c18e2f",
+      "task_id": "exchange_core_throughput"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:304daa2204a934f59d8982ae2601d4682fe8a856d94d0bb0d8f37d15b168baf9",
+        "private/judge/agent.md": "sha256:e2a70bafe51471761a6e4112c9702706fbf64ade14f8fe3cf62cb477e320f621",
+        "private/judge/judge.source.json": "sha256:801d1ad983add8ca8f4b00f0ee475c8717f062daf6d974f5a8bf022a1dadb7d1",
+        "public/prompt.md": "sha256:56233040fbc1b4a4847fc4cf66e20234898bced05b4b76dee452d07f99373c4f",
+        "task.acl": "sha256:4d54ec9beb63e77693a71bbf54e24446f90ec0cc3f3beb49aa5ab9cc9eb98527"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "ffmpeg_swscale_reimplementation.json",
+      "source_sha256": "sha256:671c78a14cd9144d4b9e14ca6cf1b61230bb88d29e1565849f509353a9b27b3b",
+      "task_id": "ffmpeg_swscale_reimplementation"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:f1face8fbf9526fd9a16f335894e34ca815e266c94da5537a096b968aa7b1f50",
+        "private/judge/agent.md": "sha256:e8680d1aa879793f27e3fd95b766b1b80a825dbfc5b2cf65d2b6b0c056520d99",
+        "private/judge/judge.source.json": "sha256:dc413072f67f672551ec3b7f706b68707c4d664545b45557e0a85d0b71bdaf0e",
+        "public/prompt.md": "sha256:983fbddd0a57c7713687259aad1e73c5275a228e1db4badbc53cb8c53a6c4602",
+        "task.acl": "sha256:4d0a52e5a66071bbb9d6b1d624634cb6d0ac38309e44d6dd22a99f4844632461"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "flt_regular_formalization.json",
+      "source_sha256": "sha256:57950a57b88ad09203554da4d1b5b917958a1078024764780bced8afcd428a61",
+      "task_id": "flt_regular_formalization"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:be1438eac85beacf287ab7f33148c3e2fd70dbf3e5913c22e247d94430140e15",
+        "private/judge/agent.md": "sha256:8d75eb1f86d1dc153d4db3c9b83f7d0564d3ff6e4767c018875b4d544f60bbb7",
+        "private/judge/judge.source.json": "sha256:5c778c0af743daca05cf6d2e63215c1068d276aad94dab547edd7b37053c0b8c",
+        "public/prompt.md": "sha256:d46f1cf94f42c557b184de8c5cf8af46cccfe7d0bceabfec1a05229bfdca2da6",
+        "task.acl": "sha256:f2920e88e30135f0712d14d4225cf6d2774538d0912564d2e3c4bb1ed3e9a40b"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "git_rewrite_in_zig.json",
+      "source_sha256": "sha256:6ae15eab2468ec372b36ae6101310d21c34803d147fa79752c3fe55f154a7332",
+      "task_id": "git_rewrite_in_zig"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:dfa8aec31c9f0de6ca81a398cceb7b37dfd70f3ca26691709ec3f67e78a98ba3",
+        "private/judge/agent.md": "sha256:90d27714b1fe91f9d0b64ef68d33be139c5adaec293fc6144f3c93e44e584aeb",
+        "private/judge/judge.source.json": "sha256:e14056b92c3809022b1da340b3082b77288bc07304d02a098fabbfe46be50343",
+        "public/prompt.md": "sha256:3fb222a39b4201d65d546c5b81c116488c0db331c2b71c619268552368a29ad6",
+        "task.acl": "sha256:cd778d2aed8ddaba1677aace2e68fd00d6ff019652bc6adf12e7d26d45431ba5"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "graph_node_classification.json",
+      "source_sha256": "sha256:330c5d616fcdaca2504751e841fb170fad18131d4e6a43dad31e3912fa2b0f84",
+      "task_id": "graph_node_classification"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:23e507708accc791686ecdf730baba986b52e7820e59cd182991ea87fddb3cec",
+        "private/judge/agent.md": "sha256:36ff54409f2f1d3b819f9197bd0cf83731e84b0ac07f67bb312a196cb86910c7",
+        "private/judge/judge.source.json": "sha256:8dab52685e2dd89b399e26adef4e1d82051836c5eb713a655933b38b4798cc78",
+        "public/prompt.md": "sha256:8277570014c2ca9dda460c36b6aab1decd084fe7bdd565eb8c80f5e99d5d1aa6",
+        "task.acl": "sha256:2bde17026da803ae0dae325e830cb7d18bf6cbea3eafbd5134e784c25eeb2763"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "grid_turing_robot.json",
+      "source_sha256": "sha256:b88eff2092c1cd10f2356746f0e486f094d09c0c3966497ad1a798f7e7b83948",
+      "task_id": "grid_turing_robot"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:6a6086e2659744c6fd2769c1b071451ec7923efec50cb9f16c373e8e0bcebccc",
+        "private/judge/agent.md": "sha256:497d74f87a16a989d244de3fa9c2d8400a76bc44b552c4135a7b7af442c2c12e",
+        "private/judge/judge.source.json": "sha256:d1f2b4df1fbe1d8587c02b4367c10b323006d8215fe0f69ed07ff683a884fd10",
+        "public/prompt.md": "sha256:cfe5192fdc5e62f6c9ae5071506e4f7e24955cacb7decaf05fe1d19d888139f6",
+        "task.acl": "sha256:544fc7d144832857f636fecdd1b13965df82c5a4946d33c81fadd560b148447d"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "integer_compression_codec.json",
+      "source_sha256": "sha256:50f4e9ef6f84164b65d66d3e2c368837b928de1729ce8bfcf8a34c1e5b4d84ee",
+      "task_id": "integer_compression_codec"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:1fef061260ca5dccc4519625cf5658f9e0df2f5bfda3d927c6796b8dbfb81ec1",
+        "private/judge/agent.md": "sha256:336b40376ff91949866afc574eff9cbd64837e7c638a64f50d6bd6ba67de4f1b",
+        "private/judge/judge.source.json": "sha256:99c96fa158050d48a318c6fc823703b73a5c163ad6cdf92152e5d2e9e24ceb94",
+        "public/prompt.md": "sha256:755209a47ff002c2a95397cea9924fc542e8d147708652faf44a859c1adeb290",
+        "task.acl": "sha256:bb6da74fd0e9db25781969f07baf7fbc91ce46eb42158bf851ff322dede03684"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "jagua_nesting_optimization.json",
+      "source_sha256": "sha256:5d8f64ebd76218d8636c21aef8bb63b70348e037fad666e9f711450e58a747e7",
+      "task_id": "jagua_nesting_optimization"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:d62acad02344c9cad9c0bff304e23363ceaa9a3487ecd315e30d1c02f6c575c4",
+        "private/judge/agent.md": "sha256:1984733f9749a3827f555c7b63ea211996d5c3661482236a66c125f816373461",
+        "private/judge/judge.source.json": "sha256:b627fbf108a2b5db452b11c0141a1c23b647218e4b8fe3dd3a44c1489fdfff99",
+        "public/prompt.md": "sha256:be83084c0d8fd11656f607d8e6f5f5d2124fcca45a64a3f8c9a3d464ecd67a00",
+        "task.acl": "sha256:a0ea36ffa4c60e7316053625ae471c33302ed2067c90b27320e18c67604b513f"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "juliet_vulnerability_analyzer.json",
+      "source_sha256": "sha256:4432f442d75c2663a94da0bf33381df5b43300a05d438d3d8459b473461516fa",
+      "task_id": "juliet_vulnerability_analyzer"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:0f40926cc45511ace52a75b31aeacd7f7dba1d3c36d0db7a47c43d502e8de250",
+        "private/judge/agent.md": "sha256:65ea185e9c7cfd0572f0bea465b9c1159d4e39aa1448dfb0ad246812696fef53",
+        "private/judge/judge.source.json": "sha256:78883767e83b363518893b0dae066938b6d9534f97a68645a6538b773eec4d80",
+        "public/prompt.md": "sha256:c9593d37712bf1067c1869e2dd0543cf0d660ac13f78b3464ef7577d2e41a8ba",
+        "task.acl": "sha256:6aedcaf7daac57873d05612bf7be2c96e8232a94b9786160ebf3277deba48f74"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "k12_math_recommendation.json",
+      "source_sha256": "sha256:550851358d3cab943dc0cf8ccfd7047afe11c923666855aecf434d3a0d2760ea",
+      "task_id": "k12_math_recommendation"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:825001a13b7d68801a4d8445411cd447a6296fa82c682d1174349823079f93da",
+        "private/judge/agent.md": "sha256:67220a090483bd7323d91ddb4512f32a24e8d8135a43b73d20fe45192d435583",
+        "private/judge/judge.source.json": "sha256:8db06982b6d4105fae1b8e394328f6a26ebd571c47ed004fc0ed6794a9b92b2e",
+        "public/prompt.md": "sha256:dde1b0e5759561757dd74931b0dd40f2b0b9270f375458ef95f7ec112f229415",
+        "task.acl": "sha256:56a087a98832534dbd1b852a8ec31118e895e5415222afbda2ca01048cdf4ccf"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "lean_analysis_proofs.json",
+      "source_sha256": "sha256:393385a2974bca00a43f988697c5cd63cc0b0267891d3a1859fe7c5866f5b18d",
+      "task_id": "lean_analysis_proofs"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:c7df88eb0da591a180d6012467f64c19d9b6ab5647056bba12843f12504f1748",
+        "private/judge/agent.md": "sha256:f563ddac9b1696aaf9ff439deb37979efe0e5f162510c3cc75f22ead76240667",
+        "private/judge/judge.source.json": "sha256:d04d05ea7970318292d7f17d1fbf94b604ba03b757fec21454e4b905b7271303",
+        "public/prompt.md": "sha256:f813bd0696f157a085e79896838aae13260e49414ea86c71ac53046b11bef4cd",
+        "task.acl": "sha256:fd71eaea41dc553913d63a63d41dc8fd80c8d2b9cdf4f495afcf1848c58dce68"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "molecular_self_assembly.json",
+      "source_sha256": "sha256:e8569e3a42da7c685fc93367701d844aefe2d4d9e541919fca298501efa41717",
+      "task_id": "molecular_self_assembly"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:f8deb5ffc70b83763523eb3051eec1b815c4ed4317ccf3a016b8fe37da7e9783",
+        "private/judge/agent.md": "sha256:aa1dd56a6b9211b4aef9d82599e5270b3a9171aab4c88805913f3c512d94832c",
+        "private/judge/judge.source.json": "sha256:591e1177c7eef3246b8664be2c837d27be60b384626e3050986b1b11640b7e73",
+        "public/prompt.md": "sha256:e387a32f5aee5d5d6a696f722f37b151bd79db6a8e71a39f19feca2c1bdfb401",
+        "task.acl": "sha256:ab9fa3a07bc6a1ae1506d7a13228549f5871d8e1bcadcfc6e389933192b51e6f"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "nethack_dungeon_agent.json",
+      "source_sha256": "sha256:90a9ba87c5f50d17f8a369c34477818035b3d8e2f792076e8cb06d672f958fcb",
+      "task_id": "nethack_dungeon_agent"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:d5dcc27652dfb175de7d62c1e29b35c2c1e3547f0a49e4e2b4f427a63e8267d4",
+        "private/judge/agent.md": "sha256:8aa6425dd9d1c67860715b50a33ffc1a85829bdc68a04207c250ffe3ae2d9d32",
+        "private/judge/judge.source.json": "sha256:b5ebcb6fba0341bc23016b12bf9811879a18f9dd142911e53e47c2576e9e0b7b",
+        "public/prompt.md": "sha256:b33bbd6fe28b095d80bef83fae535e80891e7d84213afdc91d246b0c99c5bb0f",
+        "task.acl": "sha256:5ab9cec23e5fe75c664fe4a87e0a8fbe71d043a3d161a1b30f113758a0ed5f6a"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "new_foundations_consistency.json",
+      "source_sha256": "sha256:37ea0a38e797f0172f335348f02a09e3886c01fa81bcb915025d6bafd081f55a",
+      "task_id": "new_foundations_consistency"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:5aa5d52669a53160693ffe1c2944d823fcc3e9a4fc295bd84b71a3c308466811",
+        "private/judge/agent.md": "sha256:4f334d87d41b453affe8b0feb2ec4cc93a8c06639cc6a6f00389bae5cdf12bf4",
+        "private/judge/judge.source.json": "sha256:1e683219a05ccff5045342e00bd4365477a4fe05f92d7bb971cce38aee1801a4",
+        "public/prompt.md": "sha256:00cf3133295efdd71bd0184e4b6c084f60cbda75b7040f1724c920e68ae3a273",
+        "task.acl": "sha256:f4db796f7b403bcac072f1ae5f02c6ee5d2a3327487aec1546fb33cad22b9a7d"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "openrct2_theme_park_ai.json",
+      "source_sha256": "sha256:09e2a4d83cb14b735a04f43a40764806d05cadc4206d293c5bd3f211cc051449",
+      "task_id": "openrct2_theme_park_ai"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:5fa6f2df47517c374b720a8aca0f55742ffb058241f40a7af2641de12c0ce78f",
+        "private/judge/agent.md": "sha256:4c8e28701045efa253beaa669231b7775df8709e1ec6a7a63000697d2f186c77",
+        "private/judge/judge.source.json": "sha256:4b3467da00365c181466ba4de96b2d4ba0749e02ce0b5b5cba6d844803f2ae66",
+        "public/prompt.md": "sha256:cf18bedcf5dbd75ea09b09beb22c0e82551556a656a8fbd9a1a742787a5b458f",
+        "task.acl": "sha256:fdec2cdad335cf70f431dc67f39dee82fa8c7f8d337322363f10fb61ae1e237a"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "openttd_transport_ai.json",
+      "source_sha256": "sha256:5a29214fcdb4277505402fe76a8975563ff2818006e25019309cf5fbdb364bb6",
+      "task_id": "openttd_transport_ai"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:3a73781b0f11166993917df00d840e69a70bfedeed9bddfe28d83bf7c682471e",
+        "private/judge/agent.md": "sha256:f4da57f00f3cbbc9aaa9986c4c7e67969714a77bd6f6b08c606b33a0eb8ee47a",
+        "private/judge/judge.source.json": "sha256:22859032b629dfc71f8a71baeaaa664026bbae47ffe8291c00bb1c5fe669194e",
+        "public/prompt.md": "sha256:4ca49d6211a0691be2e5291e163297ed443de959cb9e335240c0c7a21a62741a",
+        "task.acl": "sha256:8337c127430ad976a9e7ddce4de17b3943366993de2b8b3f85e4a375b0fe7abb"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "order_addition_permutation_optimization.json",
+      "source_sha256": "sha256:d27df71e7e05146b3c8ac49932ea789e5c3d30f53bb538d8d79a8f2ef7d8b84f",
+      "task_id": "order_addition_permutation_optimization"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:a60fd2074e8af65e6b138bb1c1b05e920bca9f93c828308578d4fa3b59ec95d1",
+        "private/judge/agent.md": "sha256:ecaa70a422df99c1c9c4433987355e5deb18b043ef116295a28d7bdc5b2899e4",
+        "private/judge/judge.source.json": "sha256:fef09a13d9768bfe0f889e410aaa42a180ffd211933bf3781dd252b0971816a3",
+        "public/prompt.md": "sha256:dc64ca21bbb4ad81df16671e2f387c1558164c05245796bc9cce65cc1ab7ed67",
+        "task.acl": "sha256:f8b164ebd881ee02e23bccf854d52b5951cc2021e5af88034c108c4a379f6b4a"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "ordinal_notation_well_foundedness.json",
+      "source_sha256": "sha256:8656fb3da6d93d263be514baffaf85577770e22b69424f8bcd16f6991d45ddb8",
+      "task_id": "ordinal_notation_well_foundedness"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:dce7bfa633ecbdcb41e51f1b078a8804461a98e40249cf7322e11c716759ee42",
+        "private/judge/agent.md": "sha256:566380490c89bb569354b0051ac93a12bc211c40c7e4b1cf8827a6baadf432fd",
+        "private/judge/judge.source.json": "sha256:13ea269e5932df5c0491deb264fb505372f818a8dec84d1e9d9f5dea13ff0515",
+        "public/prompt.md": "sha256:b33bbd6fe28b095d80bef83fae535e80891e7d84213afdc91d246b0c99c5bb0f",
+        "task.acl": "sha256:b64e0ae10cc206b41523415a7231c2e4fa1d21c864f1626e5740ef2ea2a312b2"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "pfr_formalization.json",
+      "source_sha256": "sha256:d26b45a9d189eca28d49570bf7d9e292240840f619d7cdb5087758ca1ae677d0",
+      "task_id": "pfr_formalization"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:6166a15044f3a47cf5e2fccde4d0e7dd1fe5ebc6cef74c2c83c2ac6815673704",
+        "private/judge/agent.md": "sha256:a36a3040cfbaf1c7e910837f846da777daa8599f117c8ca51dcd18da1a42aa71",
+        "private/judge/judge.source.json": "sha256:be54bf9aae3ac22bda49362f0370d2524f8da34c23382250072fa4e16c9e21b5",
+        "public/prompt.md": "sha256:c9593d37712bf1067c1869e2dd0543cf0d660ac13f78b3464ef7577d2e41a8ba",
+        "task.acl": "sha256:b3e9ea57543f24b49390ebb45d37d776507e7c4715097705a7145ae869886731"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "portfolio_risk_calibration.json",
+      "source_sha256": "sha256:0343ac03f42042ff9053cb1809d106dac9311e5fe7d9bab353eab4ad1b078cb1",
+      "task_id": "portfolio_risk_calibration"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:80617bd3f89af7575c856fa8b1f830018446d0194f11a9da8cad1bca9c4a8f4f",
+        "private/judge/agent.md": "sha256:1ca9f0483e9e8ef4d05bf1717445ba7d84ab37366beb4a0ecd4653bd206eabaf",
+        "private/judge/judge.source.json": "sha256:d2f54c78e3b34586f3de6f89423f43517f102342d58a5fa539d0054e5bcff997",
+        "public/prompt.md": "sha256:bc86798dfdff26b0173359b950b1d7f4c852641f9be31f61d13fce91a86a6833",
+        "task.acl": "sha256:7717d049567498c17ae7a2dfdf760b14d6150d5c94d80b45a6c3c0b935047584"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "rust_multicrate_reconstruction.json",
+      "source_sha256": "sha256:9c6823f5874adf3b0a8d810b6801eda901f799cd0f5c964616010e61d8505173",
+      "task_id": "rust_multicrate_reconstruction"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:4700e5abb390f40934cb624e6f6c1fc3d4fee0812710c9cd176a6b69b86806e7",
+        "private/judge/agent.md": "sha256:5a7ccccee411fbe782b5a4092569c4254bd3bacc64d8fbcd840d3c5c2f78bdf0",
+        "private/judge/judge.source.json": "sha256:f8a2ff893181eb0b06c7ab7ca427af318c6896d6aab54052cec613b5e570a093",
+        "public/prompt.md": "sha256:9f5851c10bdb557138f32129227a4bd089050728b48de519efe4b99ed4707149",
+        "task.acl": "sha256:9271e2fc13feaea516bc285bc1026fe125d5500279b2944ccfd661a3fbb8fca3"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "schemathesis_config_modernization.json",
+      "source_sha256": "sha256:04ef947e4a7ed2ff86122ef7cd6fedc2c246c56f5ccecd8cdceea3b063539ab5",
+      "task_id": "schemathesis_config_modernization"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:f748e28d69916140c10f3bab43727a7a1fee722b87b7dfde90928296d9bf4bee",
+        "private/judge/agent.md": "sha256:ad6cce72591646383d2993031bc31a0dc58684ea7d6898a6b14e74219163a471",
+        "private/judge/judge.source.json": "sha256:60a921e93cf33f31b0757c99a4941d6c6e39bb4aab275bd7240907ab63ef45b5",
+        "public/prompt.md": "sha256:523d4c96591d2b249c6b48d1b5804b7d73b89421a582a45d7a740674e5f30a1f",
+        "task.acl": "sha256:03ae8bc2711e271c4df42732329e22e18f852aa3a4ee4cac067d1c5d408ae043"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "schemathesis_datagen_pipeline.json",
+      "source_sha256": "sha256:446b568d02621af5b9edd567fb806f32ed009bbc5308b7e7cb547bf1b851a4e5",
+      "task_id": "schemathesis_datagen_pipeline"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:2df3d50ad3c70d212f03345c81f97b8528a0b4f4e66aa7c7dc39f3b52f75a841",
+        "private/judge/agent.md": "sha256:2126425d99cd482165741a7319a2f06ccba9db29cf4f389d40bd4164c7560dca",
+        "private/judge/judge.source.json": "sha256:89e4eebe967b67fb7118d95877d3415a8ef8268268e4e2985998e67214a5e3c7",
+        "public/prompt.md": "sha256:9f5851c10bdb557138f32129227a4bd089050728b48de519efe4b99ed4707149",
+        "task.acl": "sha256:6ae5614ee1dbde96d364248efe14f51562f99b6e9f7456abf662196c5761519e"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "schemathesis_reporting_observability.json",
+      "source_sha256": "sha256:4c199f9286f7def2c9d3f3f1b0a35a85f547f2794d4ed81abaf6c74083731e69",
+      "task_id": "schemathesis_reporting_observability"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:5c073e98cfb22142061e8e75558b2957ae9ab6f17943ab06e96f5d6d59e76aa5",
+        "private/judge/agent.md": "sha256:7221f7d89fd68a0acae9f2c32d9248b90831ebd4f16cc98ef70841017d83d809",
+        "private/judge/judge.source.json": "sha256:bcbc7e5b36943a24240d479cee540c36275d5c70292f906715719043d4bd075e",
+        "public/prompt.md": "sha256:0dbcecf11b6a22e65541f22af45ebc4bbc4b2db717b7154938cfeaabaf58d3c8",
+        "task.acl": "sha256:a8c356430a8fbf83473b319b90dbb012d686133cff0dd4272d6e39c973c9fc65"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "smt_solver.json",
+      "source_sha256": "sha256:3dd31c12948fae9aa6e8d8b599ddc6c4d93348fb1c89301698c9a0dc6043c11f",
+      "task_id": "smt_solver"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:cf318d31f0d1199416301d18781fe07491e9e6d0b4665d805e5773f11bd4ff95",
+        "private/judge/agent.md": "sha256:1d708be6b28dc1171bbc3f24802d143d60900a32f63b75e5116a0d75928653fe",
+        "private/judge/judge.source.json": "sha256:c11e1444286674d5058540a57d08d50073317ebaef91a9a63038d21e5be5474d",
+        "public/prompt.md": "sha256:dde1b0e5759561757dd74931b0dd40f2b0b9270f375458ef95f7ec112f229415",
+        "task.acl": "sha256:35b761e905f5f1a7ba9c7e65dee601c39f4c3bcdeaa978ae77737f19141de978"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "sphere_eversion_formalization.json",
+      "source_sha256": "sha256:089f12486481efd49688c1eda67823dd9b3b4026c4cfecf047484f1132b217c4",
+      "task_id": "sphere_eversion_formalization"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:902d805c384e81a4e69c0ed3da8b61e5259e13722efe501c6a00ce58a93f3ded",
+        "private/judge/agent.md": "sha256:b2b0d0de493c48315088cd4030c2aaf98bc693b4352a59ad03af19d0787726d3",
+        "private/judge/judge.source.json": "sha256:dfcc755a9d100fb699f0fb423ab6631ebcd248477a418dec37ca193e464a1064",
+        "public/prompt.md": "sha256:2ebc8c457b0f8219fa200b5145906b16fa02d1b974df09a3c7b75b6c3ef4ea32",
+        "task.acl": "sha256:7f970359b990f52e766c635799f4c099a9093218a058be843177904676e74818"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "treant_forest.json",
+      "source_sha256": "sha256:2fdb98ce1166a1fea4743c2ae1613479bdf9eaf755cab190bfd931bc547a615e",
+      "task_id": "treant_forest"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:5ec972bdcb1538178af4958e06024dd0475ab4908443def48d0b34d1cec864a4",
+        "private/judge/agent.md": "sha256:b212541fa04de90d74c4fff739f6b29d1c978be9575152e2bc8f3de728b7805a",
+        "private/judge/judge.source.json": "sha256:41d749bafc1abbf36a22ba81b8044a0da1171a68a05d0576273d9b9e22671ab1",
+        "public/prompt.md": "sha256:9b9aeb978e557bb5a11ba5e1e006f1fd6ad857f348add8c6e4e5b5fe1c13109d",
+        "task.acl": "sha256:ea853a04e663ba4a31629cdc95669d6c491b06786fd035b3ae60d4743706e658"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "tree_block_partitioning.json",
+      "source_sha256": "sha256:44b08d0d5f7bd4660a3d2a073496a820798762724491d6f0bc1fdc7994b51be4",
+      "task_id": "tree_block_partitioning"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:e6ee259fa9228fb5eff203c33fcba0d785eaf9d5afcb460415ae6cbcaff4b6be",
+        "private/judge/agent.md": "sha256:cf4ddfc6ccb27017c507fed9f753bd0ddcf41c7c9a4d19632ddbd3dbd65d6773",
+        "private/judge/judge.source.json": "sha256:7a3808105b14625fc105363728b7ace35ce64dada0e542e9524c8c47996fcaea",
+        "public/prompt.md": "sha256:be8285130a5dbde05629ba62fea67bff87c62636a1d29ee9dc7dd4761a9a5fac",
+        "task.acl": "sha256:9e177a5d5ae8b8d595ee5de4adbaf43d9183b8edf58491e804b623bccca37a7b"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "triangulation_coloring_optimization.json",
+      "source_sha256": "sha256:4def4778920ad41c00f14a01c17ccbe2d749431fe835917806c6f5274b8621b7",
+      "task_id": "triangulation_coloring_optimization"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:b3374479194ea48555f78e047b404e0992739523fd75947cede15cb018d5afb6",
+        "private/judge/agent.md": "sha256:dbfaac0362e39d1420f7055141b51e3e85be5a63b67368556ac8c1a8f1375931",
+        "private/judge/judge.source.json": "sha256:ef318a1aa1c3045722eabf9fdbea14105b4423db3ab67e6c83ed6e12b4908bf6",
+        "public/prompt.md": "sha256:887f6a9c2b8f0bc419d361abf219fa05811e65e0ae0b9a2d2e4ff644ab6c1b01",
+        "task.acl": "sha256:7095d016dd102221482bfb41951eacf87ac19b6b27529195a711bfb5a6f2193a"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "trinity_text_adventure.json",
+      "source_sha256": "sha256:7364a0121b674177006567c7dc4e7365268c3547d647d956c835db04fd2fc0ee",
+      "task_id": "trinity_text_adventure"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:e4253c127cb52c78bce218bc081c7b3698d77e9f0cec19eb041a3d3974356db1",
+        "private/judge/agent.md": "sha256:b697b1350ebf157ec0c92f6167626a10e1e27c163678a441c28e21988db08e5b",
+        "private/judge/judge.source.json": "sha256:2903a757a8e51a1c35c84984e2202f0dd1b36f00bd6c0c57f33f3a36c1ce9a4e",
+        "public/prompt.md": "sha256:db3b6c1b6a75e41e4f41d7a53eace8d98088724b6a3db32c2976bb54667c5b55",
+        "task.acl": "sha256:00bc50d32ced0c83f09cc9928d475be0c8827214b6c3a720f3a3b24ae00550bc"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "tryst_text_adventure.json",
+      "source_sha256": "sha256:a6e4815a7f300f53ac430c2962da256ed8bc5f6552d6e188cd6dfafa78c51b5f",
+      "task_id": "tryst_text_adventure"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:c72dadf5acc029edb5689be3769186e43e18ae6726a5aae121da58ffe6572d33",
+        "private/judge/agent.md": "sha256:2a9da9e31ce6e9c9f9ae7e635b166b9e77e92ed103fa00439adef49cda7bd515",
+        "private/judge/judge.source.json": "sha256:5885a995ee1972024f18b190fbf288d591148c608a6772796d6ac61d56bc23c5",
+        "public/prompt.md": "sha256:79ecd3ed1d1fefd27ae5b78ec612470bbd61dc0199bad343d6a8d8c71978269f",
+        "task.acl": "sha256:0cdf46066b8222d4befbe102484c4e52745a0de248f120cd3ed395b0e4bbb22c"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "vehicle_routing_time_windows.json",
+      "source_sha256": "sha256:5dc47728618f81deda92fbca50f7dcdff2e72589bc197cfab3a1e95edb0ff427",
+      "task_id": "vehicle_routing_time_windows"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:f7d3cd5289db29d757a4ecd6dd3788c7ec6931416334388fa1447ff61435bd2b",
+        "private/judge/agent.md": "sha256:746afd76437def1ce7071847b922abef97dbcb6dc0272e8e4dd2fd3a15df8592",
+        "private/judge/judge.source.json": "sha256:33fa298d52d601a6fb1573b242cb811c8b5f2e1c86db9c3b43dfae5ba95474b5",
+        "public/prompt.md": "sha256:86632ad1f11e138619e5856b90e463b3f764c6c541dc44c01753bfa0c6d5b41c",
+        "task.acl": "sha256:669c9cfb74426ed195ead52683ebe3996d3b111f978602eb07c9889f6214c120"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "vibrating_path_graph_coloring.json",
+      "source_sha256": "sha256:d3bba05490f7a44245ed836c4efc6e2723399a40ffecaee39c47cdf9d29dc9a8",
+      "task_id": "vibrating_path_graph_coloring"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:b8ad98dc70070cd233e6b0fb529694b3deb6ce6941fa62597585b84d7fdff28e",
+        "private/judge/agent.md": "sha256:abc7f3d817526009f601853db27622de595059c22499105e574efe7b9b1f5752",
+        "private/judge/judge.source.json": "sha256:d65304497f1960932f8cb61a95893a8b18574077c5910d138e30ec26f1c54793",
+        "public/prompt.md": "sha256:7fc05b3a78475954c23e4dbbb893f497965cc26ce157eb39f7101569eb25c9c3",
+        "task.acl": "sha256:09c6c939b2c21c48ef02dcbda3b8dc3b2b051c867bb7fdfdb3b05daa963bc8c0"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "vliw_kernel_optimization.json",
+      "source_sha256": "sha256:b6861e44630e1815b25e79f84b95bbd2a9e0941d218e5934a0a7e659c4b657d3",
+      "task_id": "vliw_kernel_optimization"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:7e7babe7bf1c2d8ce57855e883e1aed99ad79c945e8fe0b2f7283f1bd09b70cc",
+        "private/judge/agent.md": "sha256:f53591fd1f9247d3d4505fc2e38561717961313fb0e830937b007ca45062036d",
+        "private/judge/judge.source.json": "sha256:c396a9f7ffd235e5d85561f046a8a81671f6b6cb74b646e9d8dc8f465ddf0ec8",
+        "public/prompt.md": "sha256:87007ad604742ab0659bc42f1cd655dfc6c57dd13b3e46dec2cabe69d24cbdd4",
+        "task.acl": "sha256:403956b4a23f0a5bc831d614a5371716ec37634e3f18550abbcf3650152bda8f"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "warehouse_forklift_routing.json",
+      "source_sha256": "sha256:780025706c0b3201025f240e25b742f179c32c25be487d4802f074264b8cbd1c",
+      "task_id": "warehouse_forklift_routing"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:9f9d1a5bd89d37dd18c364db74d8143b2099c8e6b6d3bb2617fa425ac038154a",
+        "private/judge/agent.md": "sha256:a1b857cc8fc93817750d5fdf2929b69afd754ba80bfc25d1f2756872e17a760e",
+        "private/judge/judge.source.json": "sha256:18a529d408a28269d23cb5bcb193ef982b0b933250d583604651dfcf1fb1c04b",
+        "public/prompt.md": "sha256:181284dff08f2dca5b2bcba70bfa40b6ffd5fcd08bd32a298452946fb56c8230",
+        "task.acl": "sha256:f346f0ae94288f3c39343a450f98b88447268f1eac06032d1b7a48148d976fbb"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "wesnoth_tactical_ai.json",
+      "source_sha256": "sha256:b03e7eaafb4bddc146b82d80c38eb7222d4b2d3d7130253a2fc5b4903324cf63",
+      "task_id": "wesnoth_tactical_ai"
+    },
+    {
+      "generated_sha256": {
+        "private/judge/.a3s/asset.acl": "sha256:47d47873d3380d2adee328526c0e40b94ac0b6b2f00cd5240997cf35d6407789",
+        "private/judge/agent.md": "sha256:b34390e848ebcfff63d84ac357dee09cc7696c421b41aa2164cd97ea55018a5d",
+        "private/judge/judge.source.json": "sha256:05dff81e313ddc8fa703cdf5fec2b814bb54d8a40372ac53200451cc74465591",
+        "public/prompt.md": "sha256:8ef2baed54d0cde6bc660e72e68f236e08df0222cefecff0dba466dd72772c89",
+        "task.acl": "sha256:49498bc3a0c4a8de37457f841591984c5ad4e43ae8fad0052dd7b9fb612960d9"
+      },
+      "license": "CC-BY-4.0",
+      "modified": true,
+      "source_path": "wireless_electricity_layout.json",
+      "source_sha256": "sha256:050ab35f99431e94ee6279fcd23dc06c9a795ee7b9f26b7d9ec4eadb3e060809",
+      "task_id": "wireless_electricity_layout"
+    }
+  ],
+  "redistribution": "Upstream OCI images are referenced, not copied or redistributed.",
+  "schema": "a3s-bench/builtin-provenance/v1",
+  "source": "EdgeBench",
+  "task_count": 51
+}

@@ -1,0 +1,42 @@
+{
+  "admission": "quarantined",
+  "evaluation": {
+    "mode": "batch",
+    "source_command": "cd /home/workspace/molecules && python3 /tmp/eval_molecules.py",
+    "source_game_server_command": null,
+    "timeout_sec": 600
+  },
+  "image": {
+    "digest_resolution": "required_at_task_lock",
+    "platform": "linux/amd64",
+    "ref": "docker.io/seededge/edgebench.judge.molecular_self_assembly:96df6463f5e6"
+  },
+  "kind": "oci",
+  "requirements": [
+    "oci_judge_admission"
+  ],
+  "schema": "a3s-bench/judge-source/v1",
+  "source_result": {
+    "kind": "legacy_stdout",
+    "parser": "score_sum",
+    "rescale_hint": {
+      "baseline": 69170000.0,
+      "kind": "piecewise_max",
+      "rank1": 300187365.6667,
+      "rank30": 235032102.6667,
+      "super_anchor": 322991707.7167
+    },
+    "score_direction": "maximize",
+    "selection_hint": "score_first",
+    "target_metric": "score"
+  },
+  "workspace": {
+    "source_path": "/home/workspace/molecules",
+    "submission_exclude": [
+      "tests"
+    ],
+    "submission_paths": [
+      "solution.py"
+    ]
+  }
+}

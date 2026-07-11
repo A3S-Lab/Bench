@@ -1,0 +1,56 @@
+# Third-party source details: ../../provenance/edgebench.json
+bench "rust_multicrate_reconstruction" {
+  schema  = "a3s-bench/task/v1"
+  version = "0.1.0"
+
+  name        = "Rust Multicrate Reconstruction"
+  category    = "Systems & Software Engineering"
+  description = "Complete the task described in public/prompt.md."
+
+  workspace {
+    oci {
+      ref         = "docker.io/seededge/edgebench.work.rust_multicrate_reconstruction:7f639fc9d090"
+      platform    = "linux/amd64"
+      source_path = "/home/workspace/cas_rust_benchmark"
+    }
+  }
+
+  work {
+    image {
+      ref = "docker.io/seededge/edgebench.work.rust_multicrate_reconstruction:7f639fc9d090"
+    }
+    network_need = "none"
+  }
+
+  submission {
+    include = [
+      "agent-start/",
+    ]
+    exclude = [
+      "agent-start/target",
+      "agent-start/.git",
+      "agent-start/__pycache__",
+      "agent-start/**/*.pyc",
+      "agent-start/score-results.json",
+      "agent-start/vendor-deps",
+      "agent-start/.cargo/registry",
+      "agent-start/.cargo/git",
+    ]
+  }
+
+  judge {
+    asset                = "private/judge"
+    solution_timeout_sec = 3600
+  }
+
+  metric "score" {
+    type                   = "ratio"
+    role                   = "primary"
+    direction              = "maximize"
+    min                    = 0
+    max                    = 1
+    normalization          = "linear_range_v1"
+    solution_failure_value = "0"
+    public_report          = true
+  }
+}

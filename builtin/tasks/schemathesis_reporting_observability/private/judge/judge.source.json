@@ -1,0 +1,46 @@
+{
+  "admission": "quarantined",
+  "evaluation": {
+    "mode": "batch",
+    "source_command": "set +x; cd /app && bash /tests/test.sh > /tmp/test_full.log 2>&1; python3 - > /tmp/structured_result.log 2>&1 <<'PY'\nimport json\nimport re\nfrom pathlib import Path\n\nPASSED = \"PASSED\"\nFAILED = \"FAILED\"\nERROR = \"ERROR\"\n\n\ndef read_text(path):\n    p = Path(path)\n    if not p.exists():\n        return \"\"\n    return p.read_text(errors=\"replace\")\n\n\ndef parse_weights(script_text, phase_count):\n    patterns = [\n        r\"weights\\s*=\\s*\\[([0-9,\\s]+)\\]\",\n        r\"PHASE_WEIGHTS\\s*=\\s*\\(([0-9\\s]+)\\)\",\n    ]\n    for pattern in patterns:\n        m = re.search(pattern, script_text)\n        if m:\n            raw = re.split(r\"[,\\s]+\", m.group(1).strip())\n            weights = [float(x) for x in raw if x]\n            if len(weights) >= phase_count:\n                return weights[:phase_count]\n\n    m = re.search(r\"PHASES\\s*=\\s*\\((.*?)\\n\\)\", script_text, re.S)\n    if m:\n        weights = []\n        for line in m.group(1).splitlines():\n            line = line.strip()\n            if not line or line.startswith(\"#\"):\n                continue\n            line = line.strip(\"\\\"'\")\n            parts = line.split()\n            if parts and re.fullmatch(r\"\\d+(?:\\.\\d+)?\", parts[-1]):\n                weights.append(float(parts[-1]))\n        if len(weights) >= phase_count:\n            return weights[:phase_count]\n\n    reward_json = Path(\"/logs/verifier/reward.json\")\n    if reward_json.exists():\n        try:\n            data = json.loads(reward_json.read_text(errors=\"replace\"))\n            phases = data.get(\"phases\")\n            if isinstance(phases, dict):\n                weights = []\n                for phase in phases.values():\n                    if isinstance(phase, dict) and \"weight\" in phase:\n                        weights.append(float(phase[\"weight\"]))\n                if len(weights) >= phase_count:\n                    return weights[:phase_count]\n        except Exception:\n            pass\n\n    return [1.0] * phase_count\n\n\ndef parse_statuses(output):\n    results = []\n    seen = set()\n    pattern = re.compile(r\"^(tests/roadmap\\.py::\\S+)\\s+(PASSED|FAILED|ERROR)\\s*$\", re.M)\n    for name, status in pattern.findall(output):\n        if name in seen:\n            continue\n        seen.add(name)\n        results.append((name, status))\n    return results\n\n\ndef parse_phase_number(name, fallback):\n    m = re.search(r\"(?:test_)?phase_?0*(\\d+)\\b\", name)\n    if m:\n        return int(m.group(1))\n    return fallback\n\n\ndef parse_phase_ratios(output):\n    ratios = {}\n    counts = {}\n    pattern = re.compile(r\"^Phase\\s+0*(\\d+):\\s+(\\d+)\\s*/\\s*(\\d+)\\s+passed\\s*$\", re.M)\n    for n, passed, total in pattern.findall(output):\n        n_i = int(n)\n        passed_i = int(passed)\n        total_i = int(total)\n        counts[n_i] = (passed_i, total_i)\n        ratios[n_i] = passed_i / total_i if total_i else 0.0\n\n    weighted_pattern = re.compile(\n        r\"^\\s*Phase\\s+0*(\\d+)\\s+\\(weight\\s*=\\s*([0-9.]+)\\):\\s*([0-9.]+)\\s*$\",\n        re.M,\n    )\n    inline_weights = {}\n    for n, weight, score in weighted_pattern.findall(output):\n        n_i = int(n)\n        inline_weights[n_i] = float(weight)\n        ratios[n_i] = float(score)\n\n    return ratios, counts, inline_weights\n\n\ndef parse_total_score(output):\n    m = re.search(r\"TOTAL_SCORE\\s+([0-9]+(?:\\.[0-9]+)?)\", output)\n    if m:\n        return float(m.group(1))\n    reward_path = Path(\"/logs/verifier/reward.txt\")\n    if reward_path.exists():\n        try:\n            return float(reward_path.read_text(errors=\"replace\").strip())\n        except Exception:\n            pass\n    return None\n\n\ndef main():\n    output = read_text(\"/tmp/test_full.log\")\n    script = read_text(\"/tests/test.sh\")\n\n    statuses = parse_statuses(output)\n    if not statuses:\n        statuses = [(\"tests/roadmap.py::unknown\", ERROR)]\n\n    ratios, counts, inline_weights = parse_phase_ratios(output)\n    weights = parse_weights(script, len(statuses))\n    for idx, weight in inline_weights.items():\n        if 1 <= idx <= len(weights):\n            weights[idx - 1] = weight\n\n    details = []\n    weighted_total = 0.0\n    weight_total = 0.0\n    failed_names = []\n\n    for pos, (name, status) in enumerate(statuses, start=1):\n        phase_num = parse_phase_number(name, pos)\n        weight = weights[pos - 1] if pos - 1 < len(weights) else 1.0\n        if phase_num in ratios:\n            ratio = ratios[phase_num]\n        else:\n            ratio = 1.0 if status == PASSED else 0.0\n        contribution = weight * ratio\n        weighted_total += contribution\n        weight_total += weight\n\n        if phase_num in counts:\n            phase_passed, phase_total = counts[phase_num]\n            message = (\n                f\"Phase {phase_num}: {phase_passed}/{phase_total} checks passed; \"\n                f\"weighted contribution {contribution:.6f}/{weight:.6f}\"\n            )\n        else:\n            message = (\n                f\"Phase {phase_num}: status {status}; \"\n                f\"weighted contribution {contribution:.6f}/{weight:.6f}\"\n            )\n\n        if status != PASSED:\n            failed_names.append(name)\n\n        details.append(\n            {\n                \"name\": name,\n                \"status\": status,\n                \"message\": message,\n                \"score\": contribution,\n                \"weight\": weight,\n            }\n        )\n\n    passed_count = sum(1 for _, status in statuses if status == PASSED)\n    total_count = len(statuses)\n    pass_rate = passed_count / total_count if total_count else 0.0\n    total_score = parse_total_score(output)\n    if total_score is None:\n        total_score = weighted_total / weight_total if weight_total else 0.0\n\n    summary = (\n        f\"{passed_count}/{total_count} phases passed; \"\n        f\"weighted score {total_score:.6f}\"\n    )\n    if failed_names:\n        summary += \". Failed: \" + \", \".join(failed_names[:10])\n        if len(failed_names) > 10:\n            summary += f\" (+{len(failed_names) - 10} more)\"\n\n    result = {\n        \"valid\": True,\n        \"score\": total_score,\n        \"pass_rate\": pass_rate,\n        \"summary\": summary,\n        \"details\": details,\n        \"metrics\": {\n            \"phase_weighted_total\": weighted_total,\n            \"phase_weight_total\": weight_total,\n            \"source\": \"roadmap_structured_json\",\n        },\n    }\n\n    print(\">>>>> Start Structured Result\")\n    print(json.dumps(result, ensure_ascii=False, indent=2))\n    print(\">>>>> End Structured Result\")\n\n\nif __name__ == \"__main__\":\n    main()\nPY\ncat /tmp/structured_result.log",
+    "source_game_server_command": null,
+    "timeout_sec": 1800
+  },
+  "image": {
+    "digest_resolution": "required_at_task_lock",
+    "platform": "linux/amd64",
+    "ref": "docker.io/seededge/edgebench.judge.schemathesis_reporting_observability:21a26db29432"
+  },
+  "kind": "oci",
+  "requirements": [
+    "oci_judge_admission"
+  ],
+  "schema": "a3s-bench/judge-source/v1",
+  "source_result": {
+    "kind": "legacy_stdout",
+    "parser": "structured_json",
+    "rescale_hint": {
+      "kind": "linear",
+      "lower": 0.0,
+      "upper": 1.0
+    },
+    "score_direction": "maximize",
+    "selection_hint": "score_first",
+    "target_metric": "score"
+  },
+  "workspace": {
+    "source_path": "/app",
+    "submission_exclude": [
+      ".git",
+      "__pycache__",
+      "*.pyc",
+      "*.egg-info",
+      ".eggs",
+      "*.so",
+      "TODO.md"
+    ],
+    "submission_paths": [
+      "."
+    ]
+  }
+}

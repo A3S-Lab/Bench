@@ -1,0 +1,45 @@
+{
+  "admission": "quarantined",
+  "evaluation": {
+    "mode": "batch",
+    "source_command": "cd /home/workspace/integer-compression-codec && python3 runner_judge.py",
+    "source_game_server_command": null,
+    "timeout_sec": 2400
+  },
+  "image": {
+    "digest_resolution": "required_at_task_lock",
+    "platform": "linux/amd64",
+    "ref": "docker.io/seededge/edgebench.judge.integer_compression_codec:27063396e02a"
+  },
+  "kind": "oci",
+  "requirements": [
+    "oci_judge_admission"
+  ],
+  "schema": "a3s-bench/judge-source/v1",
+  "source_result": {
+    "kind": "legacy_stdout",
+    "parser": "structured_json",
+    "rescale_hint": {
+      "kind": "linear",
+      "lower": 0.0,
+      "upper": 100.0
+    },
+    "score_direction": "maximize",
+    "selection_hint": "score_first",
+    "target_metric": "score"
+  },
+  "workspace": {
+    "source_path": "/home/workspace/integer-compression-codec",
+    "submission_exclude": [
+      "**/__pycache__",
+      "outputs",
+      "data",
+      ".judge-bin"
+    ],
+    "submission_paths": [
+      "include/",
+      "src/",
+      "Makefile"
+    ]
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "admission": "quarantined",
+  "evaluation": {
+    "mode": "batch",
+    "source_command": "cd /home/workspace/treants_forest && python3 /tmp/eval_treants_forest.py",
+    "source_game_server_command": null,
+    "timeout_sec": 870
+  },
+  "image": {
+    "digest_resolution": "required_at_task_lock",
+    "platform": "linux/amd64",
+    "ref": "docker.io/seededge/edgebench.judge.treant_forest:d47dc1a7da74"
+  },
+  "kind": "oci",
+  "requirements": [
+    "oci_judge_admission"
+  ],
+  "schema": "a3s-bench/judge-source/v1",
+  "source_result": {
+    "kind": "legacy_stdout",
+    "parser": "score_sum",
+    "rescale_hint": {
+      "baseline": 5369.0,
+      "kind": "piecewise_max",
+      "rank1": 330195.0,
+      "rank30": 88189.0,
+      "super_anchor": 451198.0
+    },
+    "score_direction": "maximize",
+    "selection_hint": "score_first",
+    "target_metric": "score"
+  },
+  "workspace": {
+    "source_path": "/home/workspace/treants_forest",
+    "submission_exclude": [
+      "tests"
+    ],
+    "submission_paths": [
+      "solution.py"
+    ]
+  }
+}

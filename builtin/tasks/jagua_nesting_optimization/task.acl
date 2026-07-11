@@ -1,0 +1,55 @@
+# Third-party source details: ../../provenance/edgebench.json
+bench "jagua_nesting_optimization" {
+  schema  = "a3s-bench/task/v1"
+  version = "0.1.0"
+
+  name        = "Jagua Nesting Optimization"
+  category    = "Combinatorial Optimization"
+  description = "Complete the task described in public/prompt.md."
+
+  workspace {
+    oci {
+      ref         = "docker.io/seededge/edgebench.work.jagua_nesting_optimization:992b06cb3f8e"
+      platform    = "linux/amd64"
+      source_path = "/home/workspace/jagua-rs"
+    }
+  }
+
+  work {
+    image {
+      ref = "docker.io/seededge/edgebench.work.jagua_nesting_optimization:992b06cb3f8e"
+    }
+    network_need = "none"
+  }
+
+  submission {
+    include = [
+      "lbf/src/",
+      "jagua-rs/src/",
+      "lbf/Cargo.toml",
+      "jagua-rs/Cargo.toml",
+      "Cargo.toml",
+    ]
+    exclude = [
+      "target",
+      ".git",
+      "assets",
+    ]
+  }
+
+  judge {
+    asset                = "private/judge"
+    solution_timeout_sec = 1200
+  }
+
+  metric "score" {
+    type                   = "ratio"
+    role                   = "primary"
+    direction              = "maximize"
+    min                    = 0
+    max                    = 1
+    normalization          = "linear_range_v1"
+    solution_failure_value = "0"
+    public_report          = true
+  }
+}

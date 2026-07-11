@@ -1,0 +1,39 @@
+{
+  "admission": "quarantined",
+  "evaluation": {
+    "mode": "game_server",
+    "source_command": "",
+    "source_game_server_command": "python /tmp/game_server_app.py --rom /home/roms/tryst205.z5",
+    "timeout_sec": 600
+  },
+  "image": {
+    "digest_resolution": "required_at_task_lock",
+    "platform": "linux/amd64",
+    "ref": "docker.io/seededge/edgebench.judge.tryst_text_adventure:9e1dff6f3aa6"
+  },
+  "kind": "oci",
+  "requirements": [
+    "oci_judge_admission",
+    "interactive_candidate_channel"
+  ],
+  "schema": "a3s-bench/judge-source/v1",
+  "source_result": {
+    "kind": "legacy_stdout",
+    "parser": "",
+    "rescale_hint": {
+      "kind": "linear",
+      "lower": 0.0,
+      "upper": 350.0
+    },
+    "score_direction": "maximize",
+    "selection_hint": "score_first",
+    "target_metric": "score"
+  },
+  "workspace": {
+    "source_path": "/home/jericho_agent",
+    "submission_exclude": [
+      "tests"
+    ],
+    "submission_paths": []
+  }
+}

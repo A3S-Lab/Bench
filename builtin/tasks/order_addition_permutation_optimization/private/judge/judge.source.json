@@ -1,0 +1,40 @@
+{
+  "admission": "quarantined",
+  "evaluation": {
+    "mode": "batch",
+    "source_command": "cd /home/workspace/complex_job_scheduling && python -m pytest tests/test_final_result.py -s -v",
+    "source_game_server_command": null,
+    "timeout_sec": 600
+  },
+  "image": {
+    "digest_resolution": "required_at_task_lock",
+    "platform": "linux/amd64",
+    "ref": "docker.io/seededge/edgebench.judge.order_addition_permutation_optimization:f6f385925889"
+  },
+  "kind": "oci",
+  "requirements": [
+    "oci_judge_admission"
+  ],
+  "schema": "a3s-bench/judge-source/v1",
+  "source_result": {
+    "kind": "legacy_stdout",
+    "parser": "pytest_v",
+    "rescale_hint": {
+      "kind": "linear",
+      "lower": 0.0,
+      "upper": 100.0
+    },
+    "score_direction": "maximize",
+    "selection_hint": "pass_rate_first",
+    "target_metric": "score"
+  },
+  "workspace": {
+    "source_path": "/home/workspace/complex_job_scheduling",
+    "submission_exclude": [
+      "tests"
+    ],
+    "submission_paths": [
+      "."
+    ]
+  }
+}

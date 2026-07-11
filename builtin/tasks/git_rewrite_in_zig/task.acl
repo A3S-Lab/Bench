@@ -1,0 +1,55 @@
+# Third-party source details: ../../provenance/edgebench.json
+bench "git_rewrite_in_zig" {
+  schema  = "a3s-bench/task/v1"
+  version = "0.1.0"
+
+  name        = "Git Rewrite In Zig"
+  category    = "Systems & Software Engineering"
+  description = "Complete the task described in public/prompt.md."
+
+  workspace {
+    oci {
+      ref         = "docker.io/seededge/edgebench.work.git_rewrite_in_zig:3e1aae9f830c"
+      platform    = "linux/amd64"
+      source_path = "/home/workspace/zig-port"
+    }
+  }
+
+  work {
+    image {
+      ref = "docker.io/seededge/edgebench.work.git_rewrite_in_zig:3e1aae9f830c"
+    }
+    network_need = "none"
+  }
+
+  submission {
+    include = [
+      ".",
+    ]
+    exclude = [
+      ".git",
+      "zig-cache",
+      "zig-out",
+      ".zig-cache",
+      "zig-port/zig-cache",
+      "zig-port/zig-out",
+      "zig-port/.zig-cache",
+    ]
+  }
+
+  judge {
+    asset                = "private/judge"
+    solution_timeout_sec = 7200
+  }
+
+  metric "score" {
+    type                   = "ratio"
+    role                   = "primary"
+    direction              = "maximize"
+    min                    = 0
+    max                    = 1
+    normalization          = "linear_range_v1"
+    solution_failure_value = "0"
+    public_report          = true
+  }
+}

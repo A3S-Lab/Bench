@@ -1,0 +1,49 @@
+# Third-party source details: ../../provenance/edgebench.json
+bench "nethack_dungeon_agent" {
+  schema  = "a3s-bench/task/v1"
+  version = "0.1.0"
+
+  name        = "Nethack Dungeon Agent"
+  category    = "Interactive Games & Simulators"
+  description = "Complete the task described in public/prompt.md."
+
+  workspace {
+    oci {
+      ref         = "docker.io/seededge/edgebench.work.nethack_dungeon_agent:eda9da70e2cc"
+      platform    = "linux/amd64"
+      source_path = "/home/nethack_agent"
+    }
+  }
+
+  work {
+    image {
+      ref = "docker.io/seededge/edgebench.work.nethack_dungeon_agent:eda9da70e2cc"
+    }
+    network_need = "none"
+  }
+
+  submission {
+    include = [
+      "agent.py",
+    ]
+    exclude = [
+      "tests",
+    ]
+  }
+
+  judge {
+    asset                = "private/judge"
+    solution_timeout_sec = 3600
+  }
+
+  metric "score" {
+    type                   = "ratio"
+    role                   = "primary"
+    direction              = "maximize"
+    min                    = 0
+    max                    = 1
+    normalization          = "linear_range_v1"
+    solution_failure_value = "0"
+    public_report          = true
+  }
+}

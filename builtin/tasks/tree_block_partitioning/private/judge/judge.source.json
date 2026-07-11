@@ -1,0 +1,43 @@
+{
+  "admission": "quarantined",
+  "evaluation": {
+    "mode": "batch",
+    "source_command": "cd /home/workspace/p1 && python3 /opt/p1_judge/prob/P1/eval.py --source-root /home/workspace/p1 --time-factor 1 --time-grace 0 --score-sum",
+    "source_game_server_command": null,
+    "timeout_sec": 600
+  },
+  "image": {
+    "digest_resolution": "required_at_task_lock",
+    "platform": "linux/amd64",
+    "ref": "docker.io/seededge/edgebench.judge.tree_block_partitioning:f74f0ef897ce"
+  },
+  "kind": "oci",
+  "requirements": [
+    "oci_judge_admission"
+  ],
+  "schema": "a3s-bench/judge-source/v1",
+  "source_result": {
+    "kind": "legacy_stdout",
+    "parser": "score_sum",
+    "rescale_hint": {
+      "kind": "linear",
+      "lower": 0.0,
+      "upper": 100.0
+    },
+    "score_direction": "maximize",
+    "selection_hint": "pass_rate_first",
+    "target_metric": "score"
+  },
+  "workspace": {
+    "source_path": "/home/workspace/p1",
+    "submission_exclude": [],
+    "submission_paths": [
+      "T1.cpp",
+      "T2.cpp",
+      "T3.cpp",
+      "T4.cpp",
+      "T5.cpp",
+      "T6.cpp"
+    ]
+  }
+}

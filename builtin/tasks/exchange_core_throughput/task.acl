@@ -1,0 +1,51 @@
+# Third-party source details: ../../provenance/edgebench.json
+bench "exchange_core_throughput" {
+  schema  = "a3s-bench/task/v1"
+  version = "0.1.0"
+
+  name        = "Exchange Core Throughput"
+  category    = "Systems & Software Engineering"
+  description = "Complete the task described in public/prompt.md."
+
+  workspace {
+    oci {
+      ref         = "docker.io/seededge/edgebench.work.exchange_core_throughput:cc0c0eabbf80"
+      platform    = "linux/amd64"
+      source_path = "/home/workspace/exchange-core"
+    }
+  }
+
+  work {
+    image {
+      ref = "docker.io/seededge/edgebench.work.exchange_core_throughput:cc0c0eabbf80"
+    }
+    network_need = "none"
+  }
+
+  submission {
+    include = [
+      "src/main/",
+      "pom.xml",
+      ".mvn/",
+    ]
+    exclude = [
+      "src/test",
+    ]
+  }
+
+  judge {
+    asset                = "private/judge"
+    solution_timeout_sec = 2400
+  }
+
+  metric "score" {
+    type                   = "ratio"
+    role                   = "primary"
+    direction              = "maximize"
+    min                    = 0
+    max                    = 1
+    normalization          = "linear_range_v1"
+    solution_failure_value = "0"
+    public_report          = true
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "admission": "quarantined",
+  "evaluation": {
+    "mode": "batch",
+    "source_command": "python /opt/borden_scoring/evaluate.py --submission_dir /home/workspace/borden_inverse --case_dir /home/workspace/borden_inverse --scoring_dir /opt/borden_scoring --output /home/workspace/borden_inverse/score.json",
+    "source_game_server_command": null,
+    "timeout_sec": 600
+  },
+  "image": {
+    "digest_resolution": "required_at_task_lock",
+    "platform": "linux/amd64",
+    "ref": "docker.io/seededge/edgebench.judge.borden_source_inversion:cc54d4fd7006"
+  },
+  "kind": "oci",
+  "requirements": [
+    "oci_judge_admission"
+  ],
+  "schema": "a3s-bench/judge-source/v1",
+  "source_result": {
+    "kind": "legacy_stdout",
+    "parser": "structured_json",
+    "rescale_hint": null,
+    "score_direction": "maximize",
+    "selection_hint": "score_first",
+    "target_metric": "score"
+  },
+  "workspace": {
+    "source_path": "/home/workspace/borden_inverse",
+    "submission_exclude": [
+      "scoring",
+      "__pycache__",
+      ".pytest_cache",
+      "*.pyc",
+      "private_generation_record_not_for_agent.json",
+      "score.json"
+    ],
+    "submission_paths": [
+      "."
+    ]
+  }
+}

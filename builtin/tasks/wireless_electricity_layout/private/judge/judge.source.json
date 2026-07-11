@@ -1,0 +1,42 @@
+{
+  "admission": "quarantined",
+  "evaluation": {
+    "mode": "batch",
+    "source_command": "cd /home/workspace/wirel && bash /tmp/eval_wirel.sh",
+    "source_game_server_command": null,
+    "timeout_sec": 600
+  },
+  "image": {
+    "digest_resolution": "required_at_task_lock",
+    "platform": "linux/amd64",
+    "ref": "docker.io/seededge/edgebench.judge.wireless_electricity_layout:1b918c76e808"
+  },
+  "kind": "oci",
+  "requirements": [
+    "oci_judge_admission"
+  ],
+  "schema": "a3s-bench/judge-source/v1",
+  "source_result": {
+    "kind": "legacy_stdout",
+    "parser": "score_sum",
+    "rescale_hint": {
+      "baseline": 2.6059066264593484e+16,
+      "kind": "piecewise_log_min",
+      "rank1": 362439546835871.0,
+      "rank30": 2444746514528109.0,
+      "super_anchor": 181219773417935.5
+    },
+    "score_direction": "minimize",
+    "selection_hint": "score_first",
+    "target_metric": "score"
+  },
+  "workspace": {
+    "source_path": "/home/workspace/wirel",
+    "submission_exclude": [
+      "tests"
+    ],
+    "submission_paths": [
+      "solution.cpp"
+    ]
+  }
+}

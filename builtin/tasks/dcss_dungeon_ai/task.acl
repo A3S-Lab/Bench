@@ -1,0 +1,50 @@
+# Third-party source details: ../../provenance/edgebench.json
+bench "dcss_dungeon_ai" {
+  schema  = "a3s-bench/task/v1"
+  version = "0.1.0"
+
+  name        = "Dcss Dungeon Ai"
+  category    = "Interactive Games & Simulators"
+  description = "Complete the task described in public/prompt.md."
+
+  workspace {
+    oci {
+      ref         = "docker.io/seededge/edgebench.work.dcss_dungeon_ai:e3aadae6b2b3"
+      platform    = "linux/amd64"
+      source_path = "/home/dcss_agent"
+    }
+  }
+
+  work {
+    image {
+      ref = "docker.io/seededge/edgebench.work.dcss_dungeon_ai:e3aadae6b2b3"
+    }
+    network_need = "none"
+  }
+
+  submission {
+    include = [
+      "my_bot.rc",
+      "my_bot_include.rc",
+    ]
+    exclude = [
+      ".git",
+    ]
+  }
+
+  judge {
+    asset                = "private/judge"
+    solution_timeout_sec = 1100
+  }
+
+  metric "score" {
+    type                   = "ratio"
+    role                   = "primary"
+    direction              = "maximize"
+    min                    = 0
+    max                    = 1
+    normalization          = "linear_range_v1"
+    solution_failure_value = "0"
+    public_report          = true
+  }
+}

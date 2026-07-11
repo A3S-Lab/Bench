@@ -1,0 +1,42 @@
+{
+  "admission": "quarantined",
+  "evaluation": {
+    "mode": "batch",
+    "source_command": "cd /home/workspace/exchange-core && python3 /tmp/eval_exchange_core.py",
+    "source_game_server_command": null,
+    "timeout_sec": 2400
+  },
+  "image": {
+    "digest_resolution": "required_at_task_lock",
+    "platform": "linux/amd64",
+    "ref": "docker.io/seededge/edgebench.judge.exchange_core_throughput:2cbf65650b3c"
+  },
+  "kind": "oci",
+  "requirements": [
+    "oci_judge_admission"
+  ],
+  "schema": "a3s-bench/judge-source/v1",
+  "source_result": {
+    "kind": "legacy_stdout",
+    "parser": "score_sum",
+    "rescale_hint": {
+      "baseline": 2090.634594076933,
+      "expert": 6000.0,
+      "kind": "log_max"
+    },
+    "score_direction": "maximize",
+    "selection_hint": "score_first",
+    "target_metric": "score"
+  },
+  "workspace": {
+    "source_path": "/home/workspace/exchange-core",
+    "submission_exclude": [
+      "src/test"
+    ],
+    "submission_paths": [
+      "src/main/",
+      "pom.xml",
+      ".mvn/"
+    ]
+  }
+}

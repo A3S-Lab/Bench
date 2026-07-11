@@ -1,0 +1,69 @@
+# Third-party source details: ../../provenance/edgebench.json
+bench "ordinal_notation_well_foundedness" {
+  schema  = "a3s-bench/task/v1"
+  version = "0.1.0"
+
+  name        = "Ordinal Notation Well Foundedness"
+  category    = "Formal Math & Theorem Proving"
+  description = "Complete the task described in public/prompt.md."
+
+  workspace {
+    oci {
+      ref         = "docker.io/seededge/edgebench.work.ordinal_notation_well_foundedness:690c1a245369"
+      platform    = "linux/amd64"
+      source_path = "/home/workspace/ordinal_notation_wf"
+    }
+  }
+
+  work {
+    image {
+      ref = "docker.io/seededge/edgebench.work.ordinal_notation_well_foundedness:690c1a245369"
+    }
+    network_need = "none"
+  }
+
+  submission {
+    include = [
+      ".",
+    ]
+    exclude = [
+      ".git",
+      ".coq-native",
+      "_CoqProject",
+      "Makefile.coq",
+      "Makefile.coq.conf",
+      "*.aux",
+      ".*.aux",
+      "*.d",
+      "*.glob",
+      "*.vo",
+      "*.vos",
+      "*.vok",
+      "*.vio",
+      "eval_task*.v",
+      "ChildOf.v",
+      "debug*.v",
+      "test*.v",
+      "check*.v",
+      "explore*.v",
+      "tmp*.v",
+      "scratch*.v",
+    ]
+  }
+
+  judge {
+    asset                = "private/judge"
+    solution_timeout_sec = 7200
+  }
+
+  metric "score" {
+    type                   = "ratio"
+    role                   = "primary"
+    direction              = "maximize"
+    min                    = 0
+    max                    = 1
+    normalization          = "linear_range_v1"
+    solution_failure_value = "0"
+    public_report          = true
+  }
+}

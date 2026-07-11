@@ -1,0 +1,60 @@
+# Third-party source details: ../../provenance/edgebench.json
+bench "smt_solver" {
+  schema  = "a3s-bench/task/v1"
+  version = "0.1.0"
+
+  name        = "Smt Solver"
+  category    = "Combinatorial Optimization"
+  description = "Complete the task described in public/prompt.md."
+
+  workspace {
+    oci {
+      ref         = "docker.io/seededge/edgebench.work.smt_solver:ce487a98870f"
+      platform    = "linux/amd64"
+      source_path = "/home/workspace/smt_solver"
+    }
+  }
+
+  work {
+    image {
+      ref = "docker.io/seededge/edgebench.work.smt_solver:ce487a98870f"
+    }
+    network_need = "none"
+  }
+
+  submission {
+    include = [
+      "build.sh",
+      "solve",
+      "src/",
+    ]
+    exclude = [
+      "__pycache__",
+      "*.pyc",
+      ".pytest_cache",
+      "benchmarks",
+      "hidden_benchmarks",
+      "expected_answers.json",
+      "selection_manifest.json",
+      "public_score.json",
+      "hidden_score.json",
+      "*.log",
+    ]
+  }
+
+  judge {
+    asset                = "private/judge"
+    solution_timeout_sec = 7200
+  }
+
+  metric "score" {
+    type                   = "ratio"
+    role                   = "primary"
+    direction              = "maximize"
+    min                    = 0
+    max                    = 1
+    normalization          = "linear_range_v1"
+    solution_failure_value = "0"
+    public_report          = true
+  }
+}

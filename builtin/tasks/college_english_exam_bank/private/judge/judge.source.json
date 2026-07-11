@@ -1,0 +1,60 @@
+{
+  "admission": "quarantined",
+  "evaluation": {
+    "mode": "batch",
+    "source_command": "cd /home/workspace && python3 scoring/grade_with_codex.py --report . --scoring-dir scoring --task-id college_english_exam_bank --input-dir input --timeout 900",
+    "source_game_server_command": null,
+    "timeout_sec": 900
+  },
+  "image": {
+    "digest_resolution": "required_at_task_lock",
+    "platform": "linux/amd64",
+    "ref": "docker.io/seededge/edgebench.judge.college_english_exam_bank:6628b6d3f834"
+  },
+  "kind": "oci",
+  "requirements": [
+    "oci_judge_admission",
+    "model_gateway"
+  ],
+  "schema": "a3s-bench/judge-source/v1",
+  "source_result": {
+    "kind": "legacy_stdout",
+    "parser": "structured_json",
+    "rescale_hint": null,
+    "score_direction": "maximize",
+    "selection_hint": "score_first",
+    "target_metric": "score"
+  },
+  "workspace": {
+    "source_path": "/home/workspace",
+    "submission_exclude": [
+      ".git",
+      "__pycache__",
+      "*.pyc"
+    ],
+    "submission_paths": [
+      "A卷原卷.docx",
+      "A卷原卷.pdf",
+      "A卷答案和评分细则.docx",
+      "A卷答案和评分细则.pdf",
+      "B卷原卷.docx",
+      "B卷原卷.pdf",
+      "B卷答案和评分细则.docx",
+      "B卷答案和评分细则.pdf",
+      "C卷原卷.docx",
+      "C卷原卷.pdf",
+      "C卷答案和评分细则.docx",
+      "C卷答案和评分细则.pdf",
+      "D卷原卷.docx",
+      "D卷原卷.pdf",
+      "D卷答案和评分细则.docx",
+      "D卷答案和评分细则.pdf",
+      "E卷原卷.docx",
+      "E卷原卷.pdf",
+      "E卷答案和评分细则.docx",
+      "E卷答案和评分细则.pdf",
+      "五套组卷蓝图表.xlsx",
+      "套间重复率自检表.xlsx"
+    ]
+  }
+}

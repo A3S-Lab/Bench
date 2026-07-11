@@ -1,0 +1,46 @@
+{
+  "admission": "quarantined",
+  "evaluation": {
+    "mode": "batch",
+    "source_command": "mkdir -p /logs/verifier /tmp/verifier && ln -sfn /home/workspace /app && ln -sfn /opt/tests /tests && ln -sfn /tmp/verifier /logs/verifier 2>/dev/null; export APP_DIR=/home/workspace VERIFIER_DIR=/logs/verifier && bash /opt/tests/test.sh >/tmp/verifier.log 2>&1 || true; cat /tmp/verifier.log >&2; bash /opt/tests/pytest_shim.sh \"/logs/verifier/reward.json\"",
+    "source_game_server_command": null,
+    "timeout_sec": 7200
+  },
+  "image": {
+    "digest_resolution": "required_at_task_lock",
+    "platform": "linux/amd64",
+    "ref": "docker.io/seededge/edgebench.judge.git_rewrite_in_zig:0d404251e9c9"
+  },
+  "kind": "oci",
+  "requirements": [
+    "oci_judge_admission"
+  ],
+  "schema": "a3s-bench/judge-source/v1",
+  "source_result": {
+    "kind": "legacy_stdout",
+    "parser": "pytest_v",
+    "rescale_hint": {
+      "kind": "linear",
+      "lower": 0.0,
+      "upper": 1.0
+    },
+    "score_direction": "maximize",
+    "selection_hint": "score_first",
+    "target_metric": "score"
+  },
+  "workspace": {
+    "source_path": "/home/workspace/zig-port",
+    "submission_exclude": [
+      ".git",
+      "zig-cache",
+      "zig-out",
+      ".zig-cache",
+      "zig-port/zig-cache",
+      "zig-port/zig-out",
+      "zig-port/.zig-cache"
+    ],
+    "submission_paths": [
+      "."
+    ]
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "admission": "quarantined",
+  "evaluation": {
+    "mode": "batch",
+    "source_command": "cd /home/workspace/sebench_performance_takehome && python -c \"exec(\\\"import json, subprocess, sys\\\\nfrom pathlib import Path\\\\nreport_path = Path('/tmp/sebench_performance_report.json')\\\\noutput = ''\\\\nrunner_returncode = None\\\\nreport = {}\\\\ntry:\\\\n    proc = subprocess.run([sys.executable, 'runner.py', '--solution', 'solution.py', '--cases', 'test_cases/hidden_cases.json', '--output', str(report_path)], text=True, capture_output=True, timeout=600)\\\\n    runner_returncode = proc.returncode\\\\n    output = (proc.stdout or '') + (proc.stderr or '')\\\\n    print(output, end='')\\\\n    if report_path.exists():\\\\n        report = json.loads(report_path.read_text())\\\\nexcept subprocess.TimeoutExpired as exc:\\\\n    stdout = exc.stdout.decode(errors='replace') if isinstance(exc.stdout, bytes) else (exc.stdout or '')\\\\n    stderr = exc.stderr.decode(errors='replace') if isinstance(exc.stderr, bytes) else (exc.stderr or '')\\\\n    output = stdout + stderr\\\\n    print(output, end='')\\\\n    report = {'all_correct': False, 'score': None, 'score_cycles': None, 'best_cycles': None, 'passed_thresholds': [], 'results': [], 'error': 'evaluation timed out'}\\\\nexcept Exception as exc:\\\\n    report = {'all_correct': False, 'score': None, 'score_cycles': None, 'best_cycles': None, 'passed_thresholds': [], 'results': [], 'error': repr(exc)}\\\\nscore_cycles = report.get('score_cycles')\\\\nvalid = bool(report.get('all_correct') and score_cycles is not None)\\\\nscore = float(score_cycles) if valid else None\\\\nsummary = ('cycles={:.0f}; lower is better'.format(score) if valid else 'invalid submission; no cycle score')\\\\ndetails = []\\\\nfor result in report.get('results', []):\\\\n    ok = bool(result.get('correct'))\\\\n    details.append({'name': result.get('name', ''), 'status': 'PASSED' if ok else 'FAILED', 'score': result.get('cycles'), 'message': 'kind={}; cycles={}'.format(result.get('kind', 'correctness'), result.get('cycles'))})\\\\nif not details:\\\\n    details = [{'name': 'hidden_cycles', 'status': 'PASSED' if valid else 'FAILED', 'score': score, 'message': output[-2000:]}]\\\\npassed_count = sum(1 for d in details if d['status'] == 'PASSED')\\\\nfailed_count = sum(1 for d in details if d['status'] == 'FAILED')\\\\nstructured = {'valid': valid, 'score': score, 'pass_rate': 1.0 if valid else 0.0, 'total_tests': len(details), 'passed': passed_count, 'failed': failed_count, 'errors': 0 if valid else 1, 'summary': summary, 'details': details, 'metrics': {'score_cycles': score_cycles, 'best_cycles': report.get('best_cycles'), 'legacy_score': report.get('score'), 'passed_thresholds': report.get('passed_thresholds', []), 'runner_returncode': runner_returncode}}\\\\nprint('>>>>> Start Structured Result')\\\\nprint(json.dumps(structured, ensure_ascii=False))\\\\nprint('>>>>> End Structured Result')\\\")\"",
+    "source_game_server_command": null,
+    "timeout_sec": 700
+  },
+  "image": {
+    "digest_resolution": "required_at_task_lock",
+    "platform": "linux/amd64",
+    "ref": "docker.io/seededge/edgebench.judge.vliw_kernel_optimization:5cdef0021634"
+  },
+  "kind": "oci",
+  "requirements": [
+    "oci_judge_admission"
+  ],
+  "schema": "a3s-bench/judge-source/v1",
+  "source_result": {
+    "kind": "legacy_stdout",
+    "parser": "structured_json",
+    "rescale_hint": {
+      "baseline": 4475.526541978607,
+      "expert": 1000.0,
+      "kind": "log_min"
+    },
+    "score_direction": "minimize",
+    "selection_hint": "valid_then_score",
+    "target_metric": "score"
+  },
+  "workspace": {
+    "source_path": "/home/workspace/sebench_performance_takehome",
+    "submission_exclude": [
+      "runner.py",
+      "verifier.py",
+      "problem.py",
+      "test_cases",
+      "public_tests",
+      "__pycache__",
+      ".DS_Store"
+    ],
+    "submission_paths": [
+      "solution.py"
+    ]
+  }
+}

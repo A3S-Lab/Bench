@@ -1,0 +1,40 @@
+{
+  "admission": "quarantined",
+  "evaluation": {
+    "mode": "batch",
+    "source_command": "cd /home/workspace/se-bmk-intern/combinatorial-games && cp -r /home/workspace/baseline/.lake . && cp /home/workspace/baseline/lake-manifest.json . && lake build && cp /home/workspace/judge/se-bmk-intern/combinatorial-games/ListDeclAxiom.lean . && cd /home/workspace/judge/se-bmk-intern && python3 eval_lean.py --baseline-repo /home/workspace/judge/se-bmk-intern/combinatorial-games --current-repo /home/workspace/se-bmk-intern/combinatorial-games",
+    "source_game_server_command": null,
+    "timeout_sec": 2400
+  },
+  "image": {
+    "digest_resolution": "required_at_task_lock",
+    "platform": "linux/amd64",
+    "ref": "docker.io/seededge/edgebench.judge.combinatorial_games_formalization:e4e88a24e340"
+  },
+  "kind": "oci",
+  "requirements": [
+    "oci_judge_admission"
+  ],
+  "schema": "a3s-bench/judge-source/v1",
+  "source_result": {
+    "kind": "legacy_stdout",
+    "parser": "structured_json",
+    "rescale_hint": {
+      "kind": "linear",
+      "lower": 0.0,
+      "upper": 1.0
+    },
+    "score_direction": "maximize",
+    "selection_hint": "pass_rate_first",
+    "target_metric": "score"
+  },
+  "workspace": {
+    "source_path": "/home/workspace/",
+    "submission_exclude": [
+      "se-bmk-intern/combinatorial-games/.lake"
+    ],
+    "submission_paths": [
+      "se-bmk-intern/combinatorial-games"
+    ]
+  }
+}

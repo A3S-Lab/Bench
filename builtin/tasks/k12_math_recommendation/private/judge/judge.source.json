@@ -1,0 +1,46 @@
+{
+  "admission": "quarantined",
+  "evaluation": {
+    "mode": "batch",
+    "source_command": "cd /home/workspace && python3 scoring/score.py",
+    "source_game_server_command": null,
+    "timeout_sec": 900
+  },
+  "image": {
+    "digest_resolution": "required_at_task_lock",
+    "platform": "linux/amd64",
+    "ref": "docker.io/seededge/edgebench.judge.k12_math_recommendation:1faabfecdb8e"
+  },
+  "kind": "oci",
+  "requirements": [
+    "oci_judge_admission"
+  ],
+  "schema": "a3s-bench/judge-source/v1",
+  "source_result": {
+    "kind": "legacy_stdout",
+    "parser": "structured_json",
+    "rescale_hint": null,
+    "score_direction": "maximize",
+    "selection_hint": "score_first",
+    "target_metric": "score"
+  },
+  "workspace": {
+    "source_path": "/home/workspace",
+    "submission_exclude": [
+      ".git",
+      "__pycache__",
+      "*.pyc",
+      "node_modules",
+      "bin",
+      "obj"
+    ],
+    "submission_paths": [
+      "train.py",
+      "infer.py",
+      "models",
+      "submission.json",
+      "requirements.txt",
+      "README.md"
+    ]
+  }
+}

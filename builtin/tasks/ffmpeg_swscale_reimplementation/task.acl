@@ -1,0 +1,52 @@
+# Third-party source details: ../../provenance/edgebench.json
+bench "ffmpeg_swscale_reimplementation" {
+  schema  = "a3s-bench/task/v1"
+  version = "0.1.0"
+
+  name        = "Ffmpeg Swscale Reimplementation"
+  category    = "Systems & Software Engineering"
+  description = "Complete the task described in public/prompt.md."
+
+  workspace {
+    oci {
+      ref         = "docker.io/seededge/edgebench.work.ffmpeg_swscale_reimplementation:0557f5e37b71"
+      platform    = "linux/amd64"
+      source_path = "/home/workspace/swscale-impl"
+    }
+  }
+
+  work {
+    image {
+      ref = "docker.io/seededge/edgebench.work.ffmpeg_swscale_reimplementation:0557f5e37b71"
+    }
+    network_need = "none"
+  }
+
+  submission {
+    include = [
+      ".",
+    ]
+    exclude = [
+      ".git",
+      "zig-cache",
+      "zig-out",
+      "target",
+    ]
+  }
+
+  judge {
+    asset                = "private/judge"
+    solution_timeout_sec = 5400
+  }
+
+  metric "score" {
+    type                   = "ratio"
+    role                   = "primary"
+    direction              = "maximize"
+    min                    = 0
+    max                    = 1
+    normalization          = "linear_range_v1"
+    solution_failure_value = "0"
+    public_report          = true
+  }
+}

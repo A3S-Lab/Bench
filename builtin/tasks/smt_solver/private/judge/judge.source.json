@@ -1,0 +1,51 @@
+{
+  "admission": "quarantined",
+  "evaluation": {
+    "mode": "batch",
+    "source_command": "python3 - <<'PY'\nimport pathlib, shutil, zipfile\nzip_path = pathlib.Path('/home/workspace/smt_judge/SMT-hidden_benchmarks.zip')\ndest = pathlib.Path('/home/workspace/smt_judge/hidden_benchmarks')\nif dest.exists():\n    shutil.rmtree(dest)\ndest.mkdir(parents=True, exist_ok=True)\nwith zipfile.ZipFile(zip_path) as z:\n    z.extractall(dest)\nPY\ncd /home/workspace/smt_solver && rm -rf benchmarks hidden_benchmarks scripts expected_answers.json selection_manifest.json hidden_score.json public_score.json; chmod +x build.sh solve; build_status=0; ./build.sh >/tmp/smt_build.out 2>/tmp/smt_build.err || build_status=$?; if [ \"$build_status\" -eq 0 ]; then python3 /home/workspace/smt_judge/scripts/evaluate.py --solver ./solve --benchmarks /home/workspace/smt_judge/hidden_benchmarks --expected /home/workspace/smt_judge/hidden_benchmarks/expected_answers.json --manifest /home/workspace/smt_judge/hidden_benchmarks/selection_manifest.json --timeout 60 --parallel 16 --perturb --perturb-salt hidden-sebench --submission-root /home/workspace/smt_solver --output /tmp/smt_hidden_score.json >/tmp/smt_eval.out 2>/tmp/smt_eval.err; eval_status=$?; else eval_status=$build_status; fi; if [ -f /tmp/smt_build.out ]; then cat /tmp/smt_build.out; fi; if [ -f /tmp/smt_build.err ]; then cat /tmp/smt_build.err; fi; if [ -f /tmp/smt_eval.out ]; then cat /tmp/smt_eval.out; fi; if [ -f /tmp/smt_eval.err ]; then cat /tmp/smt_eval.err; fi; cat > /tmp/sebench_parse_result.py <<'PY'\nimport json, pathlib\np = pathlib.Path('/tmp/smt_hidden_score.json')\nraw = json.loads(p.read_text()) if p.exists() else {'final_score': 0.0, 'logic_summary': {}}\nraw_score = float(raw.get('final_score', 0.0) or 0.0)\nscore = raw_score / 100.0 if raw_score > 1.0 else raw_score\nby = raw.get('logic_summary', {}) or {}\ndef clean(g):\n    out = {}\n    for k, item in sorted(g.items()):\n        t = int(item.get('total', 0) or 0); c = int(item.get('correct', 0) or 0)\n        out[k] = {'total': t, 'correct': c, 'wrong': int(item.get('wrong', max(0, t-c)) or 0), 'timeout': int(item.get('timeout', 0) or 0), 'unknown': int(item.get('unknown', 0) or 0), 'error': int(item.get('error', 0) or 0), 'no_reference': int(item.get('no_reference', 0) or 0), 'invalid_model': int(item.get('invalid_model', 0) or 0), 'score': float(item.get('score', 0.0) or 0.0)}\n    return out\nby = clean(by)\ntotal = sum(v['total'] for v in by.values()); correct = sum(v['correct'] for v in by.values())\nwrong = max(0, total - correct)\nresult = {'valid': True, 'score': score, 'pass_rate': correct/total if total else 0.0, 'total_tests': total, 'passed': correct, 'failed': wrong, 'errors': 0, 'summary': 'score={:.6f} ({:.2f}/100), correct={}/{}'.format(score, 100*score, correct, total), 'details': [], 'metrics': {'score': score, 'score_percent': 100*score, 'total': total, 'correct': correct, 'wrong_or_failed': wrong, 'by_logic': by}}\nprint('>>>>> Start Structured Result')\nprint(json.dumps(result, ensure_ascii=False))\nprint('>>>>> End Structured Result')\nPY\npython3 /tmp/sebench_parse_result.py",
+    "source_game_server_command": null,
+    "timeout_sec": 7200
+  },
+  "image": {
+    "digest_resolution": "required_at_task_lock",
+    "platform": "linux/amd64",
+    "ref": "docker.io/seededge/edgebench.judge.smt_solver:fdce54253c61"
+  },
+  "kind": "oci",
+  "requirements": [
+    "oci_judge_admission"
+  ],
+  "schema": "a3s-bench/judge-source/v1",
+  "source_result": {
+    "kind": "legacy_stdout",
+    "parser": "structured_json",
+    "rescale_hint": {
+      "kind": "linear",
+      "lower": 0.0,
+      "upper": 1.0
+    },
+    "score_direction": "maximize",
+    "selection_hint": "score_first",
+    "target_metric": "score"
+  },
+  "workspace": {
+    "source_path": "/home/workspace/smt_solver",
+    "submission_exclude": [
+      "__pycache__",
+      "*.pyc",
+      ".pytest_cache",
+      "benchmarks",
+      "hidden_benchmarks",
+      "expected_answers.json",
+      "selection_manifest.json",
+      "public_score.json",
+      "hidden_score.json",
+      "*.log"
+    ],
+    "submission_paths": [
+      "build.sh",
+      "solve",
+      "src/"
+    ]
+  }
+}

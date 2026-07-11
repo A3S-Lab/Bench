@@ -1,0 +1,56 @@
+# Third-party source details: ../../provenance/edgebench.json
+bench "bipedalwalker_locomotion_rl" {
+  schema  = "a3s-bench/task/v1"
+  version = "0.1.0"
+
+  name        = "Bipedalwalker Locomotion Rl"
+  category    = "Scientific Problems & ML"
+  description = "Complete the task described in public/prompt.md."
+
+  workspace {
+    oci {
+      ref         = "docker.io/seededge/edgebench.work.bipedalwalker_locomotion_rl:f9a2f8394c09"
+      platform    = "linux/amd64"
+      source_path = "/home/workspace/loco-rl"
+    }
+  }
+
+  work {
+    image {
+      ref = "docker.io/seededge/edgebench.work.bipedalwalker_locomotion_rl:f9a2f8394c09"
+    }
+    network_need = "none"
+  }
+
+  submission {
+    include = [
+      "submission/",
+    ]
+    exclude = [
+      "submission/eval_results.json",
+      "submission/checkpoints",
+      "submission/*.log",
+      "submission/*.tmp",
+      "__pycache__",
+      "eval",
+      "sebench_eval.py",
+      ".git",
+    ]
+  }
+
+  judge {
+    asset                = "private/judge"
+    solution_timeout_sec = 900
+  }
+
+  metric "score" {
+    type                   = "ratio"
+    role                   = "primary"
+    direction              = "maximize"
+    min                    = 0
+    max                    = 1
+    normalization          = "linear_range_v1"
+    solution_failure_value = "0"
+    public_report          = true
+  }
+}

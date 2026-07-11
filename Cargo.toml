@@ -1,0 +1,31 @@
+[package]
+name = "a3s-bench"
+version = "0.1.0"
+edition = "2021"
+description = "Reproducible benchmark control component for A3S agents"
+license = "MIT"
+repository = "https://github.com/A3S-Lab/Bench"
+
+[[bin]]
+name = "a3s-bench"
+path = "src/main.rs"
+
+[dependencies]
+a3s-acl = { path = "../acl" }
+a3s-code-core = { path = "../code/core" }
+anyhow = "1"
+async-trait = "0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+regex = "1"
+globset = "0.4"
+tokio = { version = "1", features = ["rt-multi-thread", "process"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true

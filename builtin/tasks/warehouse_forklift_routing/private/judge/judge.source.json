@@ -1,0 +1,42 @@
+{
+  "admission": "quarantined",
+  "evaluation": {
+    "mode": "batch",
+    "source_command": "cd /home/workspace/warehouse_manager && python3 /tmp/eval_warehouse_manager.py",
+    "source_game_server_command": null,
+    "timeout_sec": 3600
+  },
+  "image": {
+    "digest_resolution": "required_at_task_lock",
+    "platform": "linux/amd64",
+    "ref": "docker.io/seededge/edgebench.judge.warehouse_forklift_routing:d342863c29cc"
+  },
+  "kind": "oci",
+  "requirements": [
+    "oci_judge_admission"
+  ],
+  "schema": "a3s-bench/judge-source/v1",
+  "source_result": {
+    "kind": "legacy_stdout",
+    "parser": "score_sum",
+    "rescale_hint": {
+      "baseline": 23277.847205,
+      "kind": "piecewise_log_min",
+      "rank1": 395.802847,
+      "rank30": 804.959064,
+      "super_anchor": 293.51379275
+    },
+    "score_direction": "minimize",
+    "selection_hint": "score_first",
+    "target_metric": "score"
+  },
+  "workspace": {
+    "source_path": "/home/workspace/warehouse_manager",
+    "submission_exclude": [
+      "tests"
+    ],
+    "submission_paths": [
+      "solution.py"
+    ]
+  }
+}

@@ -1,0 +1,51 @@
+# Third-party source details: ../../provenance/edgebench.json
+bench "graph_node_classification" {
+  schema  = "a3s-bench/task/v1"
+  version = "0.1.0"
+
+  name        = "Graph Node Classification"
+  category    = "Scientific Problems & ML"
+  description = "Complete the task described in public/prompt.md."
+
+  workspace {
+    oci {
+      ref         = "docker.io/seededge/edgebench.work.graph_node_classification:4d2c1f502d14"
+      platform    = "linux/amd64"
+      source_path = "/home/workspace/045_graph_node_classification"
+    }
+  }
+
+  work {
+    image {
+      ref = "docker.io/seededge/edgebench.work.graph_node_classification:4d2c1f502d14"
+    }
+    network_need = "none"
+  }
+
+  submission {
+    include = [
+      "solution/solution.py",
+    ]
+    exclude = [
+      "tests",
+      "**/__pycache__/**",
+      "**/*.pyc",
+    ]
+  }
+
+  judge {
+    asset                = "private/judge"
+    solution_timeout_sec = 1800
+  }
+
+  metric "score" {
+    type                   = "ratio"
+    role                   = "primary"
+    direction              = "maximize"
+    min                    = 0
+    max                    = 1
+    normalization          = "linear_range_v1"
+    solution_failure_value = "0"
+    public_report          = true
+  }
+}
