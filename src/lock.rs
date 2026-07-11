@@ -129,6 +129,9 @@ pub fn create_candidate(
         locked_asset
             .model_instructions_path()
             .context("Candidate cannot be locked with a model")?;
+        locked_asset
+            .model_max_steps()
+            .context("Candidate cannot be locked with a model")?;
     }
     let mut value = CandidateLock {
         schema: "a3s.bench.candidate-lock.v1".into(),

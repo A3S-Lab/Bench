@@ -185,6 +185,8 @@ fn execute_candidate(
                 )
             }),
             public_internet: task.work_network_need == "public_internet",
+            timeout_sec: task.candidate_timeout_sec,
+            max_tool_rounds: candidate.model_max_steps()?,
         },
     )?))
 }

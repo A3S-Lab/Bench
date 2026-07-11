@@ -13,6 +13,7 @@ pub struct LegacyJudgeSource {
     pub platform: Option<String>,
     pub game_server_command: Option<String>,
     pub requires_model_gateway: bool,
+    pub timeout_sec: u64,
 }
 
 #[derive(Deserialize)]
@@ -128,6 +129,7 @@ pub fn load(path: &Path) -> Result<Option<LegacyJudgeSource>> {
             .requirements
             .iter()
             .any(|requirement| requirement == "model_gateway"),
+        timeout_sec: descriptor.evaluation.timeout_sec,
     }))
 }
 

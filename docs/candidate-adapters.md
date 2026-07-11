@@ -40,6 +40,9 @@ source {
 Paths are normalized package-relative paths. Absolute paths, `..`, symlinks,
 hard links, and special files are rejected during validation or snapshotting.
 The entrypoint and definition must be part of the immutable package.
+For a model-backed Candidate, the definition frontmatter must declare
+`max_steps` between 1 and 1000. Bench uses this locked value as the maximum tool
+round count; long-horizon adapters should choose it deliberately.
 
 ## Two execution forms
 

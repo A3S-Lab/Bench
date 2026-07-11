@@ -63,7 +63,11 @@ fn model_candidate_game_and_task_owned_judge_run_end_to_end() {
     let game = start_game(&task, state.path()).unwrap().unwrap();
     let candidate_root = state.path().join("candidate");
     std::fs::create_dir(&candidate_root).unwrap();
-    std::fs::write(candidate_root.join("agent.md"), "Play the supplied game.").unwrap();
+    std::fs::write(
+        candidate_root.join("agent.md"),
+        "---\nname: game-test\nmax_steps: 8\n---\n\nPlay the supplied game.\n",
+    )
+    .unwrap();
     let candidate = asset::LocalAssetPackage {
         root: candidate_root,
         entrypoint: "unused".into(),

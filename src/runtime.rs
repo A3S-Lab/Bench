@@ -3,7 +3,11 @@ use a3s_runtime::{ProviderId, RuntimeSelection};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Output, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, Instant};
+
+static CANDIDATE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResolvedImage {
@@ -13,10 +17,7 @@ pub struct ResolvedImage {
 }
 
 pub fn resolve_image(reference: &str, platform: Option<&str>) -> Result<ResolvedImage> {
-    let mut inspect = Command::new("docker");
-    inspect.args(["image", "inspect", reference]);
-    let present = inspect.output().context("could not inspect Docker image")?;
-    if !present.status.success() {
+    if !local_image_matches(reference, platform)? {
         let mut pull = Command::new("docker");
         pull.arg("pull");
         if let Some(platform) = platform {
@@ -32,6 +33,11 @@ pub fn resolve_image(reference: &str, platform: Option<&str>) -> Result<Resolved
             String::from_utf8_lossy(&pull.stderr).trim()
         );
     }
+    anyhow::ensure!(
+        local_image_matches(reference, platform)?,
+        "Docker image {reference:?} does not match requested platform {}",
+        platform.unwrap_or("native")
+    );
     let image_id = command_preflight_output(
         "docker",
         &["image", "inspect", "--format", "{{.Id}}", reference],
@@ -59,6 +65,44 @@ pub fn resolve_image(reference: &str, platform: Option<&str>) -> Result<Resolved
         },
         image_id,
     })
+}
+
+fn local_image_matches(reference: &str, requested: Option<&str>) -> Result<bool> {
+    let output = Command::new("docker")
+        .args([
+            "image",
+            "inspect",
+            "--format",
+            "{{.Os}}/{{.Architecture}}",
+            reference,
+        ])
+        .output()
+        .context("could not inspect Docker image")?;
+    if !output.status.success() {
+        return Ok(false);
+    }
+    let Some(requested) = requested else {
+        return Ok(true);
+    };
+    let requested = canonical_platform(requested)?;
+    let actual = String::from_utf8(output.stdout)?.trim().to_owned();
+    Ok(actual == requested)
+}
+
+fn canonical_platform(value: &str) -> Result<String> {
+    let mut parts = value.split('/');
+    let os = parts.next().unwrap_or_default();
+    let architecture = parts.next().unwrap_or_default();
+    anyhow::ensure!(
+        !os.is_empty() && !architecture.is_empty() && parts.next().is_none(),
+        "platform must use os/architecture"
+    );
+    let architecture = match architecture {
+        "x86_64" => "amd64",
+        "aarch64" => "arm64",
+        value => value,
+    };
+    Ok(format!("{os}/{architecture}"))
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -89,9 +133,16 @@ pub fn execute_docker_candidate(
         .next()
         .unwrap_or(&candidate.entrypoint);
     let mut command = Command::new("docker");
+    let container = format!(
+        "a3s-bench-candidate-{}-{}",
+        std::process::id(),
+        CANDIDATE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+    );
     command.args([
         "run",
         "--rm",
+        "--name",
+        &container,
         "--read-only",
         "--cap-drop",
         "ALL",
@@ -118,7 +169,7 @@ pub fn execute_docker_candidate(
         command.args(["--platform", platform]);
     }
     configure_mounted_tree_owner(&mut command, &candidate.root)?;
-    let candidate_output = command
+    command
         .arg("--mount")
         .arg(format!(
             "type=bind,src={},dst=/workspace",
@@ -130,9 +181,21 @@ pub fn execute_docker_candidate(
             candidate.root.display()
         ))
         .arg(&task.work_image)
-        .args(["/bin/sh", &format!("/agent/{entrypoint}"), "/workspace"])
-        .output()
-        .context("could not start Docker Candidate")?;
+        .args(["/bin/sh", &format!("/agent/{entrypoint}"), "/workspace"]);
+    let (candidate_output, timed_out) = output_with_timeout(
+        &mut command,
+        Duration::from_secs(task.candidate_timeout_sec),
+    )
+    .context("could not start Docker Candidate")?;
+    if timed_out {
+        let _ = Command::new("docker")
+            .args(["rm", "-f", &container])
+            .output();
+        anyhow::bail!(
+            "Candidate exceeded Task solution_timeout_sec ({})",
+            task.candidate_timeout_sec
+        );
+    }
     anyhow::ensure!(
         candidate_output.status.success(),
         "Candidate exited with {}: {}",
@@ -140,6 +203,51 @@ pub fn execute_docker_candidate(
         String::from_utf8_lossy(&candidate_output.stderr).trim()
     );
     Ok(())
+}
+
+fn output_with_timeout(command: &mut Command, timeout: Duration) -> Result<(Output, bool)> {
+    use std::io::Read;
+
+    let mut child = command
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    let mut stdout = child.stdout.take().expect("stdout was piped");
+    let mut stderr = child.stderr.take().expect("stderr was piped");
+    let stdout_reader = std::thread::spawn(move || {
+        let mut bytes = Vec::new();
+        stdout.read_to_end(&mut bytes).map(|_| bytes)
+    });
+    let stderr_reader = std::thread::spawn(move || {
+        let mut bytes = Vec::new();
+        stderr.read_to_end(&mut bytes).map(|_| bytes)
+    });
+    let deadline = Instant::now() + timeout;
+    let timed_out = loop {
+        if child.try_wait()?.is_some() {
+            break false;
+        }
+        if Instant::now() >= deadline {
+            child.kill()?;
+            break true;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    };
+    let status = child.wait()?;
+    let stdout = stdout_reader
+        .join()
+        .map_err(|_| anyhow::anyhow!("stdout reader panicked"))??;
+    let stderr = stderr_reader
+        .join()
+        .map_err(|_| anyhow::anyhow!("stderr reader panicked"))??;
+    Ok((
+        Output {
+            status,
+            stdout,
+            stderr,
+        },
+        timed_out,
+    ))
 }
 
 pub fn execute_docker_judge(
@@ -358,6 +466,30 @@ mod tests {
     }
 
     #[test]
+    fn canonicalizes_closed_container_platforms() {
+        assert_eq!(canonical_platform("linux/x86_64").unwrap(), "linux/amd64");
+        assert_eq!(canonical_platform("linux/aarch64").unwrap(), "linux/arm64");
+        assert!(canonical_platform("linux").is_err());
+        assert!(canonical_platform("linux/amd64/v2").is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn command_timeout_collects_output_and_terminates() {
+        let mut quick = Command::new("sh");
+        quick.args(["-c", "printf ready"]);
+        let (output, timed_out) = output_with_timeout(&mut quick, Duration::from_secs(1)).unwrap();
+        assert!(!timed_out);
+        assert!(output.status.success());
+        assert_eq!(output.stdout, b"ready");
+
+        let mut slow = Command::new("sleep");
+        slow.arg("5");
+        let (_, timed_out) = output_with_timeout(&mut slow, Duration::from_millis(50)).unwrap();
+        assert!(timed_out);
+    }
+
+    #[test]
     fn validates_locked_metric_contract() {
         let task = TaskInfo {
             id: "test".into(),
@@ -367,6 +499,7 @@ mod tests {
             work_image: "alpine".into(),
             work_platform: None,
             work_network_need: "none".into(),
+            candidate_timeout_sec: 300,
             metrics: vec![MetricInfo {
                 name: "correctness".into(),
                 min: 0.0,

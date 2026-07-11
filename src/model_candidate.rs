@@ -28,6 +28,8 @@ pub struct ModelCandidateRequest<'a> {
     pub work_platform: Option<&'a str>,
     pub game_network: Option<(&'a str, &'a str)>,
     pub public_internet: bool,
+    pub timeout_sec: u64,
+    pub max_tool_rounds: usize,
 }
 
 pub fn execute(request: ModelCandidateRequest<'_>) -> Result<ModelExecution> {
@@ -59,7 +61,7 @@ async fn execute_async(request: ModelCandidateRequest<'_>) -> Result<ModelExecut
         .with_workspace_backend(WorkspaceServices::local(request.workspace))
         .with_sandbox_handle(sandbox)
         .with_confirmation_policy(a3s_code_core::hitl::ConfirmationPolicy::default())
-        .with_max_tool_rounds(25)
+        .with_max_tool_rounds(request.max_tool_rounds)
         .with_planning(false)
         .with_continuation(false)
         .with_manual_delegation_enabled(false);
@@ -71,11 +73,15 @@ async fn execute_async(request: ModelCandidateRequest<'_>) -> Result<ModelExecut
         request.candidate_instructions,
         request.task_prompt
     );
-    let result = session
-        .send(&prompt, None)
-        .await
-        .context("model Candidate execution failed")?;
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(request.timeout_sec),
+        session.send(&prompt, None),
+    )
+    .await;
     session.close().await;
+    let result = result
+        .context("model Candidate exceeded Task solution_timeout_sec")?
+        .context("model Candidate execution failed")?;
     Ok(ModelExecution {
         prompt_tokens: result.usage.prompt_tokens,
         completion_tokens: result.usage.completion_tokens,
@@ -269,6 +275,8 @@ mod tests {
             work_platform: None,
             game_network: None,
             public_internet: false,
+            timeout_sec: 30,
+            max_tool_rounds: 32,
         })
         .unwrap();
         server.join().unwrap();

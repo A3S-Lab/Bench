@@ -274,7 +274,8 @@ There are two different experiments:
   `provider/model`.
 - **Agent comparison:** use a different Candidate adapter for Codex, Claude
   Code, A3S Code, or another coding agent. The adapter freezes the product,
-  controller instructions, tools, entrypoint, and model binding.
+  controller instructions, tools, maximum tool rounds, entrypoint, and model
+  binding.
 
 ### Compare models with A3S Code
 
@@ -443,6 +444,8 @@ consistent:
 - every Task ACL parses under the closed schema;
 - every Judge descriptor uses a supported protocol;
 - required Judge platforms are pinned;
+- Candidate and Judge timeouts are enforced from their respective Task and
+  Judge descriptors;
 - the catalog exactly covers the packaged task directories.
 
 This is not admission or full execution evidence. Admission is per Task

@@ -38,6 +38,7 @@ pub struct TaskInfo {
     pub work_image: String,
     pub work_platform: Option<String>,
     pub work_network_need: String,
+    pub candidate_timeout_sec: u64,
     pub metrics: Vec<MetricInfo>,
     pub workspace_seed: Option<WorkspaceSeed>,
     pub submission: SubmissionPolicy,
@@ -85,6 +86,8 @@ pub fn load_local(reference: &Path) -> Result<TaskInfo> {
     require_string(block, "version", None)?;
     let judge = unique_block(block, "judge")?;
     let judge_asset = require_string(judge, "asset", None)?.to_owned();
+    let candidate_timeout_sec =
+        optional_positive_integer(judge, "solution_timeout_sec")?.unwrap_or(300);
     let work = unique_block(block, "work")?;
     let work_network_need = work
         .attributes
@@ -137,12 +140,29 @@ pub fn load_local(reference: &Path) -> Result<TaskInfo> {
             .as_ref()
             .and_then(|seed| seed.platform.clone()),
         work_network_need,
+        candidate_timeout_sec,
         metrics,
         workspace_seed,
         submission,
         legacy_judge,
         root,
     })
+}
+
+fn optional_positive_integer(block: &Block, name: &str) -> Result<Option<u64>> {
+    let Some(value) = block.attributes.get(name) else {
+        return Ok(None);
+    };
+    let number = value
+        .as_number()
+        .ok_or_else(|| anyhow::anyhow!("{}.{} must be a positive integer", block.name, name))?;
+    anyhow::ensure!(
+        number.is_finite() && number >= 1.0 && number <= u64::MAX as f64 && number.fract() == 0.0,
+        "{}.{} must be a positive integer",
+        block.name,
+        name
+    );
+    Ok(Some(number as u64))
 }
 
 fn parse_submission(root: &Block) -> Result<SubmissionPolicy> {
@@ -378,6 +398,7 @@ mod tests {
         assert_eq!(task.id, "smoke_answer");
         assert_eq!(task.judge_asset, "private/judge");
         assert_eq!(task.work_image, "docker.io/library/alpine:3.20");
+        assert_eq!(task.candidate_timeout_sec, 300);
         assert_eq!(task.metrics[0].name, "correctness");
     }
 
@@ -386,6 +407,7 @@ mod tests {
         let root =
             Path::new(env!("CARGO_MANIFEST_DIR")).join("builtin/tasks/ad_placement_optimization");
         let task = load_local(&root).unwrap();
+        assert_eq!(task.candidate_timeout_sec, 600);
         let seed = task.workspace_seed.unwrap();
         assert!(seed.image.starts_with("docker.io/seededge/"));
         assert_eq!(seed.source_path, "/home/workspace/ad-placement");

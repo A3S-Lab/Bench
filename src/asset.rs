@@ -86,6 +86,35 @@ impl LocalAssetPackage {
         })?;
         Ok(self.root.join(relative))
     }
+
+    pub fn model_max_steps(&self) -> Result<usize> {
+        let definition = std::fs::read_to_string(self.model_instructions_path()?)?;
+        let mut lines = definition.lines();
+        anyhow::ensure!(
+            lines.next().map(str::trim) == Some("---"),
+            "model Candidate definition must start with frontmatter"
+        );
+        let mut value = None;
+        let mut closed = false;
+        for line in lines {
+            if line.trim() == "---" {
+                closed = true;
+                break;
+            }
+            if let Some(raw) = line.trim().strip_prefix("max_steps:") {
+                anyhow::ensure!(value.is_none(), "model Candidate max_steps is duplicated");
+                value = Some(raw.trim().parse::<usize>()?);
+            }
+        }
+        anyhow::ensure!(closed, "model Candidate frontmatter is not closed");
+        let value = value
+            .ok_or_else(|| anyhow::anyhow!("model Candidate definition must declare max_steps"))?;
+        anyhow::ensure!(
+            (1..=1000).contains(&value),
+            "model Candidate max_steps must be between 1 and 1000"
+        );
+        Ok(value)
+    }
 }
 
 fn validate_package_path(path: &str, field: &str) -> Result<()> {
@@ -265,6 +294,7 @@ mod tests {
         let asset = load_local(&root).unwrap();
         assert_eq!(asset.entrypoint, "run.sh");
         assert_eq!(asset.definition_path.as_deref(), Some("agent.md"));
+        assert_eq!(asset.model_max_steps().unwrap(), 1);
         assert!(asset.identity.starts_with("sha256:"));
     }
 
@@ -276,6 +306,7 @@ mod tests {
             asset.definition_path.as_deref(),
             Some("prompts/controller.md")
         );
+        assert_eq!(asset.model_max_steps().unwrap(), 256);
         assert!(asset.identity.starts_with("sha256:"));
     }
 

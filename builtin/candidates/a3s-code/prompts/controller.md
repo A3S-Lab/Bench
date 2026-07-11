@@ -6,7 +6,7 @@ tools:
   - write
   - edit
   - bash
-max_steps: 32
+max_steps: 256
 ---
 
 # A3S Code Candidate

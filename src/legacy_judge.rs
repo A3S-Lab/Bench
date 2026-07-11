@@ -39,10 +39,17 @@ pub fn execute(
     if let Some(platform) = source.platform.as_deref() {
         command.args(["--platform", platform]);
     }
+    command
+        .args(["--env", "A3S_BENCH_JUDGE_COMMAND"])
+        .env("A3S_BENCH_JUDGE_COMMAND", &source.command);
     let destination = shell_quote(&source.workspace_source_path);
+    let timeout_runner = format!(
+        "import os,subprocess,sys\ntry:\n p=subprocess.run(['/bin/bash','-lc',os.environ['A3S_BENCH_JUDGE_COMMAND']],timeout={})\n sys.exit(p.returncode)\nexcept subprocess.TimeoutExpired:\n print('Judge exceeded descriptor timeout',file=sys.stderr)\n sys.exit(124)",
+        source.timeout_sec
+    );
     let judge_command = format!(
-        "cp -R /a3s/submission/. {destination}/ && chmod -R u+rwX {destination} && {}",
-        source.command
+        "cp -R /a3s/submission/. {destination}/ && chmod -R u+rwX {destination} && python3 -c {}",
+        shell_quote(&timeout_runner)
     );
     let output = command
         .arg("--mount")
