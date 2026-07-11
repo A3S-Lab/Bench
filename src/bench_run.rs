@@ -6,6 +6,11 @@ use anyhow::{Context, Result};
 use serde_json::json;
 use std::path::Path;
 
+struct JudgeModel {
+    reference: String,
+    route: config::ModelRoute,
+}
+
 pub fn execute(args: &[String]) -> Result<u8> {
     let options = run_input::RunOptions::parse(args)?;
     let state_root = workspace::state_root()?;
@@ -30,10 +35,14 @@ fn execute_inner(
     use crate::run_journal::RunStage;
 
     let config = config::discover(&std::env::current_dir()?)?;
+    if let (Some(path), Some(model)) = (config.path.as_deref(), config.judge_model.as_deref()) {
+        config::resolve_model_route(path, model)?;
+    }
     let status = runtime::preflight(&config.runtime)?;
     journal.advance(RunStage::RuntimeReady)?;
-    let mut loaded = options.load(state_root, &journal.run_id)?;
+    let mut loaded = options.load(state_root, &journal.run_id, config.judge_model.clone())?;
     journal.bind_locks(&loaded.task_lock_digest, &loaded.candidate_lock_digest)?;
+    let judge_model = resolve_judge_model(&loaded.task, loaded.judge_model.as_deref(), &config)?;
     anyhow::ensure!(
         status.provider == "docker",
         "execution through configured Runtime {:?} is not implemented yet",
@@ -55,7 +64,13 @@ fn execute_inner(
     journal.advance(RunStage::CandidateCompleted)?;
     let submission = workspace::create_submission(&loaded.task, &candidate_workspace)?;
     journal.advance(RunStage::Judging)?;
-    let judge_result = execute_judge(&loaded.task, &loaded.judge, &submission, game.as_ref())?;
+    let judge_result = execute_judge(
+        &loaded.task,
+        &loaded.judge,
+        &submission,
+        game.as_ref(),
+        judge_model.as_ref().map(|model| &model.route),
+    )?;
     let primary = primary_metric(&loaded.task);
     let score = judge_result
         .metrics
@@ -71,7 +86,7 @@ fn execute_inner(
             agent: &options.agent,
             candidate_lock_digest: &loaded.candidate_lock_digest,
             agent_identity: &loaded.candidate.identity,
-            judge_identity: &loaded.judge.identity,
+            judge_identity: &judge_identity(&loaded.judge.identity, judge_model.as_ref()),
             runtime_provider: &status.provider,
             model: loaded.model.as_deref(),
             model_usage: model_execution.as_ref(),
@@ -83,6 +98,38 @@ fn execute_inner(
     journal.complete(&path, &record.result_digest)?;
     print_result(options, &loaded.task.id, score, &record.run_id, &path)?;
     Ok(0)
+}
+
+fn resolve_judge_model(
+    task: &task::TaskInfo,
+    locked_reference: Option<&str>,
+    config: &config::LocalConfig,
+) -> Result<Option<JudgeModel>> {
+    let requires_model = task
+        .legacy_judge
+        .as_ref()
+        .is_some_and(|source| source.requires_model_gateway);
+    if !requires_model {
+        return Ok(None);
+    }
+    let reference = locked_reference.map(str::to_owned).ok_or_else(|| {
+        anyhow::anyhow!(
+            "Task {:?} requires bench.judge_model in .a3s/config.acl",
+            task.id
+        )
+    })?;
+    let path = config.path.as_deref().ok_or_else(|| {
+        anyhow::anyhow!("Judge model gateway requires project-local or user-local .a3s/config.acl")
+    })?;
+    let route = config::resolve_model_route(path, &reference)?;
+    Ok(Some(JudgeModel { reference, route }))
+}
+
+fn judge_identity(asset_identity: &str, model: Option<&JudgeModel>) -> String {
+    match model {
+        Some(model) => format!("{asset_identity};model={}", model.reference),
+        None => asset_identity.to_owned(),
+    }
 }
 
 fn start_game(task: &task::TaskInfo, state_root: &Path) -> Result<Option<game_judge::GameSession>> {
@@ -137,6 +184,7 @@ fn execute_candidate(
                     game_url.as_deref().expect("game URL accompanies session"),
                 )
             }),
+            public_internet: task.work_network_need == "public_internet",
         },
     )?))
 }
@@ -146,11 +194,12 @@ fn execute_judge(
     judge: &asset::LocalAssetPackage,
     submission: &Path,
     game: Option<&game_judge::GameSession>,
+    model: Option<&config::ModelRoute>,
 ) -> Result<runtime::JudgeResult> {
     if let (Some(session), Some(source)) = (game, &task.legacy_judge) {
         session.finish(task, source)
     } else if let Some(source) = &task.legacy_judge {
-        legacy_judge::execute(task, source, submission)
+        legacy_judge::execute(task, source, submission, model)
     } else {
         runtime::execute_docker_judge(task, judge, submission)
     }

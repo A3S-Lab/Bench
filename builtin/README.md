@@ -26,7 +26,7 @@ The catalog commands are:
 a3s bench list                              # locally runnable tasks
 a3s bench list --all                        # also include locally blocked records
 a3s bench info TASK_ID                      # runnable task details
-a3s bench info college_english_exam_bank --all  # blocked-task inspection
+a3s bench info college_english_exam_bank        # model-Judge requirements
 ~~~
 
 `info <id> --all` is read-only catalog inspection. It does not turn a blocked
@@ -78,12 +78,13 @@ The short `quick_file_edit` task is available as a local conformance check. It
 exercises the complete run pipeline without requiring a long-horizon agent run.
 
 The 51 third-party task sources currently in this catalog are all quarantined
-for official results. Fifty are locally available long-horizon tasks.
+for official results and locally available as long-horizon tasks.
 Their source records publish OCI tags and legacy evaluator commands, but do not
 provide enough evidence to admit those commands as A3S Judge Agent Assets. The
 image layers are referenced, not included or republished by this repository.
-`college_english_exam_bank` is locally blocked until its task-owned model Judge
-can use the configured model gateway. `--all` exposes that blocked record.
+`college_english_exam_bank` requires a configured `bench.judge_model` route.
+Bench passes that route to its task-owned Judge without copying credentials into
+locks or results, and binds the route name into TaskLock and Judge identity.
 
 This is an incomplete development snapshot, not a fixed catalog or an
 acceptable released set. The current 51 sources are provisional: entries may be

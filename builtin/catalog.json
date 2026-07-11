@@ -118,8 +118,8 @@
       "path": "tasks/college_english_exam_bank",
       "provenance_ref": "provenance/edgebench.json#college_english_exam_bank",
       "execution_class": "long_horizon",
-      "availability": "blocked",
-      "availability_reason": "judge_model_gateway_not_configured"
+      "availability": "ready",
+      "availability_reason": "requires_configured_judge_model"
     },
     {
       "admission": "quarantined",

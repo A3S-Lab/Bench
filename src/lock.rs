@@ -12,6 +12,7 @@ pub struct TaskLock {
     pub artifact_digest: String,
     pub judge_revision: String,
     pub judge_artifact_digest: String,
+    pub judge_model: Option<String>,
     pub resolved_images: BTreeMap<String, String>,
 }
 
@@ -31,7 +32,12 @@ pub struct CandidateLock {
     pub model: Option<String>,
 }
 
-pub fn create_task(source: &Path, state_root: &Path, output: &Path) -> Result<TaskLock> {
+pub fn create_task(
+    source: &Path,
+    judge_model: Option<String>,
+    state_root: &Path,
+    output: &Path,
+) -> Result<TaskLock> {
     let root = if source.is_dir() {
         source
     } else {
@@ -40,6 +46,23 @@ pub fn create_task(source: &Path, state_root: &Path, output: &Path) -> Result<Ta
     let digest = crate::task_snapshot::capture(root, state_root)?;
     let captured = crate::task_snapshot::artifact_path(state_root, &digest)?;
     let task = crate::task::load_local(&captured)?;
+    let requires_judge_model = task
+        .legacy_judge
+        .as_ref()
+        .is_some_and(|source| source.requires_model_gateway);
+    anyhow::ensure!(
+        !requires_judge_model || judge_model.is_some(),
+        "Task {:?} requires bench.judge_model in .a3s/config.acl",
+        task.id
+    );
+    let judge_model = if requires_judge_model {
+        judge_model
+    } else {
+        None
+    };
+    if let Some(model) = judge_model.as_deref() {
+        crate::config::validate_model_reference(model)?;
+    }
     let judge = resolve_judge(&task, state_root)?;
     let judge_artifact_digest = crate::task_snapshot::capture(&judge.root, state_root)?;
     let judge_artifact = crate::task_snapshot::artifact_path(state_root, &judge_artifact_digest)?;
@@ -56,6 +79,7 @@ pub fn create_task(source: &Path, state_root: &Path, output: &Path) -> Result<Ta
         artifact_digest: digest,
         judge_revision: locked_judge.identity,
         judge_artifact_digest,
+        judge_model,
         resolved_images,
     };
     value.lock_digest = crate::lock_identity::task(&value)?;
@@ -140,6 +164,18 @@ pub fn load_task(path: &Path, state_root: &Path) -> Result<LoadedTaskLock> {
     let artifact = crate::task_snapshot::artifact_path(state_root, &value.artifact_digest)?;
     crate::task_snapshot::verify(&artifact, &value.artifact_digest)
         .context("locked Task artifact is unavailable or corrupt")?;
+    let task = crate::task::load_local(&artifact).context("locked Task artifact is invalid")?;
+    let requires_judge_model = task
+        .legacy_judge
+        .as_ref()
+        .is_some_and(|source| source.requires_model_gateway);
+    anyhow::ensure!(
+        requires_judge_model == value.judge_model.is_some(),
+        "TaskLock Judge model binding does not match Task requirements"
+    );
+    if let Some(model) = value.judge_model.as_deref() {
+        crate::config::validate_model_reference(model)?;
+    }
     let judge_artifact =
         crate::task_snapshot::artifact_path(state_root, &value.judge_artifact_digest)?;
     crate::task_snapshot::verify(&judge_artifact, &value.judge_artifact_digest)

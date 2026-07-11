@@ -10,6 +10,7 @@ struct TaskLockIdentity<'a> {
     artifact_digest: &'a str,
     judge_revision: &'a str,
     judge_artifact_digest: &'a str,
+    judge_model: &'a Option<String>,
     resolved_images: &'a std::collections::BTreeMap<String, String>,
 }
 
@@ -28,6 +29,7 @@ pub fn task(value: &TaskLock) -> Result<String> {
         artifact_digest: &value.artifact_digest,
         judge_revision: &value.judge_revision,
         judge_artifact_digest: &value.judge_artifact_digest,
+        judge_model: &value.judge_model,
         resolved_images: &value.resolved_images,
     })
 }
@@ -83,8 +85,13 @@ mod tests {
             artifact_digest: format!("sha256:{}", "c".repeat(64)),
             judge_revision: format!("sha256:{}", "d".repeat(64)),
             judge_artifact_digest: format!("sha256:{}", "e".repeat(64)),
+            judge_model: None,
             resolved_images: BTreeMap::new(),
         };
-        validate_digest(&task(&task_lock).unwrap()).unwrap();
+        let first = task(&task_lock).unwrap();
+        validate_digest(&first).unwrap();
+        let mut with_model = task_lock;
+        with_model.judge_model = Some("custom/grader".into());
+        assert_ne!(first, task(&with_model).unwrap());
     }
 }

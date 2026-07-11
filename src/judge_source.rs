@@ -12,6 +12,7 @@ pub struct LegacyJudgeSource {
     pub rescale: Option<serde_json::Value>,
     pub platform: Option<String>,
     pub game_server_command: Option<String>,
+    pub requires_model_gateway: bool,
 }
 
 #[derive(Deserialize)]
@@ -123,6 +124,10 @@ pub fn load(path: &Path) -> Result<Option<LegacyJudgeSource>> {
             .evaluation
             .source_game_server_command
             .filter(|command| !command.is_empty()),
+        requires_model_gateway: descriptor
+            .requirements
+            .iter()
+            .any(|requirement| requirement == "model_gateway"),
     }))
 }
 

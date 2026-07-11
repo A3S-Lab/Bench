@@ -138,7 +138,16 @@ fn advanced_task_lock(args: &[String]) -> Result<u8> {
     );
     let state_root = workspace::state_root()?;
     let source = catalog::resolve_task_reference(&args[0])?;
-    let value = lock::create_task(&source, &state_root, Path::new(&args[2]))?;
+    let config = config::discover(&std::env::current_dir()?)?;
+    if let (Some(path), Some(model)) = (config.path.as_deref(), config.judge_model.as_deref()) {
+        config::resolve_model_route(path, model)?;
+    }
+    let value = lock::create_task(
+        &source,
+        config.judge_model,
+        &state_root,
+        Path::new(&args[2]),
+    )?;
     println!("locked Task {}", value.task_revision);
     Ok(0)
 }
@@ -180,10 +189,13 @@ fn doctor(args: &[String]) -> Result<u8> {
     if json_output {
         crate::output::print_success(
             "advanced doctor",
-            json!({"config":config.path,"runtime":status}),
+            json!({"config":config.path,"runtime":status,"judge_model":config.judge_model}),
         )?;
     } else {
         println!("Runtime {} is ready ({})", status.provider, status.detail);
+        if let Some(model) = config.judge_model {
+            println!("Judge model route: {model}");
+        }
     }
     Ok(0)
 }

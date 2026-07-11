@@ -10,6 +10,7 @@ pub fn execute(
     task: &TaskInfo,
     source: &LegacyJudgeSource,
     submission: &Path,
+    model: Option<&crate::config::ModelRoute>,
 ) -> Result<JudgeResult> {
     anyhow::ensure!(
         source.mode == "batch",
@@ -21,8 +22,6 @@ pub fn execute(
         "--rm",
         "--user",
         "0:0",
-        "--network",
-        "none",
         "--cap-drop",
         "ALL",
         "--security-opt",
@@ -36,6 +35,7 @@ pub fn execute(
         "--tmpfs",
         "/tmp:rw,nosuid,size=2g",
     ]);
+    configure_model_gateway(&mut command, source.requires_model_gateway, model)?;
     if let Some(platform) = source.platform.as_deref() {
         command.args(["--platform", platform]);
     }
@@ -75,6 +75,43 @@ pub fn execute(
             "parser":source.parser
         }),
     })
+}
+
+fn configure_model_gateway(
+    command: &mut Command,
+    required: bool,
+    model: Option<&crate::config::ModelRoute>,
+) -> Result<()> {
+    if required {
+        let model = model.ok_or_else(|| anyhow::anyhow!("Judge requires a model gateway route"))?;
+        let base_url = container_base_url(&model.base_url);
+        command
+            .args(["--network", "bridge"])
+            .args(["--add-host", "host.docker.internal:host-gateway"])
+            .args(["--env", "SFORGE_JUDGE_API_KEY"])
+            .args(["--env", "SFORGE_JUDGE_API_BASE_URL"])
+            .args(["--env", "SFORGE_JUDGE_MODEL"])
+            .env("SFORGE_JUDGE_API_KEY", &model.api_key)
+            .env("SFORGE_JUDGE_API_BASE_URL", base_url)
+            .env("SFORGE_JUDGE_MODEL", &model.model);
+    } else {
+        command.args(["--network", "none"]);
+    }
+    Ok(())
+}
+
+fn container_base_url(value: &str) -> String {
+    for local in ["localhost", "127.0.0.1", "[::1]"] {
+        for scheme in ["http", "https"] {
+            let prefix = format!("{scheme}://{local}");
+            if let Some(suffix) = value.strip_prefix(&prefix) {
+                if suffix.is_empty() || suffix.starts_with(':') || suffix.starts_with('/') {
+                    return format!("{scheme}://host.docker.internal{suffix}");
+                }
+            }
+        }
+    }
+    value.to_owned()
 }
 
 fn shell_quote(value: &str) -> String {
@@ -277,6 +314,46 @@ mod tests {
         )
         .unwrap();
         assert_eq!(structured["score"], 0.75);
+    }
+
+    #[test]
+    fn model_gateway_uses_ephemeral_environment_not_cli_secrets() {
+        let route = crate::config::ModelRoute {
+            model: "grader".into(),
+            api_key: "top-secret".into(),
+            base_url: "https://example.test/v1".into(),
+        };
+        let mut command = Command::new("docker");
+        configure_model_gateway(&mut command, true, Some(&route)).unwrap();
+        let arguments = command
+            .get_args()
+            .map(|value| value.to_string_lossy())
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(arguments.contains("SFORGE_JUDGE_API_KEY"));
+        assert!(!arguments.contains("top-secret"));
+        let environment = command
+            .get_envs()
+            .map(|(name, value)| {
+                (
+                    name.to_string_lossy().into_owned(),
+                    value.map(|value| value.to_string_lossy().into_owned()),
+                )
+            })
+            .collect::<std::collections::BTreeMap<_, _>>();
+        assert_eq!(
+            environment["SFORGE_JUDGE_API_KEY"].as_deref(),
+            Some("top-secret")
+        );
+        assert_eq!(environment["SFORGE_JUDGE_MODEL"].as_deref(), Some("grader"));
+        assert_eq!(
+            container_base_url("http://127.0.0.1:8080/v1"),
+            "http://host.docker.internal:8080/v1"
+        );
+        assert_eq!(
+            container_base_url("https://api.example.test/v1"),
+            "https://api.example.test/v1"
+        );
     }
 
     #[test]

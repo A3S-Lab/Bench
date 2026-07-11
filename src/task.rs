@@ -37,6 +37,7 @@ pub struct TaskInfo {
     pub judge_asset: String,
     pub work_image: String,
     pub work_platform: Option<String>,
+    pub work_network_need: String,
     pub metrics: Vec<MetricInfo>,
     pub workspace_seed: Option<WorkspaceSeed>,
     pub submission: SubmissionPolicy,
@@ -85,6 +86,16 @@ pub fn load_local(reference: &Path) -> Result<TaskInfo> {
     let judge = unique_block(block, "judge")?;
     let judge_asset = require_string(judge, "asset", None)?.to_owned();
     let work = unique_block(block, "work")?;
+    let work_network_need = work
+        .attributes
+        .get("network_need")
+        .and_then(Value::as_str)
+        .unwrap_or("none")
+        .to_owned();
+    anyhow::ensure!(
+        matches!(work_network_need.as_str(), "none" | "public_internet"),
+        "work.network_need must be none or public_internet"
+    );
     let image = unique_block(work, "image")?;
     let work_image = require_string(image, "ref", None)?.to_owned();
     let metrics = block
@@ -125,6 +136,7 @@ pub fn load_local(reference: &Path) -> Result<TaskInfo> {
         work_platform: workspace_seed
             .as_ref()
             .and_then(|seed| seed.platform.clone()),
+        work_network_need,
         metrics,
         workspace_seed,
         submission,

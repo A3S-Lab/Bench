@@ -15,6 +15,7 @@ pub struct LoadedRun {
     pub task: task::TaskInfo,
     pub candidate: asset::LocalAssetPackage,
     pub judge: asset::LocalAssetPackage,
+    pub judge_model: Option<String>,
     pub model: Option<String>,
     pub resolved_images: BTreeMap<String, String>,
     pub task_lock_digest: String,
@@ -59,7 +60,12 @@ impl RunOptions {
         })
     }
 
-    pub fn load(&self, state_root: &Path, run_id: &str) -> Result<LoadedRun> {
+    pub fn load(
+        &self,
+        state_root: &Path,
+        run_id: &str,
+        judge_model: Option<String>,
+    ) -> Result<LoadedRun> {
         if self.locked {
             anyhow::ensure!(
                 self.model.is_none(),
@@ -72,7 +78,7 @@ impl RunOptions {
         state_fs::secure_directory(&locks)?;
         let task_lock = locks.join(format!("{run_id}.task-lock.json"));
         let candidate_lock = locks.join(format!("{run_id}.candidate-lock.json"));
-        lock::create_task(&task_source, state_root, &task_lock)?;
+        lock::create_task(&task_source, judge_model, state_root, &task_lock)?;
         lock::create_candidate(&self.agent, self.model.clone(), state_root, &candidate_lock)?;
         load_locks(&task_lock, &candidate_lock, state_root)
     }
@@ -85,6 +91,7 @@ fn load_locks(task_lock: &Path, candidate_lock: &Path, state_root: &Path) -> Res
         task: task::load_local(&locked_task.task_artifact)?,
         candidate: asset::load_local(&candidate_artifact)?,
         judge: asset::load_local(&locked_task.judge_artifact)?,
+        judge_model: locked_task.lock.judge_model.clone(),
         model: candidate_lock.model,
         resolved_images: locked_task.lock.resolved_images,
         task_lock_digest: locked_task.lock.lock_digest,

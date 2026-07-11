@@ -27,6 +27,7 @@ pub struct ModelCandidateRequest<'a> {
     pub work_image: &'a str,
     pub work_platform: Option<&'a str>,
     pub game_network: Option<(&'a str, &'a str)>,
+    pub public_internet: bool,
 }
 
 pub fn execute(request: ModelCandidateRequest<'_>) -> Result<ModelExecution> {
@@ -51,6 +52,7 @@ async fn execute_async(request: ModelCandidateRequest<'_>) -> Result<ModelExecut
         game_network: request
             .game_network
             .map(|(network, url)| (network.to_owned(), url.to_owned())),
+        public_internet: request.public_internet,
     });
     let options = SessionOptions::new()
         .with_model(request.model)
@@ -89,6 +91,7 @@ struct DockerBashSandbox {
     platform: Option<String>,
     workspace: PathBuf,
     game_network: Option<(String, String)>,
+    public_internet: bool,
 }
 
 #[async_trait]
@@ -126,6 +129,8 @@ impl BashSandbox for DockerBashSandbox {
                 "--env",
                 &format!("GAME_SERVER_URL={url}"),
             ]);
+        } else if self.public_internet {
+            docker.args(["--network", "bridge"]);
         } else {
             docker.args(["--network", "none"]);
         }
@@ -247,7 +252,7 @@ mod tests {
         std::fs::write(
             &config,
             format!(
-                "default_model = \"openai/fake\"\nproviders \"openai\" {{\n  api_key = \"test\"\n  base_url = \"http://{address}\"\n  models \"fake\" {{ name = \"Fake\" }}\n}}\n"
+                "default_model = \"openai/fake\"\nbench {{ judge_model = \"openai/fake\" }}\nproviders \"openai\" {{\n  api_key = \"test\"\n  base_url = \"http://{address}\"\n  models \"fake\" {{ name = \"Fake\" }}\n}}\n"
             ),
         )
         .unwrap();
@@ -263,6 +268,7 @@ mod tests {
             work_image: "alpine:3.20",
             work_platform: None,
             game_network: None,
+            public_internet: false,
         })
         .unwrap();
         server.join().unwrap();
@@ -290,6 +296,7 @@ mod tests {
             platform: None,
             workspace: workspace.path().to_path_buf(),
             game_network: Some((game.network().into(), game.url())),
+            public_internet: false,
         };
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_all()

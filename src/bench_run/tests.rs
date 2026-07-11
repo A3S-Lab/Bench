@@ -3,6 +3,40 @@ use std::io::{Read, Write};
 use std::net::TcpListener;
 
 #[test]
+fn model_judge_requires_an_explicit_local_route() {
+    let task = task::load_local(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("builtin/tasks/college_english_exam_bank"),
+    )
+    .unwrap();
+    let config = config::LocalConfig {
+        path: None,
+        runtime: a3s_runtime::RuntimeSelection::resolve(
+            &a3s_runtime::OperatorRuntimeConfig::default(),
+            &a3s_runtime::SessionRuntimePolicy::default(),
+        ),
+        judge_model: None,
+    };
+    let error = resolve_judge_model(&task, None, &config).err().unwrap();
+    assert!(error.to_string().contains("requires bench.judge_model"));
+}
+
+#[test]
+fn judge_identity_binds_the_model_route_without_credentials() {
+    let model = JudgeModel {
+        reference: "custom/grader".into(),
+        route: config::ModelRoute {
+            model: "grader".into(),
+            api_key: "secret".into(),
+            base_url: "https://example.test/v1".into(),
+        },
+    };
+    let identity = judge_identity("judge-asset", Some(&model));
+    assert_eq!(identity, "judge-asset;model=custom/grader");
+    assert!(!identity.contains("secret"));
+    assert!(!identity.contains("example.test"));
+}
+
+#[test]
 #[ignore = "requires Docker and the linux/amd64 imported game images"]
 fn model_candidate_game_and_task_owned_judge_run_end_to_end() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -22,7 +56,7 @@ fn model_candidate_game_and_task_owned_judge_run_end_to_end() {
     let task_source =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("builtin/tasks/anchorhead_text_adventure");
     let task_lock_path = state.path().join("task.lock.json");
-    lock::create_task(&task_source, state.path(), &task_lock_path).unwrap();
+    lock::create_task(&task_source, None, state.path(), &task_lock_path).unwrap();
     let locked = lock::load_task(&task_lock_path, state.path()).unwrap();
     let mut task = task::load_local(&locked.task_artifact).unwrap();
     resolve_task_images(&mut task, &locked.lock.resolved_images).unwrap();
@@ -51,7 +85,7 @@ fn model_candidate_game_and_task_owned_judge_run_end_to_end() {
     assert_eq!(execution.tool_calls_count, 1);
     let submission = workspace::create_submission(&task, &candidate_workspace).unwrap();
     let judge = asset::load_local(&task.root.join(&task.judge_asset)).unwrap();
-    let result = execute_judge(&task, &judge, &submission, Some(&game)).unwrap();
+    let result = execute_judge(&task, &judge, &submission, Some(&game), None).unwrap();
     assert_eq!(result.schema, "bench.judge.result.v1");
     assert_eq!(result.solution_verdict, "valid");
     assert!(result.diagnostics.get("moves").is_some());

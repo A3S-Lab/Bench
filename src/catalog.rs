@@ -194,9 +194,7 @@ mod tests {
     fn local_availability_is_independent_from_official_admission() {
         let path = runnable_task_path("juliet_vulnerability_analyzer").unwrap();
         assert!(path.join("task.acl").is_file());
-        let error = runnable_task_path("college_english_exam_bank").unwrap_err();
-        assert!(error
-            .to_string()
-            .contains("judge_model_gateway_not_configured"));
+        let model_judge = runnable_task_path("college_english_exam_bank").unwrap();
+        assert!(model_judge.join("task.acl").is_file());
     }
 }

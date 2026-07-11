@@ -92,8 +92,6 @@ pub fn execute_docker_candidate(
     command.args([
         "run",
         "--rm",
-        "--network",
-        "none",
         "--read-only",
         "--cap-drop",
         "ALL",
@@ -107,6 +105,14 @@ pub fn execute_docker_candidate(
         "2",
         "--tmpfs",
         "/tmp:rw,noexec,nosuid,size=64m",
+    ]);
+    command.args([
+        "--network",
+        if task.work_network_need == "public_internet" {
+            "bridge"
+        } else {
+            "none"
+        },
     ]);
     if let Some(platform) = task.work_platform.as_deref() {
         command.args(["--platform", platform]);
@@ -360,6 +366,7 @@ mod tests {
             judge_asset: "private/judge".into(),
             work_image: "alpine".into(),
             work_platform: None,
+            work_network_need: "none".into(),
             metrics: vec![MetricInfo {
                 name: "correctness".into(),
                 min: 0.0,

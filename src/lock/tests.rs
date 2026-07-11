@@ -9,6 +9,7 @@ fn lock_schemas_reject_unknown_fields() {
         "artifact_digest":"sha256:test",
         "judge_revision":"sha256:test",
         "judge_artifact_digest":"sha256:test",
+        "judge_model":null,
         "resolved_images":{},
         "unexpected":true
     });
@@ -30,6 +31,17 @@ fn lock_schemas_reject_unknown_fields() {
     }))
     .is_err());
     assert!(serde_json::from_value::<CandidateLock>(candidate).is_err());
+}
+
+#[test]
+fn judge_model_references_are_closed() {
+    assert!(crate::config::validate_model_reference("provider/model").is_ok());
+    for value in ["", "provider", "/model", "provider/", "a/b/c"] {
+        assert!(
+            crate::config::validate_model_reference(value).is_err(),
+            "{value}"
+        );
+    }
 }
 
 #[cfg(unix)]

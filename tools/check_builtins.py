@@ -113,10 +113,10 @@ def main() -> None:
         descriptor = json.loads(descriptor_path.read_text(encoding="utf-8"))
         require(entry["path"] == f"tasks/{task_id}", f"path: {task_id}")
         require(entry["execution_class"] == "long_horizon", f"execution class: {task_id}")
-        expected_availability = "blocked" if task_id == "college_english_exam_bank" else "ready"
+        expected_availability = "ready"
         require(entry["availability"] == expected_availability, f"availability: {task_id}")
         expected_availability_reason = (
-            "judge_model_gateway_not_configured"
+            "requires_configured_judge_model"
             if task_id == "college_english_exam_bank"
             else "bundled_oci_task"
         )
@@ -176,7 +176,7 @@ def main() -> None:
         if path.exists() or path.is_symlink()
     ]
     require(not legacy_layouts, "legacy Judge or phase bundle layout")
-    print(f"checked {len(entries)} native builtin Task/Judge sources with unavailable hidden bundles")
+    print(f"checked {len(entries)} native long-horizon Task/Judge adapters")
 
 
 if __name__ == "__main__":

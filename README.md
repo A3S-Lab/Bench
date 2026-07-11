@@ -31,7 +31,7 @@ components and cannot make an evaluation official.
 | OCI Candidate and Judge adapters | Docker-compatible images and generic ORAS artifacts supported |
 | `a3s-box` selection | Parsed and preflighted; execution is not implemented yet |
 | Shared Runtime lifecycle | Contract, registry, and durable operation primitives exist; Bench migration is incomplete |
-| Built-in tasks | One short conformance task and 50 long-horizon tasks are locally runnable by ID; one model-Judge task still needs gateway support |
+| Built-in tasks | One short conformance task and all 51 long-horizon tasks are locally runnable by ID |
 | Published component | `v0.1.0-preview.1` prerelease through GitHub Actions |
 
 Local availability and official admission are separate. A bundled task may run
@@ -154,7 +154,7 @@ durable terminal state.
 cargo run -- list
 cargo run -- run quick_file_edit --agent ./examples/smoke-candidate
 
-# Include locally blocked and officially quarantined records.
+# Include locally blocked records if a future catalog contains any.
 cargo run -- list --all
 cargo run -- info juliet_vulnerability_analyzer --all
 
@@ -238,6 +238,13 @@ providers "openai" {
     name = "My model"
   }
 }
+
+bench {
+  # Used only by Tasks whose task-owned Judge declares model_gateway.
+  # The provider must support the Judge adapter's required API (Responses API
+  # for college_english_exam_bank).
+  judge_model = "openai/my-model"
+}
 ```
 
 Run with an explicit model:
@@ -253,7 +260,9 @@ Rules:
 - the model must be bound by the CandidateLock or supplied with `--model`;
 - Bench never silently inherits `default_model` as benchmark input;
 - `--model` cannot alter an exported CandidateLock;
-- provider credentials and base URLs are not copied into locks or containers;
+- provider credentials and base URLs are not copied into locks or results;
+- a model Judge receives its configured route only through ephemeral Runtime
+  environment variables;
 - results store model identity and usage, not credentials.
 
 ## Comparing Codex and Claude Code
@@ -373,12 +382,13 @@ judging, and durable results without turning installation validation into a
 long-running benchmark.
 
 The repository also contains 51 provisional imported long-horizon Task/Judge
-descriptors under [`builtin/tasks`](builtin/tasks). Fifty are locally available
-by bare ID. `college_english_exam_bank` remains blocked until its task-owned
-model Judge can use the local model gateway. These tasks are not installation
-tests and their count is not a product boundary. Tasks may be added, removed,
-replaced, or revised. The catalog-wide test proves only that the imported
-snapshot is internally consistent:
+descriptors under [`builtin/tasks`](builtin/tasks). All 51 are locally available
+by bare ID. `college_english_exam_bank` additionally requires `bench.judge_model`
+and its provider route in `.a3s/config.acl`; the Judge model route is bound into
+the TaskLock and result identity. These tasks are not installation tests and their count is
+not a product boundary. Tasks may be added, removed, replaced, or revised. The
+catalog-wide test proves only that the imported snapshot is internally
+consistent:
 
 - catalog IDs, paths, and metadata agree;
 - every Task ACL parses under the closed schema;
@@ -389,7 +399,7 @@ snapshot is internally consistent:
 This is not admission or full execution evidence. Admission is per Task
 revision, while `availability` controls local `local_unofficial` execution.
 Official quarantine therefore does not hide an otherwise runnable local task.
-The blocked model-Judge task is shown by `list --all`. Provenance and licensing information are in
+Provenance and licensing information are in
 [builtin/README.md](builtin/README.md) and
 [THIRD_PARTY_NOTICES.md](builtin/THIRD_PARTY_NOTICES.md).
 

@@ -256,11 +256,9 @@ def catalog_entry(task: dict[str, Any]) -> dict[str, Any]:
         "name": task["name"],
         "category": task["category"],
         "execution_class": "long_horizon",
-        "availability": (
-            "blocked" if task_id == "college_english_exam_bank" else "ready"
-        ),
+        "availability": "ready",
         "availability_reason": (
-            "judge_model_gateway_not_configured"
+            "requires_configured_judge_model"
             if task_id == "college_english_exam_bank"
             else "bundled_oci_task"
         ),
