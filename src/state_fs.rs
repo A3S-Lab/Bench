@@ -187,7 +187,9 @@ pub fn seal_role_input_tree(path: &Path) -> Result<()> {
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;
-                std::fs::set_permissions(entry.path(), std::fs::Permissions::from_mode(0o444))?;
+                let executable = std::fs::metadata(entry.path())?.permissions().mode() & 0o111 != 0;
+                let mode = if executable { 0o555 } else { 0o444 };
+                std::fs::set_permissions(entry.path(), std::fs::Permissions::from_mode(mode))?;
             }
             #[cfg(not(unix))]
             {
@@ -238,7 +240,13 @@ pub fn set_owner_only_file(path: &Path, read_only: bool) -> Result<()> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mode = if read_only { 0o400 } else { 0o600 };
+        let executable = std::fs::metadata(path)?.permissions().mode() & 0o111 != 0;
+        let mode = match (read_only, executable) {
+            (true, true) => 0o500,
+            (true, false) => 0o400,
+            (false, true) => 0o700,
+            (false, false) => 0o600,
+        };
         std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))?;
     }
     #[cfg(not(unix))]
@@ -294,6 +302,9 @@ mod tests {
         let tree = root.path().join("submission");
         std::fs::create_dir(&tree).unwrap();
         std::fs::write(tree.join("answer.txt"), "42\n").unwrap();
+        let executable = tree.join("verify.sh");
+        std::fs::write(&executable, "#!/bin/sh\n").unwrap();
+        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755)).unwrap();
         seal_role_input_tree(&tree).unwrap();
 
         assert_eq!(
@@ -308,7 +319,32 @@ mod tests {
                 & 0o777,
             0o444
         );
+        assert_eq!(
+            std::fs::metadata(&executable).unwrap().permissions().mode() & 0o777,
+            0o555
+        );
         remove_sealed_tree(&tree).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn owner_only_permissions_preserve_executable_semantics() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = tempfile::tempdir().unwrap();
+        let script = root.path().join("script.sh");
+        std::fs::write(&script, "#!/bin/sh\n").unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        set_owner_only_file(&script, false).unwrap();
+        assert_eq!(
+            std::fs::metadata(&script).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+        set_owner_only_file(&script, true).unwrap();
+        assert_eq!(
+            std::fs::metadata(&script).unwrap().permissions().mode() & 0o777,
+            0o500
+        );
     }
 
     #[test]

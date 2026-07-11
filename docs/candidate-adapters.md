@@ -65,9 +65,12 @@ model client. The ambient `default_model` is never used as benchmark identity.
 
 ```bash
 a3s bench run ./task \
-  --agent ./my-agent \
+  --agent a3s-code \
   --model openai/my-model
 ```
+
+`a3s-code` is the model-backed controller bundled with the installed Bench
+component. Local and OCI adapters use the same locking path.
 
 The current model-backed implementation is Bench's generic workspace-tool
 controller. A controller prompt named after Codex or Claude does not make it

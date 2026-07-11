@@ -17,7 +17,7 @@ paths, A3S OS, or upstream source names. Local TaskBundles are
 explicit and begin with `./` or `../`:
 
 ~~~bash
-a3s bench run ./tasks/smoke --agent codex
+a3s bench run ./tasks/smoke --agent a3s-code --model openai/example
 ~~~
 
 The catalog commands are:

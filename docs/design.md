@@ -58,7 +58,7 @@ The common path is:
 
 ~~~bash
 a3s bench list
-a3s bench run ./examples/smoke --agent codex
+a3s bench run ./examples/smoke --agent a3s-code --model openai/example
 ~~~
 
 An admitted built-in uses its bare Task ID. A local path is always explicit:
@@ -464,7 +464,7 @@ locally blocked records; `run` rejects those before external or billable work.
 Candidate adapter reference family:
 
 ~~~bash
-a3s bench run ./examples/smoke --agent codex
+a3s bench run ./examples/smoke --agent a3s-code --model openai/example
 a3s bench run ./examples/smoke --agent ./agents/reviewer
 a3s bench run ./examples/smoke --agent asset:acme/reviewer
 a3s bench run ./examples/smoke --agent asset://<asset-id>/<immutable-ref>
@@ -472,20 +472,21 @@ a3s bench run ./examples/smoke --agent oci://registry.example/agents/reviewer@sh
 a3s bench run ./task.lock.json --agent ./reviewer.candidate.lock.json --locked
 ~~~
 
-`codex` is an embedded selector that the installed component maps to one exact
-immutable Candidate snapshot. The word itself is not identity and a component
-update may map a new unlocked run to a new CandidateRevision; every run records
-the resolved revision, and `--locked` rejects the alias. Local, OCI, and A3S OS
+`a3s-code` is an embedded selector that the installed component maps to one
+exact immutable Candidate snapshot. The word itself is not identity and a
+component update may map a new unlocked run to a new CandidateRevision; every
+run records the resolved revision, and `--locked` rejects the alias. Local, OCI, and A3S OS
 packages pass through the same shared Asset resolver and produce the same
 AssetSnapshot identity when their canonical package trees and semantic
 configuration are identical. The adapter currently uses the `a3s.asset.v1`,
 `category = "agent"` wire format; this is a packaging and execution contract,
 not a restriction on the Candidate implementation.
 
-An installed component may provide `claude` under exactly the same embedded
-selector contract. These names are convenience selectors, not product-specific
-execution modes. Bench resolves either selector to a normal Candidate adapter
-and then uses the same Candidate, Runtime, locking, and result pipeline.
+An installed component may later provide `codex` or `claude` under exactly the
+same embedded selector contract once native product adapters exist. These names
+are convenience selectors, not product-specific execution modes. Bench resolves
+every selector to a normal Candidate adapter and then uses the same Candidate,
+Runtime, locking, and result pipeline.
 
 A Codex-versus-Claude Code comparison is two ordinary runs over the same
 TaskLock, with one CandidateLock for each exact adapter and model combination.
@@ -711,7 +712,7 @@ installation, update, registry authentication, credential refresh, or network
 recovery. Artifact availability requires both matching bytes and authorization
 for the current tenant/privacy class; digest equality alone is insufficient.
 
-A bare built-in ID, embedded alias such as `codex`, local TaskBundle directory,
+A bare built-in ID, embedded alias such as `a3s-code`, local TaskBundle directory,
 OCI reference, `asset:name`, branch, tag, pasteable Asset URL, revision selector,
 or cached "only match" is rejected under `--locked`. Missing content is an
 offline-unavailable error; Bench never resolves, refreshes, or falls back. An

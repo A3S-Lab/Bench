@@ -265,48 +265,96 @@ Rules:
   environment variables;
 - results store model identity and usage, not credentials.
 
-## Comparing Codex and Claude Code
+## Comparing coding agents and models
 
-Bench compares immutable Candidate adapters, not brand names or bare
-executables. A Codex or Claude Code integration should therefore use a small
-standard adapter that freezes:
+There are two different experiments:
 
-- the coding-agent product and adapter version;
-- its non-interactive entrypoint and controller instructions;
-- allowed tools and workspace contract;
-- the exact model binding or fill-only model slot;
-- Runtime and network requirements.
+- **Model comparison:** keep one Candidate adapter and change only
+  `provider/model`.
+- **Agent comparison:** use a different Candidate adapter for Codex, Claude
+  Code, A3S Code, or another coding agent. The adapter freezes the product,
+  controller instructions, tools, entrypoint, and model binding.
 
-The target user experience is deliberately simple:
+### Compare models with A3S Code
 
-```bash
-a3s bench run ./task.lock.json --agent ./codex.candidate.lock.json --locked
-a3s bench run ./task.lock.json --agent ./claude.candidate.lock.json --locked
+Configure every model route locally; no A3S OS login is required:
+
+```acl
+providers "openai" {
+  api_key  = "..."
+  base_url = "https://api.openai.com/v1"
+
+  models "gpt-5.2-codex" {
+    name = "GPT-5.2 Codex"
+  }
+}
+
+providers "anthropic" {
+  api_key  = "..."
+  base_url = "https://api.anthropic.com"
+
+  models "claude-opus-4-6" {
+    name = "Claude Opus 4.6"
+  }
+}
 ```
 
-Both runs use the same TaskLock and Judge, while each CandidateLock records the
-agent adapter and model. This produces two independent result IDs whose scores
-and evidence can be compared without introducing a special benchmark mode.
-
-Today, `codex` and `claude` bare aliases are not implemented by this development
-binary. Use local or OCI Candidate adapters and lock them explicitly:
+Create one TaskLock, then bind the same A3S Code controller adapter to two
+models. `a3s-code` is bundled with the Bench component, so this does not require
+an adapter checkout:
 
 ```bash
-cargo run -- advanced task lock ./my_task --out ./task.lock.json
-cargo run -- advanced candidate lock ./agents/codex \
-  --model openai/my-codex-model --out ./codex.candidate.lock.json
-cargo run -- advanced candidate lock oci://registry.example.com/agents/claude-code:1 \
-  --model anthropic/my-claude-model --out ./claude.candidate.lock.json
+a3s bench advanced task lock quick_file_edit --out ./task.lock.json
+
+a3s bench advanced candidate lock a3s-code \
+  --model openai/gpt-5.2-codex \
+  --out ./a3s-code-openai.candidate.lock.json
+
+a3s bench advanced candidate lock a3s-code \
+  --model anthropic/claude-opus-4-6 \
+  --out ./a3s-code-claude.candidate.lock.json
+
+a3s bench run ./task.lock.json \
+  --agent ./a3s-code-openai.candidate.lock.json --locked
+a3s bench run ./task.lock.json \
+  --agent ./a3s-code-claude.candidate.lock.json --locked
 ```
 
-For a model-only comparison, use the same Candidate adapter for both
-CandidateLocks and change only `--model`. For a full coding-agent comparison,
-use distinct Codex and Claude Code adapters; otherwise the experiment compares
-models under one controller rather than the two products.
+These runs compare two models under the same A3S Code controller. They do not
+compare the Codex and Claude Code products.
 
-Future signed Bench components may provide `codex` and `claude` as embedded
-selectors resolving to pinned adapter snapshots. The aliases themselves will
-never be identity, and `--locked` will continue to require explicit locks.
+### Compare Codex, Claude Code, and A3S Code
+
+Use one standard Candidate adapter per product. Adapters may be local folders
+or immutable OCI references:
+
+```bash
+a3s bench advanced task lock <task-id> --out ./task.lock.json
+
+a3s bench advanced candidate lock ./agents/codex \
+  --model openai/gpt-5.2-codex \
+  --out ./codex.candidate.lock.json
+
+a3s bench advanced candidate lock \
+  oci://registry.example.com/agents/claude-code@sha256:<digest> \
+  --model anthropic/claude-opus-4-6 \
+  --out ./claude-code.candidate.lock.json
+
+a3s bench advanced candidate lock a3s-code \
+  --model openai/gpt-5.2-codex \
+  --out ./a3s-code.candidate.lock.json
+
+for candidate in codex claude-code a3s-code; do
+  a3s bench run ./task.lock.json \
+    --agent "./${candidate}.candidate.lock.json" --locked
+done
+```
+
+`./agents/codex` and the OCI Claude Code reference above are adapter examples;
+replace them with the adapters being evaluated. The current preview does not
+silently wrap host executables and does not implement bare `codex` or `claude`
+aliases. This keeps every product version and controller contract explicit in
+CandidateLock. See [Candidate adapter authoring](docs/candidate-adapters.md).
 
 ## Runtime selection
 

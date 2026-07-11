@@ -22,6 +22,9 @@ pub fn load_local(reference: &Path) -> Result<LocalAssetPackage> {
 }
 
 pub fn resolve(reference: &str, state_root: &Path) -> Result<LocalAssetPackage> {
+    if reference == "a3s-code" {
+        return load_local(&crate::catalog::builtin_root().join("candidates/a3s-code"));
+    }
     if reference.starts_with("./") || reference.starts_with("../") {
         return load_local(Path::new(reference));
     }
@@ -258,6 +261,17 @@ mod tests {
         let asset = load_local(&root).unwrap();
         assert_eq!(asset.entrypoint, "run.sh");
         assert_eq!(asset.definition_path.as_deref(), Some("agent.md"));
+        assert!(asset.identity.starts_with("sha256:"));
+    }
+
+    #[test]
+    fn resolves_bundled_a3s_code_candidate() {
+        let state = tempfile::tempdir().unwrap();
+        let asset = resolve("a3s-code", state.path()).unwrap();
+        assert_eq!(
+            asset.definition_path.as_deref(),
+            Some("prompts/controller.md")
+        );
         assert!(asset.identity.starts_with("sha256:"));
     }
 

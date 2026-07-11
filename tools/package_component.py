@@ -78,6 +78,27 @@ def main() -> None:
             capture_output=True,
             text=True,
         )
+        candidate_lock = Path(working_directory) / "a3s-code.candidate.lock.json"
+        subprocess.run(
+            [
+                package_root / "bin" / "a3s-bench",
+                "advanced",
+                "candidate",
+                "lock",
+                "a3s-code",
+                "--model",
+                "test/model",
+                "--out",
+                candidate_lock,
+            ],
+            cwd=working_directory,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        locked_candidate = json.loads(candidate_lock.read_text(encoding="utf-8"))
+        if locked_candidate["model"] != "test/model":
+            raise SystemExit("packaged A3S Code Candidate model binding is invalid")
     packaged_catalog = json.loads(listing.stdout)
     source_catalog = json.loads((ROOT / "builtin" / "catalog.json").read_text())
     if len(packaged_catalog["data"]["tasks"]) != len(source_catalog["tasks"]):

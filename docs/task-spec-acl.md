@@ -11,7 +11,7 @@ separate executable, account state, or Agent Runtime.
 Run an authored task directly with the normal four-command interface:
 
 ~~~bash
-a3s bench run ./my_task --agent codex
+a3s bench run ./my_task --agent a3s-code --model openai/example
 ~~~
 
 `run` performs portable validation and Runtime capability preflight
