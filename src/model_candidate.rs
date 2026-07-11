@@ -116,15 +116,8 @@ impl BashSandbox for DockerBashSandbox {
             "ALL",
             "--security-opt",
             "no-new-privileges",
-            "--pids-limit",
-            "256",
-            "--memory",
-            "2g",
-            "--cpus",
-            "2",
-            "--tmpfs",
-            "/tmp:rw,noexec,nosuid,size=64m",
         ]);
+        docker.args(crate::runtime_profile::WORK_DOCKER_LIMITS);
         if let Some(platform) = self.platform.as_deref() {
             docker.args(["--platform", platform]);
         }

@@ -148,15 +148,8 @@ pub fn execute_docker_candidate(
         "ALL",
         "--security-opt",
         "no-new-privileges",
-        "--pids-limit",
-        "256",
-        "--memory",
-        "2g",
-        "--cpus",
-        "2",
-        "--tmpfs",
-        "/tmp:rw,noexec,nosuid,size=64m",
     ]);
+    command.args(crate::runtime_profile::WORK_DOCKER_LIMITS);
     command.args([
         "--network",
         if task.work_network_need == "public_internet" {
@@ -292,15 +285,8 @@ print(json.dumps(getattr(mod,{})({{'submission_root':'/submission','hidden_bundl
         "ALL",
         "--security-opt",
         "no-new-privileges",
-        "--pids-limit",
-        "128",
-        "--memory",
-        "1g",
-        "--cpus",
-        "1",
-        "--tmpfs",
-        "/tmp:rw,noexec,nosuid,size=64m",
     ]);
+    command.args(crate::runtime_profile::JUDGE_DOCKER_LIMITS);
     configure_mounted_tree_owner(&mut command, &judge.root)?;
     let output = command
         .arg("--mount")

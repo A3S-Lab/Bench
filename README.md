@@ -333,13 +333,11 @@ or immutable OCI references:
 ```bash
 a3s bench advanced task lock <task-id> --out ./task.lock.json
 
-a3s bench advanced candidate lock ./agents/codex \
-  --model openai/gpt-5.2-codex \
+a3s bench advanced candidate lock ./agents/codex-gpt-5.2-codex \
   --out ./codex.candidate.lock.json
 
 a3s bench advanced candidate lock \
-  oci://registry.example.com/agents/claude-code@sha256:<digest> \
-  --model anthropic/claude-opus-4-6 \
+  oci://registry.example.com/agents/claude-code-opus-4-6@sha256:<digest> \
   --out ./claude-code.candidate.lock.json
 
 a3s bench advanced candidate lock a3s-code \
@@ -352,10 +350,18 @@ for candidate in codex claude-code a3s-code; do
 done
 ```
 
-`./agents/codex` and the OCI Claude Code reference above are adapter examples;
-replace them with the adapters being evaluated. The current preview does not
-silently wrap host executables and does not implement bare `codex` or `claude`
-aliases. This keeps every product version and controller contract explicit in
+The Codex and Claude Code references above are adapter examples; replace them
+with runnable adapters that freeze the native product version and model in the
+adapter itself. Do not add `--model` to those locks: in the current preview,
+`--model` selects Bench's generic A3S Code controller and would turn the run
+into a controller/model comparison rather than native Codex or Claude Code.
+
+Bench does not silently wrap host executables and does not yet ship native
+Codex or Claude Code adapters or bare aliases. Once such adapters are supplied,
+create another adapter revision for every product/model combination—for
+example `codex-gpt-5.2-codex`, `codex-o4-mini`, `claude-code-opus-4-6`, and
+`claude-code-sonnet-4-6`—and run all CandidateLocks against the same TaskLock.
+This keeps product version, model, and controller contract explicit in
 CandidateLock. See [Candidate adapter authoring](docs/candidate-adapters.md).
 
 ## Runtime selection

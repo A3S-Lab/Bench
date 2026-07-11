@@ -26,15 +26,8 @@ pub fn execute(
         "ALL",
         "--security-opt",
         "no-new-privileges",
-        "--pids-limit",
-        "1024",
-        "--memory",
-        "8g",
-        "--cpus",
-        "4",
-        "--tmpfs",
-        "/tmp:rw,nosuid,size=2g",
     ]);
+    command.args(crate::runtime_profile::JUDGE_DOCKER_LIMITS);
     configure_model_gateway(&mut command, source.requires_model_gateway, model)?;
     if let Some(platform) = source.platform.as_deref() {
         command.args(["--platform", platform]);

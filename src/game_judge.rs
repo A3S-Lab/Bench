@@ -45,6 +45,7 @@ impl GameSession {
             process.args(["--platform", platform]);
         }
         let output = process
+            .args(crate::runtime_profile::JUDGE_DOCKER_LIMITS)
             .args([
                 "--name",
                 &session.container,
@@ -55,14 +56,6 @@ impl GameSession {
                 "ALL",
                 "--security-opt",
                 "no-new-privileges",
-                "--pids-limit",
-                "256",
-                "--memory",
-                "2g",
-                "--cpus",
-                "2",
-                "--tmpfs",
-                "/tmp:rw,exec,nosuid,size=256m",
                 "--workdir",
                 "/tmp",
                 "--mount",

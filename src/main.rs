@@ -17,6 +17,7 @@ mod result_record;
 mod run_input;
 mod run_journal;
 mod runtime;
+mod runtime_profile;
 mod state_fs;
 mod submission;
 mod task;
