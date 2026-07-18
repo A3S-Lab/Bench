@@ -1,5 +1,5 @@
 use a3s_code_core::sandbox::{BashSandbox, SandboxOutput};
-use a3s_code_core::{Agent, SessionOptions, WorkspaceServices};
+use a3s_code_core::{config::CodeConfig, Agent, PlanningMode, SessionOptions, WorkspaceServices};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -24,6 +24,7 @@ pub struct ModelCandidateRequest<'a> {
     pub task_prompt: &'a str,
     pub candidate_instructions: &'a str,
     pub workspace: &'a Path,
+    pub workspace_source_path: Option<&'a str>,
     pub work_image: &'a str,
     pub work_platform: Option<&'a str>,
     pub game_network: Option<(&'a str, &'a str)>,
@@ -40,39 +41,35 @@ pub fn execute(request: ModelCandidateRequest<'_>) -> Result<ModelExecution> {
 }
 
 async fn execute_async(request: ModelCandidateRequest<'_>) -> Result<ModelExecution> {
-    let config = request
-        .config_path
-        .to_str()
-        .ok_or_else(|| anyhow::anyhow!("config.acl path is not UTF-8"))?;
-    let agent = Agent::new(config)
+    let mut config = CodeConfig::from_file(request.config_path).with_context(|| {
+        format!(
+            "could not load model Candidate configuration from {}",
+            request.config_path.display()
+        )
+    })?;
+    config.default_model = Some(request.model.to_owned());
+    let agent = Agent::from_config(config)
         .await
-        .context("could not initialize model Candidate from config.acl")?;
-    let sandbox = Arc::new(DockerBashSandbox {
+        .context("could not initialize selected model Candidate from config.acl")?;
+    let workspace = request.workspace.canonicalize()?;
+    let sandbox: Arc<dyn BashSandbox> = Arc::new(DockerBashSandbox {
         image: request.work_image.to_owned(),
         platform: request.work_platform.map(str::to_owned),
-        workspace: request.workspace.canonicalize()?,
+        workspace: workspace.clone(),
         game_network: request
             .game_network
             .map(|(network, url)| (network.to_owned(), url.to_owned())),
         public_internet: request.public_internet,
     });
-    let options = SessionOptions::new()
-        .with_model(request.model)
-        .with_workspace_backend(WorkspaceServices::local(request.workspace))
-        .with_sandbox_handle(sandbox)
-        .with_confirmation_policy(a3s_code_core::hitl::ConfirmationPolicy::default())
-        .with_max_tool_rounds(request.max_tool_rounds)
-        .with_planning(false)
-        .with_continuation(false)
-        .with_manual_delegation_enabled(false);
+    let options =
+        candidate_session_options(request.model, &workspace, sandbox, request.max_tool_rounds);
     let session = agent
-        .session(request.workspace.display().to_string(), Some(options))
+        .session_builder(workspace.display().to_string())
+        .options(options)
+        .build()
+        .await
         .context("could not create model Candidate session")?;
-    let prompt = format!(
-        "{}\n\n# Benchmark task\n\n{}\n\nWork only inside the supplied workspace. Complete the task and verify the result.",
-        request.candidate_instructions,
-        request.task_prompt
-    );
+    let prompt = candidate_prompt(&request);
     let result = tokio::time::timeout(
         std::time::Duration::from_secs(request.timeout_sec),
         session.send(&prompt, None),
@@ -90,6 +87,48 @@ async fn execute_async(request: ModelCandidateRequest<'_>) -> Result<ModelExecut
         cache_write_tokens: result.usage.cache_write_tokens,
         tool_calls_count: result.tool_calls_count,
     })
+}
+
+fn candidate_prompt(request: &ModelCandidateRequest<'_>) -> String {
+    format!(
+        "{}\n\n# Benchmark task\n\n{}\n\n# Workspace contract\n\n{}\n\nComplete the task and verify the result.",
+        request.candidate_instructions,
+        request.task_prompt,
+        workspace_contract(request.workspace_source_path)
+    )
+}
+
+fn workspace_contract(source_path: Option<&str>) -> String {
+    let Some(source_path) = source_path else {
+        return "The supplied workspace is the editable submission root. Use workspace-relative paths with file tools and `/workspace` paths in Bash. Write deliverables only inside `/workspace`."
+            .to_string();
+    };
+    let source_name = Path::new(source_path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty())
+        .unwrap_or("source directory");
+    format!(
+        "The editable workspace is the extracted contents of `{source_path}` and is mounted at `/workspace` for Bash. It is already the `{source_name}` directory: when task instructions name `{source_name}/path`, use `path` with file tools and `/workspace/path` in Bash; do not create another `{source_name}` directory. The work image may contain public, read-only task fixtures outside `{source_path}`. Bash may inspect those task-provided paths when required, but all deliverable writes must stay inside `/workspace`. Never pass the host workspace path to a shell command."
+    )
+}
+
+fn candidate_session_options(
+    model: &str,
+    workspace: &Path,
+    sandbox: Arc<dyn BashSandbox>,
+    max_tool_rounds: usize,
+) -> SessionOptions {
+    SessionOptions::new()
+        .with_model(model)
+        .with_workspace_backend(WorkspaceServices::local(workspace))
+        .with_sandbox_handle(sandbox)
+        .with_confirmation_policy(a3s_code_core::hitl::ConfirmationPolicy::default())
+        .with_file_memory(workspace.join(".a3s/memory"))
+        .with_max_tool_rounds(max_tool_rounds)
+        .with_planning_mode(PlanningMode::Auto)
+        .with_continuation(true)
+        .with_manual_delegation_enabled(true)
 }
 
 struct DockerBashSandbox {
@@ -133,6 +172,7 @@ impl BashSandbox for DockerBashSandbox {
         } else {
             docker.args(["--network", "none"]);
         }
+        let command = command_for_guest(command, &self.workspace, guest_workspace);
         let output = docker
             .arg("--mount")
             .arg(format!(
@@ -142,7 +182,7 @@ impl BashSandbox for DockerBashSandbox {
             .arg("--workdir")
             .arg("/workspace")
             .arg(&self.image)
-            .args(["/bin/sh", "-lc", command])
+            .args(["/bin/sh", "-lc", &command])
             .output()
             .await
             .context("could not start Docker bash sandbox")?;
@@ -156,11 +196,68 @@ impl BashSandbox for DockerBashSandbox {
     async fn shutdown(&self) {}
 }
 
+fn command_for_guest(command: &str, host_workspace: &Path, guest_workspace: &str) -> String {
+    command.replace(host_workspace.to_string_lossy().as_ref(), guest_workspace)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::io::{Read, Write};
     use std::net::TcpListener;
+
+    #[test]
+    fn sandbox_commands_translate_the_host_workspace_to_the_guest_mount() {
+        let host = Path::new("/private/tmp/a3s bench/workspace");
+        assert_eq!(
+            command_for_guest(
+                "ls '/private/tmp/a3s bench/workspace' && cat '/private/tmp/a3s bench/workspace/answer.txt'",
+                host,
+                "/workspace",
+            ),
+            "ls '/workspace' && cat '/workspace/answer.txt'"
+        );
+        assert_eq!(
+            command_for_guest("printf 'workspace'", host, "/workspace"),
+            "printf 'workspace'"
+        );
+    }
+
+    #[test]
+    fn workspace_contract_maps_the_extracted_source_directory_to_the_root() {
+        let contract =
+            workspace_contract(Some("/home/workspace/juliet-static-analyzer/agent-start"));
+        assert!(contract.contains("already the `agent-start` directory"));
+        assert!(contract.contains("use `path` with file tools"));
+        assert!(contract.contains("public, read-only task fixtures"));
+        assert!(contract.contains("all deliverable writes must stay inside `/workspace`"));
+    }
+
+    #[test]
+    fn bundled_candidate_keeps_current_code_capabilities_enabled() {
+        let workspace = tempfile::tempdir().unwrap();
+        let sandbox: Arc<dyn BashSandbox> = Arc::new(DockerBashSandbox {
+            image: "unused:test".into(),
+            platform: None,
+            workspace: workspace.path().to_path_buf(),
+            game_network: None,
+            public_internet: false,
+        });
+        let options = candidate_session_options("openai/fake", workspace.path(), sandbox, 64);
+
+        assert_eq!(options.planning_mode, PlanningMode::Auto);
+        assert_eq!(options.continuation_enabled, Some(true));
+        assert_eq!(options.manual_delegation_enabled, Some(true));
+        assert_eq!(options.max_tool_rounds, Some(64));
+        assert!(
+            !options
+                .confirmation_policy
+                .as_ref()
+                .expect("benchmark candidate must install a confirmation manager")
+                .enabled,
+            "the isolated benchmark runtime must not pause for hidden HITL input"
+        );
+    }
 
     #[test]
     fn custom_openai_provider_edits_workspace_without_os_login() {
@@ -210,7 +307,44 @@ mod tests {
                         .unwrap();
                     continue;
                 }
-                let message = if response_index == 0 {
+                let is_pre_analysis = request_body
+                    .get("messages")
+                    .and_then(serde_json::Value::as_array)
+                    .is_some_and(|messages| {
+                        messages.iter().any(|message| {
+                            message
+                                .get("content")
+                                .and_then(serde_json::Value::as_str)
+                                .is_some_and(|content| {
+                                    content.contains("You are a pre-analysis assistant")
+                                })
+                        })
+                    });
+                let message = if is_pre_analysis {
+                    serde_json::json!({
+                        "role":"assistant",
+                        "content": serde_json::json!({
+                            "intent": "GeneralPurpose",
+                            "requires_planning": false,
+                            "goal": {
+                                "description": "Write 42 to answer.txt.",
+                                "success_criteria": ["answer.txt contains 42"]
+                            },
+                            "execution_plan": {
+                                "complexity": "Simple",
+                                "steps": [{
+                                    "id": "step-1",
+                                    "description": "Update answer.txt",
+                                    "tool": "write",
+                                    "dependencies": [],
+                                    "success_criteria": "answer.txt contains 42"
+                                }],
+                                "required_tools": ["write"]
+                            },
+                            "optimized_input": "Write 42 to answer.txt."
+                        }).to_string()
+                    })
+                } else if response_index == 0 {
                     serde_json::json!({
                         "role":"assistant",
                         "content":null,
@@ -242,7 +376,9 @@ mod tests {
                 )
                 .unwrap();
                 stream.write_all(&body).unwrap();
-                response_index += 1;
+                if !is_pre_analysis {
+                    response_index += 1;
+                }
             }
         });
 
@@ -251,7 +387,7 @@ mod tests {
         std::fs::write(
             &config,
             format!(
-                "default_model = \"openai/fake\"\nbench {{ judge_model = \"openai/fake\" }}\nproviders \"openai\" {{\n  api_key = \"test\"\n  base_url = \"http://{address}\"\n  models \"fake\" {{ name = \"Fake\" }}\n}}\n"
+                "default_model = \"openai/unconfigured\"\nbench {{ judge_model = \"openai/fake\" }}\nproviders \"openai\" {{\n  api_key = \"test\"\n  base_url = \"http://{address}\"\n  models \"fake\" {{ name = \"Fake\" }}\n}}\n"
             ),
         )
         .unwrap();
@@ -264,6 +400,7 @@ mod tests {
             task_prompt: "Write 42 to answer.txt.",
             candidate_instructions: "Follow the benchmark task.",
             workspace: &workspace,
+            workspace_source_path: None,
             work_image: "alpine:3.20",
             work_platform: None,
             game_network: None,

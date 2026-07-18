@@ -308,6 +308,9 @@ mod tests {
         );
         assert_eq!(asset.model_max_steps().unwrap(), 256);
         assert!(asset.identity.starts_with("sha256:"));
+        let runtime = std::fs::read_to_string(asset.root.join("runtime.acl")).unwrap();
+        assert!(runtime.contains("implementation_version = \"5.3.4\""));
+        assert!(include_str!("../Cargo.toml").contains("a3s-code-core = \"=5.3.4\""));
     }
 
     #[test]

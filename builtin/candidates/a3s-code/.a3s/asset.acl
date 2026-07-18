@@ -2,7 +2,7 @@ version = "a3s.asset.v1"
 category = "agent"
 kind = "tool"
 name = "a3s-code"
-description = "Bundled A3S Code controller for model comparisons."
+description = "Versioned A3S Code Core 5.3.4 controller for model comparisons."
 service = "Coding Agent"
 created_by = "a3s-bench"
 

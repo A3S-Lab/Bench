@@ -1,11 +1,12 @@
 use crate::{asset::LocalAssetPackage, task::TaskInfo};
-use a3s_runtime::{ProviderId, RuntimeSelection};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
+
+use crate::runtime_selection::{RuntimeSelection, A3S_BOX_PROVIDER, DOCKER_PROVIDER};
 
 static CANDIDATE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
@@ -337,7 +338,7 @@ fn configure_mounted_tree_owner(command: &mut Command, path: &Path) -> Result<()
     Ok(())
 }
 
-fn validate_judge_result(task: &TaskInfo, result: &JudgeResult) -> Result<()> {
+pub(crate) fn validate_judge_result(task: &TaskInfo, result: &JudgeResult) -> Result<()> {
     anyhow::ensure!(
         result.solution_verdict == "valid",
         "Judge solution_verdict must be \"valid\""
@@ -386,8 +387,9 @@ pub(crate) fn canonical_decimal(value: &str) -> bool {
 
 pub fn preflight(selection: &RuntimeSelection) -> Result<RuntimeStatus> {
     match selection.provider.as_str() {
-        ProviderId::DOCKER => docker_preflight(),
-        ProviderId::A3S_BOX => command_preflight("a3s-box", &["--version"], "a3s-box"),
+        DOCKER_PROVIDER => docker_preflight(),
+        A3S_BOX_PROVIDER => command_preflight("a3s-box", &["--version"], "a3s-box"),
+        crate::os_runtime::PROVIDER => crate::os_runtime::preflight(),
         provider => Err(anyhow::anyhow!(
             "configured Runtime provider {provider:?} is not installed; provider selection never falls back to Docker"
         )),

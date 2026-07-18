@@ -44,6 +44,27 @@ fn judge_model_references_are_closed() {
     }
 }
 
+#[test]
+fn os_runtime_task_lock_binds_managed_runner_images_without_docker() {
+    let state = tempfile::tempdir().unwrap();
+    let output = state.path().join("task.lock.json");
+    let value = create_task_with_provider(
+        Path::new("builtin/tasks/quick_file_edit"),
+        None,
+        state.path(),
+        &output,
+        crate::os_runtime::PROVIDER,
+    )
+    .unwrap();
+    assert_eq!(value.resolved_images.len(), 2);
+    assert!(value
+        .resolved_images
+        .contains_key(crate::os_runtime::CANDIDATE_IMAGE_KEY));
+    assert!(value
+        .resolved_images
+        .contains_key(crate::os_runtime::JUDGE_IMAGE_KEY));
+}
+
 #[cfg(unix)]
 #[test]
 fn lock_loader_rejects_symlink_file() {

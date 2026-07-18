@@ -64,7 +64,9 @@ is not a safe way to run a host-installed Codex or Claude Code CLI.
 A model-backed Candidate supplies `--model`. Bench reads the controller
 instructions from `source.definition_path`, obtains the named provider/model
 route from `.a3s/config.acl`, and keeps provider credentials on the host-owned
-model client. The ambient `default_model` is never used as benchmark identity.
+model client. The locked Candidate model also bootstraps the embedded A3S Code
+agent, so an absent or invalid ambient `default_model` cannot replace or block
+the benchmark model identity.
 
 ```bash
 a3s bench run ./task \
@@ -73,13 +75,20 @@ a3s bench run ./task \
 ```
 
 `a3s-code` is the model-backed controller bundled with the installed Bench
-component. Local and OCI adapters use the same locking path.
+component. Its package includes `runtime.acl`, which binds the A3S Code Core
+version and the planning, continuation, and delegation capability switches into
+the Candidate revision. Local and OCI adapters use the same locking path. For
+OCI-seeded Tasks, Bench also tells the controller that `workspace.oci.source_path`
+has already been extracted as the editable workspace root. Task-provided public
+fixtures elsewhere in the work image remain readable through the Bash sandbox,
+while every deliverable write remains confined to `/workspace`.
 
-The current model-backed implementation is Bench's generic workspace-tool
-controller. A controller prompt named after Codex or Claude does not make it
-the Codex or Claude Code product. Native product adapters require the shared
-Runtime to expose their declared network, ModelGateway, tool, and credential
-capabilities without placing secrets in the Candidate sandbox.
+The current model-backed implementation is a versioned A3S Code Core controller,
+not the interactive CLI or TUI host. A controller prompt named after Codex or
+Claude does not make it the Codex or Claude Code product. Native product
+adapters require the shared Runtime to expose their declared network,
+ModelGateway, tool, and credential capabilities without placing secrets in the
+Candidate sandbox.
 
 ## Lock before comparing
 

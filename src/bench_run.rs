@@ -11,6 +11,11 @@ struct JudgeModel {
     route: config::ModelRoute,
 }
 
+struct RuntimeExecution<'a> {
+    provider: &'a str,
+    resolved_images: &'a std::collections::BTreeMap<String, String>,
+}
+
 pub fn execute(args: &[String]) -> Result<u8> {
     let options = run_input::RunOptions::parse(args)?;
     let state_root = workspace::state_root()?;
@@ -40,19 +45,31 @@ fn execute_inner(
     }
     let status = runtime::preflight(&config.runtime)?;
     journal.advance(RunStage::RuntimeReady)?;
-    let mut loaded = options.load(state_root, &journal.run_id, config.judge_model.clone())?;
+    let mut loaded = options.load(
+        state_root,
+        &journal.run_id,
+        config.judge_model.clone(),
+        &status.provider,
+    )?;
     journal.bind_locks(&loaded.task_lock_digest, &loaded.candidate_lock_digest)?;
     let judge_model = resolve_judge_model(&loaded.task, loaded.judge_model.as_deref(), &config)?;
-    anyhow::ensure!(
-        status.provider == "docker",
-        "execution through configured Runtime {:?} is not implemented yet",
-        status.provider
-    );
-    resolve_task_images(&mut loaded.task, &loaded.resolved_images)?;
+    match status.provider.as_str() {
+        "docker" => resolve_task_images(&mut loaded.task, &loaded.resolved_images)?,
+        crate::os_runtime::PROVIDER => {
+            validate_os_runtime_task(&loaded.task, loaded.model.as_deref())?
+        }
+        provider => anyhow::bail!(
+            "execution through configured Runtime {provider:?} is not implemented yet"
+        ),
+    }
     journal.advance(RunStage::InputsResolved)?;
     let game = start_game(&loaded.task, state_root)?;
     let candidate_workspace = workspace::create(&loaded.task)?;
     journal.advance(RunStage::CandidateRunning)?;
+    let runtime_execution = RuntimeExecution {
+        provider: &status.provider,
+        resolved_images: &loaded.resolved_images,
+    };
     let model_execution = execute_candidate(
         &loaded.task,
         &loaded.candidate,
@@ -60,6 +77,7 @@ fn execute_inner(
         &config,
         &candidate_workspace,
         game.as_ref(),
+        &runtime_execution,
     )?;
     journal.advance(RunStage::CandidateCompleted)?;
     let submission = workspace::create_submission(&loaded.task, &candidate_workspace)?;
@@ -70,6 +88,8 @@ fn execute_inner(
         &submission,
         game.as_ref(),
         judge_model.as_ref().map(|model| &model.route),
+        &status.provider,
+        &loaded.resolved_images,
     )?;
     let primary = primary_metric(&loaded.task);
     let score = judge_result
@@ -148,15 +168,30 @@ fn execute_candidate(
     config: &config::LocalConfig,
     candidate_workspace: &Path,
     game: Option<&game_judge::GameSession>,
+    runtime_execution: &RuntimeExecution<'_>,
 ) -> Result<Option<model_candidate::ModelExecution>> {
     let Some(model) = model else {
         anyhow::ensure!(
             game.is_none(),
             "interactive game Tasks require a model-backed Candidate"
         );
-        runtime::execute_docker_candidate(task, candidate, candidate_workspace)?;
+        match runtime_execution.provider {
+            "docker" => runtime::execute_docker_candidate(task, candidate, candidate_workspace)?,
+            crate::os_runtime::PROVIDER => crate::os_runtime::execute_candidate(
+                task,
+                candidate,
+                candidate_workspace,
+                runtime_execution.resolved_images,
+            )?,
+            provider => anyhow::bail!("Candidate Runtime {provider:?} is not implemented"),
+        }
         return Ok(None);
     };
+    anyhow::ensure!(
+        runtime_execution.provider == "docker",
+        "model-backed Candidates are not supported by Runtime {:?}",
+        runtime_execution.provider
+    );
     let config_path = config.path.as_deref().ok_or_else(|| {
         anyhow::anyhow!("--model requires project-local or user-local .a3s/config.acl")
     })?;
@@ -176,6 +211,10 @@ fn execute_candidate(
             task_prompt: &prompt,
             candidate_instructions: &instructions,
             workspace: candidate_workspace,
+            workspace_source_path: task
+                .workspace_seed
+                .as_ref()
+                .map(|seed| seed.source_path.as_str()),
             work_image: &task.work_image,
             work_platform: task.work_platform.as_deref(),
             game_network: game.map(|session| {
@@ -197,14 +236,42 @@ fn execute_judge(
     submission: &Path,
     game: Option<&game_judge::GameSession>,
     model: Option<&config::ModelRoute>,
+    runtime_provider: &str,
+    resolved_images: &std::collections::BTreeMap<String, String>,
 ) -> Result<runtime::JudgeResult> {
     if let (Some(session), Some(source)) = (game, &task.legacy_judge) {
         session.finish(task, source)
     } else if let Some(source) = &task.legacy_judge {
         legacy_judge::execute(task, source, submission, model)
     } else {
-        runtime::execute_docker_judge(task, judge, submission)
+        match runtime_provider {
+            "docker" => runtime::execute_docker_judge(task, judge, submission),
+            crate::os_runtime::PROVIDER => {
+                crate::os_runtime::execute_judge(task, judge, submission, resolved_images)
+            }
+            provider => anyhow::bail!("Judge Runtime {provider:?} is not implemented"),
+        }
     }
+}
+
+fn validate_os_runtime_task(task: &task::TaskInfo, model: Option<&str>) -> Result<()> {
+    anyhow::ensure!(
+        model.is_none(),
+        "os-runtime does not support model-backed Candidates yet"
+    );
+    anyhow::ensure!(
+        task.legacy_judge.is_none(),
+        "os-runtime does not support legacy/game Judges yet"
+    );
+    anyhow::ensure!(
+        task.workspace_seed.is_none(),
+        "os-runtime does not support OCI workspace seeds yet"
+    );
+    anyhow::ensure!(
+        task.root.join("public/workspace").is_dir(),
+        "os-runtime requires an embedded public/workspace"
+    );
+    Ok(())
 }
 
 fn primary_metric(task: &task::TaskInfo) -> &task::MetricInfo {

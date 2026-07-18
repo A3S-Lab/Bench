@@ -1,7 +1,9 @@
 use a3s_acl::{Block, Document, Value};
-use a3s_runtime::{OperatorRuntimeConfig, ProviderId, RuntimeSelection, SessionRuntimePolicy};
+use a3s_runtime::ProviderId;
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
+
+use crate::runtime_selection::RuntimeSelection;
 
 #[derive(Debug, Clone)]
 pub struct LocalConfig {
@@ -22,10 +24,7 @@ pub fn discover(start: &Path) -> Result<LocalConfig> {
         return Ok(LocalConfig {
             path: None,
             judge_model: None,
-            runtime: RuntimeSelection::resolve(
-                &OperatorRuntimeConfig::default(),
-                &SessionRuntimePolicy::default(),
-            ),
+            runtime: RuntimeSelection::bench_default()?,
         });
     };
     let source = std::fs::read_to_string(&path)
@@ -159,10 +158,7 @@ fn parse_runtime(document: &Document) -> Result<RuntimeSelection> {
         "config.acl contains duplicate runtime blocks"
     );
     let Some(block) = blocks.first() else {
-        return Ok(RuntimeSelection::resolve(
-            &OperatorRuntimeConfig::default(),
-            &SessionRuntimePolicy::default(),
-        ));
+        return Ok(RuntimeSelection::bench_default()?);
     };
     anyhow::ensure!(
         block.labels.is_empty(),
@@ -178,12 +174,7 @@ fn parse_runtime(document: &Document) -> Result<RuntimeSelection> {
         "runtime.provider must not be empty"
     );
     let provider = ProviderId::parse(provider.to_owned()).map_err(anyhow::Error::from)?;
-    Ok(RuntimeSelection::resolve(
-        &OperatorRuntimeConfig {
-            provider: Some(provider),
-        },
-        &SessionRuntimePolicy::default(),
-    ))
+    Ok(RuntimeSelection::operator(provider))
 }
 
 #[cfg(test)]
@@ -206,7 +197,18 @@ mod tests {
         assert_eq!(selected.provider.as_str(), "a3s-box");
         assert_eq!(
             selected.source,
-            a3s_runtime::SelectionSource::OperatorConfig
+            crate::runtime_selection::RuntimeSelectionSource::OperatorConfig
+        );
+    }
+
+    #[test]
+    fn os_runtime_is_a_valid_explicit_provider() {
+        let document = a3s_acl::parse("runtime { provider = \"os-runtime\" }").unwrap();
+        let selected = parse_runtime(&document).unwrap();
+        assert_eq!(selected.provider.as_str(), "os-runtime");
+        assert_eq!(
+            selected.source,
+            crate::runtime_selection::RuntimeSelectionSource::OperatorConfig
         );
     }
 

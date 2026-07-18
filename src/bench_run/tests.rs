@@ -10,10 +10,7 @@ fn model_judge_requires_an_explicit_local_route() {
     .unwrap();
     let config = config::LocalConfig {
         path: None,
-        runtime: a3s_runtime::RuntimeSelection::resolve(
-            &a3s_runtime::OperatorRuntimeConfig::default(),
-            &a3s_runtime::SessionRuntimePolicy::default(),
-        ),
+        runtime: crate::runtime_selection::RuntimeSelection::bench_default().unwrap(),
         judge_model: None,
     };
     let error = resolve_judge_model(&task, None, &config).err().unwrap();
@@ -56,7 +53,8 @@ fn model_candidate_game_and_task_owned_judge_run_end_to_end() {
     let task_source =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("builtin/tasks/anchorhead_text_adventure");
     let task_lock_path = state.path().join("task.lock.json");
-    lock::create_task(&task_source, None, state.path(), &task_lock_path).unwrap();
+    lock::create_task_with_provider(&task_source, None, state.path(), &task_lock_path, "docker")
+        .unwrap();
     let locked = lock::load_task(&task_lock_path, state.path()).unwrap();
     let mut task = task::load_local(&locked.task_artifact).unwrap();
     resolve_task_images(&mut task, &locked.lock.resolved_images).unwrap();
@@ -75,6 +73,11 @@ fn model_candidate_game_and_task_owned_judge_run_end_to_end() {
         identity: "test-candidate".into(),
     };
     let candidate_workspace = workspace::create(&task).unwrap();
+    let resolved_images = std::collections::BTreeMap::new();
+    let runtime_execution = RuntimeExecution {
+        provider: "docker",
+        resolved_images: &resolved_images,
+    };
     let execution = execute_candidate(
         &task,
         &candidate,
@@ -82,6 +85,7 @@ fn model_candidate_game_and_task_owned_judge_run_end_to_end() {
         &config,
         &candidate_workspace,
         Some(&game),
+        &runtime_execution,
     )
     .unwrap()
     .unwrap();
@@ -89,7 +93,16 @@ fn model_candidate_game_and_task_owned_judge_run_end_to_end() {
     assert_eq!(execution.tool_calls_count, 1);
     let submission = workspace::create_submission(&task, &candidate_workspace).unwrap();
     let judge = asset::load_local(&task.root.join(&task.judge_asset)).unwrap();
-    let result = execute_judge(&task, &judge, &submission, Some(&game), None).unwrap();
+    let result = execute_judge(
+        &task,
+        &judge,
+        &submission,
+        Some(&game),
+        None,
+        "docker",
+        &resolved_images,
+    )
+    .unwrap();
     assert_eq!(result.schema, "bench.judge.result.v1");
     assert_eq!(result.solution_verdict, "valid");
     assert!(result.diagnostics.get("moves").is_some());
