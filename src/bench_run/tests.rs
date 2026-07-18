@@ -144,14 +144,54 @@ fn serve_game_model(listener: TcpListener) {
                 .unwrap();
             continue;
         }
+        let is_pre_analysis = request_body
+            .get("messages")
+            .and_then(serde_json::Value::as_array)
+            .is_some_and(|messages| {
+                messages.iter().any(|message| {
+                    message
+                        .get("content")
+                        .and_then(serde_json::Value::as_str)
+                        .is_some_and(|content| content.contains("You are a pre-analysis assistant"))
+                })
+            });
+        let message = if is_pre_analysis {
+            serde_json::json!({
+                "role":"assistant",
+                "content": serde_json::json!({
+                    "intent": "GeneralPurpose",
+                    "requires_planning": false,
+                    "goal": {
+                        "description": "Play the supplied game.",
+                        "success_criteria": ["Start the game successfully"]
+                    },
+                    "execution_plan": {
+                        "complexity": "Simple",
+                        "steps": [{
+                            "id": "step-1",
+                            "description": "Start the supplied game",
+                            "tool": "bash",
+                            "dependencies": [],
+                            "success_criteria": "The game server returns a session"
+                        }],
+                        "required_tools": ["bash"]
+                    },
+                    "optimized_input": "Play the supplied game."
+                }).to_string()
+            })
+        } else {
+            messages[response_index].clone()
+        };
         let body = serde_json::to_vec(&serde_json::json!({
             "id":"chatcmpl-game-test", "object":"chat.completion", "created":0, "model":"fake",
-            "choices":[{"index":0,"message":messages[response_index],"finish_reason":if response_index == 0 {"tool_calls"} else {"stop"}}],
+            "choices":[{"index":0,"message":message,"finish_reason":if !is_pre_analysis && response_index == 0 {"tool_calls"} else {"stop"}}],
             "usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}
         })).unwrap();
         write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len()).unwrap();
         stream.write_all(&body).unwrap();
-        response_index += 1;
+        if !is_pre_analysis {
+            response_index += 1;
+        }
     }
 }
 
