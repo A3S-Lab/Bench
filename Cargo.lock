@@ -15,7 +15,7 @@ source = "git+https://github.com/A3S-Lab/ACL.git?rev=4ce7a505958a66c5c27b72d5a2a
 
 [[package]]
 name = "a3s-bench"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "a3s-acl 0.2.1 (git+https://github.com/A3S-Lab/ACL.git?rev=4ce7a505958a66c5c27b72d5a2af7efc0e401f17)",
  "a3s-code-core",
