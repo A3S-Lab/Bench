@@ -4,6 +4,8 @@ All notable changes to a3s-bench are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-19
+
 ### Added
 
 - Added an `os-runtime` execution provider for deterministic Candidates and
@@ -88,6 +90,7 @@ Initial development preview.
   execution, and native Codex/Claude Code adapters remain incomplete.
 - Preview artifacts produce only `local_unofficial` results.
 
+[0.1.1]: https://github.com/A3S-Lab/Bench/releases/tag/v0.1.1
 [0.1.0]: https://github.com/A3S-Lab/Bench/releases/tag/v0.1.0
 [0.1.0-preview.1]: https://github.com/A3S-Lab/Bench/releases/tag/v0.1.0-preview.1
-[Unreleased]: https://github.com/A3S-Lab/Bench/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/A3S-Lab/Bench/compare/v0.1.1...HEAD
