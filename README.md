@@ -133,8 +133,10 @@ model explicitly.
 
 ### Compare models with the same controller
 
-`a3s-code` is the bundled model-backed Candidate adapter. Freeze one Task and
-bind the same controller to each model:
+`a3s-code` is the bundled, versioned A3S Code Core 5.3.4 Candidate adapter. Its
+locked package records the Core version and enables automatic planning,
+continuation, and manual delegation. Freeze one Task and bind the same
+controller to each model:
 
 ```bash
 a3s bench advanced task lock quick_file_edit --out ./task.lock.json
@@ -154,8 +156,9 @@ a3s bench run ./task.lock.json \
   --agent ./a3s-code-claude.candidate.lock.json --locked
 ```
 
-This compares models under the same A3S Code controller. It does **not** run or
-compare the native Codex and Claude Code products.
+This compares models under the same versioned A3S Code Core controller. It does
+**not** run the interactive A3S Code host or compare the native Codex and Claude
+Code products.
 
 ### Compare Codex, Claude Code, and A3S Code
 
@@ -188,7 +191,7 @@ The Codex and Claude Code paths above are examples of adapters you supply; the
 current release does not bundle native adapters or bare `codex` and `claude`
 aliases. Do not add `--model` to those native locks unless their adapter
 contract explicitly supports it. In the current release, `--model` selects the
-generic A3S Code model controller.
+versioned A3S Code Core model controller.
 
 ## Task-owned Judges
 
@@ -226,7 +229,7 @@ Docker. Override the Runtime provider in `.a3s/config.acl`:
 
 ```acl
 runtime {
-  provider = "a3s-box"
+  provider = "os-runtime"
 }
 ```
 
@@ -240,10 +243,22 @@ a3s bench advanced doctor
 a3s bench advanced doctor --json
 ```
 
-The current release executes with Docker. `a3s-box` selection and preflight are
-implemented, but execution awaits completion of the shared Runtime lifecycle
-migration. The architecture accepts other conforming Runtime providers through
-the same platform registry rather than adding provider-specific Bench flags.
+`os-runtime` submits deterministic Candidates and Python asset Judges to A3S
+OS as digest-pinned OCI steps. It reads the active session from
+`~/.a3s/os-auth.json`; automation may instead set `A3S_OS_ADDRESS` and
+`A3S_OS_ACCESS_TOKEN` together. The managed runner images can be overridden with
+`A3S_BENCH_OS_NODE_IMAGE` and `A3S_BENCH_OS_PYTHON_IMAGE`, but must remain
+digest-pinned and admitted by A3S OS. TaskLock creation captures both selected
+runner digests, and execution reads only those locked values. In this lifecycle
+slice, the managed Node runner replaces the Task `work.image`; the Task image is
+not submitted to A3S OS.
+
+The first lifecycle slice intentionally fails closed for unsupported execution
+classes: model-backed Candidates, legacy/game Judges, OCI workspace seeds, and
+input or output envelopes larger than 64 KiB. Use Docker for those Tasks until
+artifact-backed workspace transfer and the remaining shared Runtime lifecycle
+are implemented. `a3s-box` selection and preflight remain available, but
+execution is not yet implemented. Bench never silently falls back to Docker.
 
 ## Reproducibility model
 

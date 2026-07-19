@@ -142,11 +142,13 @@ fn advanced_task_lock(args: &[String]) -> Result<u8> {
     if let (Some(path), Some(model)) = (config.path.as_deref(), config.judge_model.as_deref()) {
         config::resolve_model_route(path, model)?;
     }
-    let value = lock::create_task(
+    let runtime_provider = config.runtime.provider.as_str().to_owned();
+    let value = lock::create_task_with_provider(
         &source,
         config.judge_model,
         &state_root,
         Path::new(&args[2]),
+        &runtime_provider,
     )?;
     println!("locked Task {}", value.task_revision);
     Ok(0)

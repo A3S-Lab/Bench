@@ -32,11 +32,12 @@ pub struct CandidateLock {
     pub model: Option<String>,
 }
 
-pub fn create_task(
+pub fn create_task_with_provider(
     source: &Path,
     judge_model: Option<String>,
     state_root: &Path,
     output: &Path,
+    runtime_provider: &str,
 ) -> Result<TaskLock> {
     let root = if source.is_dir() {
         source
@@ -68,9 +69,13 @@ pub fn create_task(
     let judge_artifact = crate::task_snapshot::artifact_path(state_root, &judge_artifact_digest)?;
     let locked_judge = crate::asset::load_local(&judge_artifact)?;
     let mut resolved_images = BTreeMap::new();
-    for (reference, platform) in task_image_references(&task) {
-        let resolved = crate::runtime::resolve_image(reference, platform)?;
-        resolved_images.insert(image_key(reference, platform), resolved.immutable_ref);
+    if runtime_provider == crate::os_runtime::PROVIDER {
+        resolved_images.extend(crate::os_runtime::resolved_runner_images()?);
+    } else {
+        for (reference, platform) in task_image_references(&task) {
+            let resolved = crate::runtime::resolve_image(reference, platform)?;
+            resolved_images.insert(image_key(reference, platform), resolved.immutable_ref);
+        }
     }
     let mut value = TaskLock {
         schema: "a3s.bench.task-lock.v1".into(),

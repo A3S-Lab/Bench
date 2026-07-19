@@ -65,6 +65,7 @@ impl RunOptions {
         state_root: &Path,
         run_id: &str,
         judge_model: Option<String>,
+        runtime_provider: &str,
     ) -> Result<LoadedRun> {
         if self.locked {
             anyhow::ensure!(
@@ -78,7 +79,13 @@ impl RunOptions {
         state_fs::secure_directory(&locks)?;
         let task_lock = locks.join(format!("{run_id}.task-lock.json"));
         let candidate_lock = locks.join(format!("{run_id}.candidate-lock.json"));
-        lock::create_task(&task_source, judge_model, state_root, &task_lock)?;
+        lock::create_task_with_provider(
+            &task_source,
+            judge_model,
+            state_root,
+            &task_lock,
+            runtime_provider,
+        )?;
         lock::create_candidate(&self.agent, self.model.clone(), state_root, &candidate_lock)?;
         load_locks(&task_lock, &candidate_lock, state_root)
     }
