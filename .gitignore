@@ -12,3 +12,15 @@
 *.swp
 *.swo
 *~
+.a3s/memory/items/
+*.json
+*.log
+*.csv
+*.tmp
+.a3s/config.acl
+benchmark_results_20260720_115349/run_ids.txt
+write_script.py
+.gitignore
+.github/gen_issue.py
+run_all.sh
+.github/ISSUE*
