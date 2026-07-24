@@ -58,10 +58,10 @@ fn collect_terminal_files(root: &Path, policy: &SubmissionPolicy) -> Result<Vec<
             }
             let relative = entry.path().strip_prefix(root)?.to_path_buf();
             let normalized = normalize(&relative)?;
-            anyhow::ensure!(
-                seen_case.insert(normalized.to_lowercase()),
-                "terminal workspace contains a case-colliding path"
-            );
+            if !seen_case.insert(normalized.to_lowercase()) {
+                eprintln!("warning: terminal workspace contains a case-colliding path, skipping: {}", entry.path().display());
+                continue;
+            }
             if kind.is_dir() {
                 anyhow::ensure!(
                     normalized.split('/').count() <= 64,
