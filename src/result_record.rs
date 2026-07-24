@@ -167,10 +167,10 @@ impl LocalResultRecord {
         crate::lock_identity::validate_digest(&self.candidate_lock_digest)?;
         if let Some(model) = &self.model {
             anyhow::ensure!(!model.trim().is_empty(), "local result model is empty");
-            anyhow::ensure!(
-                self.model_usage.is_some(),
-                "model-backed result has no usage"
-            );
+            // model_usage may be None when the candidate timed out before
+            // session.send() could return an AgentResult with token usage.
+            // The score is still valid (from the final judge or iterative
+            // eval), so we allow None here rather than rejecting the result.
         } else {
             anyhow::ensure!(
                 self.model_usage.is_none(),
