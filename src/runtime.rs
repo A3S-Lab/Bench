@@ -2,7 +2,7 @@ use crate::{asset::LocalAssetPackage, task::TaskInfo};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use std::process::{Command, Output, Stdio};
+use std::process::{Command, Output};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
@@ -201,21 +201,37 @@ pub fn execute_docker_candidate(
 
 fn output_with_timeout(command: &mut Command, timeout: Duration) -> Result<(Output, bool)> {
     use std::io::Read;
+    use std::fs::File;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    // Use temp files instead of pipes to avoid the pipe-fd-hold-open deadlock:
+    // Docker CLI may share stdout/stderr pipe fds with containerd-shim, preventing EOF
+    // on the parent read side even after the Docker CLI exits.
+    static TEMP_SEQ: AtomicU64 = AtomicU64::new(0);
+    let seq = TEMP_SEQ.fetch_add(1, Ordering::Relaxed);
+    let pid = std::process::id();
+    let tmp = std::env::temp_dir();
+
+    let stdout_path = tmp.join(format!("a3s-bench-stdout-{pid}-{seq}"));
+    let stderr_path = tmp.join(format!("a3s-bench-stderr-{pid}-{seq}"));
+
+    let stdout_file = File::create(&stdout_path)?;
+    let stderr_file = File::create(&stderr_path)?;
 
     let mut child = command
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()?;
-    let mut stdout = child.stdout.take().expect("stdout was piped");
-    let mut stderr = child.stderr.take().expect("stderr was piped");
-    let stdout_reader = std::thread::spawn(move || {
-        let mut bytes = Vec::new();
-        stdout.read_to_end(&mut bytes).map(|_| bytes)
-    });
-    let stderr_reader = std::thread::spawn(move || {
-        let mut bytes = Vec::new();
-        stderr.read_to_end(&mut bytes).map(|_| bytes)
-    });
+        .stdout(stdout_file.try_clone()?)
+        .stderr(stderr_file.try_clone()?)
+        .spawn()
+        .map_err(|e| {
+            let _ = std::fs::remove_file(&stdout_path);
+            let _ = std::fs::remove_file(&stderr_path);
+            e
+        })?;
+
+    // Drop our file handles; the child owns the write ends.
+    drop(stdout_file);
+    drop(stderr_file);
+
     let deadline = Instant::now() + timeout;
     let timed_out = loop {
         if child.try_wait()?.is_some() {
@@ -228,12 +244,21 @@ fn output_with_timeout(command: &mut Command, timeout: Duration) -> Result<(Outp
         std::thread::sleep(Duration::from_millis(50));
     };
     let status = child.wait()?;
-    let stdout = stdout_reader
-        .join()
-        .map_err(|_| anyhow::anyhow!("stdout reader panicked"))??;
-    let stderr = stderr_reader
-        .join()
-        .map_err(|_| anyhow::anyhow!("stderr reader panicked"))??;
+
+    // Read the files written by the child (child's handles are closed on exit).
+    let mut stdout = Vec::new();
+    let mut stderr = Vec::new();
+    if let Ok(mut f) = File::open(&stdout_path) {
+        let _ = f.read_to_end(&mut stdout);
+    }
+    if let Ok(mut f) = File::open(&stderr_path) {
+        let _ = f.read_to_end(&mut stderr);
+    }
+
+    // Clean up temp files (best-effort).
+    let _ = std::fs::remove_file(&stdout_path);
+    let _ = std::fs::remove_file(&stderr_path);
+
     Ok((
         Output {
             status,
@@ -242,9 +267,7 @@ fn output_with_timeout(command: &mut Command, timeout: Duration) -> Result<(Outp
         },
         timed_out,
     ))
-}
-
-pub fn execute_docker_judge(
+}pub fn execute_docker_judge(
     task: &TaskInfo,
     judge: &LocalAssetPackage,
     submission: &Path,

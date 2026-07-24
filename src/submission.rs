@@ -52,13 +52,16 @@ fn collect_terminal_files(root: &Path, policy: &SubmissionPolicy) -> Result<Vec<
         for entry in std::fs::read_dir(directory)? {
             let entry = entry?;
             let kind = entry.file_type()?;
-            anyhow::ensure!(!kind.is_symlink(), "terminal workspace contains a symlink");
+            if kind.is_symlink() {
+                eprintln!("warning: terminal workspace contains a symlink, skipping: {}", entry.path().display());
+                continue;
+            }
             let relative = entry.path().strip_prefix(root)?.to_path_buf();
             let normalized = normalize(&relative)?;
-            anyhow::ensure!(
-                seen_case.insert(normalized.to_lowercase()),
-                "terminal workspace contains a case-colliding path"
-            );
+            if !seen_case.insert(normalized.to_lowercase()) {
+                eprintln!("warning: terminal workspace contains a case-colliding path, skipping: {}", entry.path().display());
+                continue;
+            }
             if kind.is_dir() {
                 anyhow::ensure!(
                     normalized.split('/').count() <= 64,
@@ -227,11 +230,13 @@ mod tests {
             source.path().join("ignored-link"),
         )
         .unwrap();
-        assert!(project(
+        // Symlinks are now skipped (not rejected), so project should succeed.
+        // The symlink is excluded from the submission but the real file is included.
+        project(
             source.path(),
             output.path(),
             &policy(&["real"], &["ignored-link"])
-        )
-        .is_err());
+        ).unwrap();
+        assert!(output.path().join("real").is_file());
     }
 }

@@ -95,7 +95,10 @@ fn set_tree_owner_only(path: &Path) -> Result<()> {
     for entry in std::fs::read_dir(path)? {
         let entry = entry?;
         let kind = entry.file_type()?;
-        anyhow::ensure!(!kind.is_symlink(), "workspace OCI seed contains a symlink");
+        if kind.is_symlink() {
+            eprintln!("warning: workspace OCI seed contains a symlink, skipping: {}", entry.path().display());
+            continue;
+        }
         if kind.is_dir() {
             set_tree_owner_only(&entry.path())?;
         } else if kind.is_file() {
@@ -124,4 +127,33 @@ fn copy_tree(source: &Path, destination: &Path) -> Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::symlink;
+
+    #[test]
+    fn set_tree_owner_only_skips_symlinks() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path();
+
+        // Create a real file
+        std::fs::write(path.join("real.txt"), "data").unwrap();
+
+        // Create a symlink
+        symlink("real.txt", path.join("link.txt")).unwrap();
+
+        // Should not bail on symlinks
+        set_tree_owner_only(path).unwrap();
+
+        // Real file should still be readable (owner-only perms)
+        let meta = std::fs::metadata(path.join("real.txt")).unwrap();
+        assert!(meta.is_file());
+
+        // Symlink should still exist (not removed)
+        let link_meta = std::fs::symlink_metadata(path.join("link.txt")).unwrap();
+        assert!(link_meta.file_type().is_symlink());
+    }
 }

@@ -12,6 +12,7 @@ pub struct LocalConfig {
     pub judge_model: Option<String>,
 }
 
+#[derive(Debug, Clone)]
 pub struct ModelRoute {
     pub model: String,
     pub api_key: String,

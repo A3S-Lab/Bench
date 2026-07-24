@@ -41,7 +41,7 @@ pub fn execute(
         source.timeout_sec
     );
     let judge_command = format!(
-        "cp -R /a3s/submission/. {destination}/ && chmod -R u+rwX {destination} && python3 -c {}",
+        "cp -R /a3s/submission/. {destination}/ 2>/dev/null; chmod -R u+rwX {destination} 2>/dev/null; python3 -c {}",
         shell_quote(&timeout_runner)
     );
     let output = command
@@ -221,6 +221,7 @@ fn pytest_ratio(output: &str) -> Result<f64> {
 }
 
 pub(crate) fn normalize_raw(spec: Option<&Value>, raw: f64) -> Result<f64> {
+    anyhow::ensure!(raw.is_finite(), "Judge raw score is not finite");
     let Some(spec) = spec else {
         return Ok(raw.clamp(0.0, 1.0));
     };
@@ -229,17 +230,56 @@ pub(crate) fn normalize_raw(spec: Option<&Value>, raw: f64) -> Result<f64> {
             .and_then(Value::as_f64)
             .ok_or_else(|| anyhow::anyhow!("rescale is missing {name}"))
     };
-    let percent = match spec.get("kind").and_then(Value::as_str).unwrap_or("") {
-        "linear" => 100.0 * (raw - get("lower")?) / (get("upper")? - get("lower")?),
-        "log_anchor" => get("anchor_score")? * raw.ln() / get("anchor_raw")?.ln(),
+    let kind = spec.get("kind").and_then(Value::as_str).unwrap_or("");
+    // EdgeBench-style: each rescale branch has its own guard checks before the formula.
+    let percent = match kind {
+        "linear" => {
+            let lower = get("lower")?;
+            let upper = get("upper")?;
+            if upper == lower {
+                anyhow::bail!("rescale linear: upper == lower");
+            }
+            100.0 * (raw - lower) / (upper - lower)
+        }
+        "log_anchor" => {
+            let anchor_raw = get("anchor_raw")?;
+            let anchor_score = get("anchor_score")?;
+            if raw <= 1.0 || anchor_raw <= 1.0 {
+                0.0
+            } else {
+                anchor_score * raw.ln() / anchor_raw.ln()
+            }
+        }
         "log_max" => {
-            100.0 * (raw / get("baseline")?).ln() / (get("expert")? / get("baseline")?).ln()
+            let baseline = get("baseline")?;
+            let expert = get("expert")?;
+            if raw <= 0.0 || baseline <= 0.0 || expert <= 0.0 || baseline == expert {
+                0.0
+            } else {
+                100.0 * (raw / baseline).ln() / (expert / baseline).ln()
+            }
         }
         "log_min" => {
-            100.0 * (get("baseline")? / raw).ln() / (get("baseline")? / get("expert")?).ln()
+            let baseline = get("baseline")?;
+            let expert = get("expert")?;
+            if raw <= 0.0 || baseline <= 0.0 || expert <= 0.0 || baseline == expert {
+                0.0
+            } else {
+                100.0 * (baseline / raw).ln() / (baseline / expert).ln()
+            }
         }
         "log1p_max" => {
-            100.0 * (raw / get("baseline")?).ln_1p() / (get("upper")? / get("baseline")?).ln_1p()
+            let baseline = get("baseline")?;
+            let upper = get("upper")?;
+            if raw <= 0.0 || baseline <= 0.0 || upper <= 0.0 {
+                0.0
+            } else {
+                let denom = (upper / baseline).ln_1p();
+                if denom == 0.0 {
+                    anyhow::bail!("rescale log1p_max: degenerate denominator");
+                }
+                100.0 * (raw / baseline).ln_1p() / denom
+            }
         }
         "piecewise_max" => piecewise(raw, spec, false, false)?,
         "piecewise_min" => piecewise(raw, spec, true, false)?,
@@ -259,33 +299,79 @@ fn piecewise(raw: f64, spec: &Value, minimize: bool, logarithmic: bool) -> Resul
             .and_then(Value::as_f64)
             .ok_or_else(|| anyhow::anyhow!("rescale is missing {name}"))
     };
-    let points = [
-        value("baseline")?,
-        value("rank30")?,
-        value("rank1")?,
-        value("super_anchor")?,
-    ];
-    let scores = [0.0, 20.0, 80.0, 100.0];
+    let baseline = value("baseline")?;
+    let rank30 = value("rank30")?;
+    let rank1 = value("rank1")?;
+    let super_anchor = value("super_anchor")?;
     let transformed = |item: f64| if logarithmic { item.ln() } else { item };
-    if (minimize && raw >= points[0]) || (!minimize && raw <= points[0]) {
-        return Ok(0.0);
-    }
-    if (minimize && raw <= points[3]) || (!minimize && raw >= points[3]) {
-        return Ok(100.0);
-    }
-    for index in 0..3 {
-        let inside = if minimize {
-            raw <= points[index] && raw >= points[index + 1]
-        } else {
-            raw >= points[index] && raw <= points[index + 1]
-        };
-        if inside {
-            let fraction = (transformed(raw) - transformed(points[index]))
-                / (transformed(points[index + 1]) - transformed(points[index]));
-            return Ok(scores[index] + fraction * (scores[index + 1] - scores[index]));
+
+    if minimize {
+        // EdgeBench piecewise_log_min: guard params > 0 for ln()
+        if logarithmic && (baseline <= 0.0 || rank30 <= 0.0 || rank1 <= 0.0 || super_anchor <= 0.0) {
+            return Ok(0.0);
         }
+        // EdgeBench piecewise_min: also raw <= 0 -> 0
+        if raw <= 0.0 || raw >= baseline {
+            return Ok(0.0);
+        }
+        // Degenerate: consecutive equal points
+        if baseline == rank30 {
+            anyhow::bail!("piecewise_min: baseline == rank30");
+        }
+        if rank30 == rank1 {
+            anyhow::bail!("piecewise_min: rank30 == rank1");
+        }
+        if rank1 == super_anchor {
+            anyhow::bail!("piecewise_min: rank1 == super_anchor");
+        }
+        if raw >= rank30 {
+            let fraction = (transformed(baseline) - transformed(raw))
+                / (transformed(baseline) - transformed(rank30));
+            return Ok(20.0 * fraction);
+        }
+        if raw >= rank1 {
+            let fraction = (transformed(rank30) - transformed(raw))
+                / (transformed(rank30) - transformed(rank1));
+            return Ok(20.0 + 60.0 * fraction);
+        }
+        if raw >= super_anchor {
+            let fraction = (transformed(rank1) - transformed(raw))
+                / (transformed(rank1) - transformed(super_anchor));
+            return Ok(80.0 + 20.0 * fraction);
+        }
+        Ok(100.0)
+    } else {
+        // EdgeBench piecewise_max
+        if raw <= baseline {
+            return Ok(0.0);
+        }
+        // Degenerate: consecutive equal points
+        if rank30 == baseline {
+            anyhow::bail!("piecewise_max: rank30 == baseline");
+        }
+        if rank1 == rank30 {
+            anyhow::bail!("piecewise_max: rank1 == rank30");
+        }
+        if super_anchor == rank1 {
+            anyhow::bail!("piecewise_max: super_anchor == rank1");
+        }
+        if raw <= rank30 {
+            let fraction = (transformed(raw) - transformed(baseline))
+                / (transformed(rank30) - transformed(baseline));
+            return Ok(20.0 * fraction);
+        }
+        if raw <= rank1 {
+            let fraction = (transformed(raw) - transformed(rank30))
+                / (transformed(rank1) - transformed(rank30));
+            return Ok(20.0 + 60.0 * fraction);
+        }
+        if raw <= super_anchor {
+            let fraction = (transformed(raw) - transformed(rank1))
+                / (transformed(super_anchor) - transformed(rank1));
+            return Ok(80.0 + 20.0 * fraction);
+        }
+        Ok(100.0)
     }
-    Ok(0.0)
 }
 
 pub(crate) fn canonical_ratio(value: f64) -> String {

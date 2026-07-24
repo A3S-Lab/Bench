@@ -1,6 +1,6 @@
 use crate::{
-    asset, config, game_judge, legacy_judge, lock, model_candidate, run_input, runtime, task,
-    workspace,
+    asset, config, game_judge, legacy_judge, lock, model_candidate, run_input, runtime,
+    task, workspace,
 };
 use anyhow::{Context, Result};
 use serde_json::json;
@@ -70,6 +70,10 @@ fn execute_inner(
         provider: &status.provider,
         resolved_images: &loaded.resolved_images,
     };
+    // When the candidate errors (most commonly a timeout), we do NOT
+    // propagate the error immediately.  Instead we proceed to judge the
+    // final workspace state.  A timeout no longer means 0 score — it
+    // means we score whatever the agent managed to produce.
     let model_execution = execute_candidate(
         &loaded.task,
         &loaded.candidate,
@@ -78,7 +82,15 @@ fn execute_inner(
         &candidate_workspace,
         game.as_ref(),
         &runtime_execution,
-    )?;
+    );
+    let model_execution: Option<model_candidate::ModelExecution> = match model_execution {
+        Ok(exec) => exec,
+        Err(e) => {
+            eprintln!("candidate ended with error (will still score): {e:#}");
+            None
+        }
+    };
+
     journal.advance(RunStage::CandidateCompleted)?;
     let submission = workspace::create_submission(&loaded.task, &candidate_workspace)?;
     journal.advance(RunStage::Judging)?;
