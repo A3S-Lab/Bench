@@ -3,11 +3,12 @@ use a3s_code_core::{config::CodeConfig, Agent, PlanningMode, SessionOptions, Wor
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::process::Command;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ModelExecution {
     pub prompt_tokens: usize,
@@ -33,14 +34,35 @@ pub struct ModelCandidateRequest<'a> {
     pub max_tool_rounds: usize,
 }
 
-pub fn execute(request: ModelCandidateRequest<'_>) -> Result<ModelExecution> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ModelCandidateOutcome {
+    Completed(ModelExecution),
+    TimedOut { timeout_sec: u64 },
+}
+
+enum CandidateDeadline<T> {
+    Completed(T),
+    TimedOut,
+}
+
+async fn wait_for_candidate<T>(
+    timeout: std::time::Duration,
+    future: impl Future<Output = T>,
+) -> CandidateDeadline<T> {
+    match tokio::time::timeout(timeout, future).await {
+        Ok(value) => CandidateDeadline::Completed(value),
+        Err(_) => CandidateDeadline::TimedOut,
+    }
+}
+
+pub fn execute(request: ModelCandidateRequest<'_>) -> Result<ModelCandidateOutcome> {
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?;
     runtime.block_on(execute_async(request))
 }
 
-async fn execute_async(request: ModelCandidateRequest<'_>) -> Result<ModelExecution> {
+async fn execute_async(request: ModelCandidateRequest<'_>) -> Result<ModelCandidateOutcome> {
     let mut config = CodeConfig::from_file(request.config_path).with_context(|| {
         format!(
             "could not load model Candidate configuration from {}",
@@ -70,23 +92,30 @@ async fn execute_async(request: ModelCandidateRequest<'_>) -> Result<ModelExecut
         .await
         .context("could not create model Candidate session")?;
     let prompt = candidate_prompt(&request);
-    let result = tokio::time::timeout(
+    let result = wait_for_candidate(
         std::time::Duration::from_secs(request.timeout_sec),
         session.send(&prompt, None),
     )
     .await;
     session.close().await;
-    let result = result
-        .context("model Candidate exceeded Task solution_timeout_sec")?
-        .context("model Candidate execution failed")?;
-    Ok(ModelExecution {
+    let result = match result {
+        CandidateDeadline::Completed(result) => {
+            result.context("model Candidate execution failed")?
+        }
+        CandidateDeadline::TimedOut => {
+            return Ok(ModelCandidateOutcome::TimedOut {
+                timeout_sec: request.timeout_sec,
+            })
+        }
+    };
+    Ok(ModelCandidateOutcome::Completed(ModelExecution {
         prompt_tokens: result.usage.prompt_tokens,
         completion_tokens: result.usage.completion_tokens,
         total_tokens: result.usage.total_tokens,
         cache_read_tokens: result.usage.cache_read_tokens,
         cache_write_tokens: result.usage.cache_write_tokens,
         tool_calls_count: result.tool_calls_count,
-    })
+    }))
 }
 
 fn candidate_prompt(request: &ModelCandidateRequest<'_>) -> String {
@@ -260,6 +289,25 @@ mod tests {
     }
 
     #[test]
+    fn candidate_deadline_distinguishes_timeout_from_completion() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .unwrap();
+        let completed = runtime.block_on(wait_for_candidate(
+            std::time::Duration::from_secs(1),
+            async { 42 },
+        ));
+        assert!(matches!(completed, CandidateDeadline::Completed(42)));
+
+        let timed_out = runtime.block_on(wait_for_candidate(
+            std::time::Duration::from_millis(1),
+            std::future::pending::<()>(),
+        ));
+        assert!(matches!(timed_out, CandidateDeadline::TimedOut));
+    }
+
+    #[test]
     fn custom_openai_provider_edits_workspace_without_os_login() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();
@@ -409,6 +457,9 @@ mod tests {
             max_tool_rounds: 32,
         })
         .unwrap();
+        let ModelCandidateOutcome::Completed(execution) = execution else {
+            panic!("test Candidate unexpectedly timed out");
+        };
         server.join().unwrap();
         assert_eq!(
             std::fs::read_to_string(workspace.join("answer.txt")).unwrap(),

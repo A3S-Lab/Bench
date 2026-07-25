@@ -10,6 +10,12 @@ use crate::runtime_selection::{RuntimeSelection, A3S_BOX_PROVIDER, DOCKER_PROVID
 
 static CANDIDATE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CandidateProcessOutcome {
+    Completed,
+    TimedOut,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResolvedImage {
     pub source: String,
@@ -127,7 +133,7 @@ pub fn execute_docker_candidate(
     task: &TaskInfo,
     candidate: &LocalAssetPackage,
     workspace: &Path,
-) -> Result<()> {
+) -> Result<CandidateProcessOutcome> {
     let entrypoint = candidate
         .entrypoint
         .split(':')
@@ -185,10 +191,7 @@ pub fn execute_docker_candidate(
         let _ = Command::new("docker")
             .args(["rm", "-f", &container])
             .output();
-        anyhow::bail!(
-            "Candidate exceeded Task solution_timeout_sec ({})",
-            task.candidate_timeout_sec
-        );
+        return Ok(CandidateProcessOutcome::TimedOut);
     }
     anyhow::ensure!(
         candidate_output.status.success(),
@@ -196,26 +199,18 @@ pub fn execute_docker_candidate(
         candidate_output.status,
         String::from_utf8_lossy(&candidate_output.stderr).trim()
     );
-    Ok(())
+    Ok(CandidateProcessOutcome::Completed)
 }
 
 fn output_with_timeout(command: &mut Command, timeout: Duration) -> Result<(Output, bool)> {
-    use std::io::Read;
+    use std::io::{Read, Seek, SeekFrom};
 
+    let mut stdout_file = tempfile::tempfile()?;
+    let mut stderr_file = tempfile::tempfile()?;
     let mut child = command
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stdout(Stdio::from(stdout_file.try_clone()?))
+        .stderr(Stdio::from(stderr_file.try_clone()?))
         .spawn()?;
-    let mut stdout = child.stdout.take().expect("stdout was piped");
-    let mut stderr = child.stderr.take().expect("stderr was piped");
-    let stdout_reader = std::thread::spawn(move || {
-        let mut bytes = Vec::new();
-        stdout.read_to_end(&mut bytes).map(|_| bytes)
-    });
-    let stderr_reader = std::thread::spawn(move || {
-        let mut bytes = Vec::new();
-        stderr.read_to_end(&mut bytes).map(|_| bytes)
-    });
     let deadline = Instant::now() + timeout;
     let timed_out = loop {
         if child.try_wait()?.is_some() {
@@ -228,12 +223,12 @@ fn output_with_timeout(command: &mut Command, timeout: Duration) -> Result<(Outp
         std::thread::sleep(Duration::from_millis(50));
     };
     let status = child.wait()?;
-    let stdout = stdout_reader
-        .join()
-        .map_err(|_| anyhow::anyhow!("stdout reader panicked"))??;
-    let stderr = stderr_reader
-        .join()
-        .map_err(|_| anyhow::anyhow!("stderr reader panicked"))??;
+    stdout_file.seek(SeekFrom::Start(0))?;
+    stderr_file.seek(SeekFrom::Start(0))?;
+    let mut stdout = Vec::new();
+    let mut stderr = Vec::new();
+    stdout_file.read_to_end(&mut stdout)?;
+    stderr_file.read_to_end(&mut stderr)?;
     Ok((
         Output {
             status,
@@ -475,6 +470,70 @@ mod tests {
         slow.arg("5");
         let (_, timed_out) = output_with_timeout(&mut slow, Duration::from_millis(50)).unwrap();
         assert!(timed_out);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn command_output_does_not_wait_for_descendants_holding_stdio() {
+        let mut command = Command::new("sh");
+        command.args(["-c", "(sleep 1) & printf ready"]);
+        let started = Instant::now();
+
+        let (output, timed_out) =
+            output_with_timeout(&mut command, Duration::from_secs(2)).unwrap();
+
+        assert!(!timed_out);
+        assert!(started.elapsed() < Duration::from_millis(750));
+        assert_eq!(output.stdout, b"ready");
+    }
+
+    #[test]
+    #[ignore = "requires Docker and the native Alpine image"]
+    fn docker_candidate_timeout_preserves_partial_workspace() {
+        resolve_image("docker.io/library/alpine:3.20", None).unwrap();
+        let candidate_root = tempfile::tempdir().unwrap();
+        std::fs::write(
+            candidate_root.path().join("run.sh"),
+            "#!/bin/sh\nprintf partial > \"$1/partial.txt\"\nsleep 30\n",
+        )
+        .unwrap();
+        let candidate = LocalAssetPackage {
+            root: candidate_root.path().canonicalize().unwrap(),
+            entrypoint: "run.sh".into(),
+            definition_path: None,
+            identity: "test-candidate".into(),
+        };
+        let workspace = tempfile::tempdir().unwrap();
+        let task = TaskInfo {
+            id: "timeout-test".into(),
+            name: "Timeout test".into(),
+            category: "correctness".into(),
+            judge_asset: "unused".into(),
+            work_image: "docker.io/library/alpine:3.20".into(),
+            work_platform: None,
+            work_network_need: "none".into(),
+            candidate_timeout_sec: 3,
+            metrics: vec![],
+            workspace_seed: None,
+            submission: crate::task::SubmissionPolicy {
+                include: vec!["**".into()],
+                exclude: vec![],
+                max_files: 100,
+                max_total_bytes: 1024,
+                max_file_bytes: 1024,
+            },
+            legacy_judge: None,
+            root: std::path::PathBuf::new(),
+        };
+
+        assert_eq!(
+            execute_docker_candidate(&task, &candidate, workspace.path()).unwrap(),
+            CandidateProcessOutcome::TimedOut
+        );
+        assert_eq!(
+            std::fs::read_to_string(workspace.path().join("partial.txt")).unwrap(),
+            "partial"
+        );
     }
 
     #[test]

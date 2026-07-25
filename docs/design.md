@@ -1559,7 +1559,8 @@ it.
 | Class | Examples | Scoreable? |
 | --- | --- | --- |
 | `task_invalid` | bad TaskLock, unavailable hidden input, invalid Judge capability | No |
-| `candidate_failed` | Agent exits, exceeds a locked Candidate limit, or produces invalid workspace content | Only if TaskLock explicitly defines a deterministic solution-failure mapping |
+| `candidate_timed_out` | Candidate reaches the locked solution deadline and Runtime captures its final workspace | Yes; Judge scores the policy-projected final workspace and the result records the timeout |
+| `candidate_failed` | Agent exits with an error or produces invalid workspace content | Only if TaskLock explicitly defines a deterministic solution-failure mapping |
 | `infrastructure_failed` | Runtime unavailable, lost provider resource, failed protected collection, unverifiable checkpoint | No |
 | `judge_contract_failed` | Judge exception, malformed or missing typed result, identity mismatch | No |
 | `policy_rejected` | missing capability, disallowed asset/model/route, unsupported isolation | No |

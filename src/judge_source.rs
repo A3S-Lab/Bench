@@ -71,6 +71,14 @@ struct Workspace {
 enum RescaleHint {
     #[serde(rename = "linear")]
     Linear { lower: f64, upper: f64 },
+    #[serde(rename = "min_linear")]
+    MinLinear { baseline: f64, expert: f64 },
+    #[serde(rename = "min_linear_positive")]
+    MinLinearPositive { baseline: f64, expert: f64 },
+    #[serde(rename = "min_inverse_anchor")]
+    MinInverseAnchor { anchor_raw: f64, anchor_score: f64 },
+    #[serde(rename = "compression_ratio_cropped_guarded")]
+    CompressionRatioCroppedGuarded { baseline: f64, expert: f64 },
     #[serde(rename = "log_anchor")]
     LogAnchor { anchor_raw: f64, anchor_score: f64 },
     #[serde(rename = "piecewise_max")]
@@ -249,5 +257,29 @@ mod tests {
         let mut rescale = base;
         rescale["source_result"]["rescale_hint"]["unexpected"] = serde_json::json!(true);
         assert!(serde_json::from_value::<JudgeSourceDescriptor>(rescale).is_err());
+    }
+
+    #[test]
+    fn accepts_all_upstream_rescale_kinds() {
+        let hints = [
+            serde_json::json!({"kind":"min_linear","baseline":10.0,"expert":1.0}),
+            serde_json::json!({"kind":"min_linear_positive","baseline":10.0,"expert":1.0}),
+            serde_json::json!({
+                "kind":"min_inverse_anchor",
+                "anchor_raw":10.0,
+                "anchor_score":50.0
+            }),
+            serde_json::json!({
+                "kind":"compression_ratio_cropped_guarded",
+                "baseline":10.0,
+                "expert":1.0
+            }),
+        ];
+        for hint in hints {
+            assert!(
+                serde_json::from_value::<RescaleHint>(hint.clone()).is_ok(),
+                "{hint}"
+            );
+        }
     }
 }
