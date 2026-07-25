@@ -58,6 +58,7 @@ for raw, expected_task in zip(
     assert data["status"] == "completed", value
     assert data["task_id"] == expected_task, value
     assert data["score"] == "1", value
+    assert data["candidate_execution"] == {"status": "completed"}, value
     journal_path = root / ".a3s" / "bench" / "runs" / f'{data["run_id"]}.json'
     journal = json.loads(journal_path.read_text())
     assert journal["schema"] == "a3s.bench.run-journal.v3", journal
@@ -66,7 +67,8 @@ for raw, expected_task in zip(
     assert journal["stage"] == "completed", journal
     assert journal["result_path"] == data["result_path"], (journal, value)
     result = json.loads(Path(data["result_path"]).read_text())
-    assert result["schema"] == "a3s.bench.local-result.v4", result
+    assert result["schema"] == "a3s.bench.local-result.v5", result
+    assert result["candidate_execution"] == {"status": "completed"}, result
     assert result["result_digest"] == journal["result_digest"], (result, journal)
     assert result["task_lock_digest"] == journal["task_lock_digest"], (result, journal)
     assert result["candidate_lock_digest"] == journal["candidate_lock_digest"], (result, journal)

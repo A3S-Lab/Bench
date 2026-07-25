@@ -16,6 +16,11 @@ struct RuntimeExecution<'a> {
     resolved_images: &'a std::collections::BTreeMap<String, String>,
 }
 
+struct CandidateRun {
+    execution: crate::result_record::CandidateExecution,
+    model_usage: Option<model_candidate::ModelExecution>,
+}
+
 pub fn execute(args: &[String]) -> Result<u8> {
     let options = run_input::RunOptions::parse(args)?;
     let state_root = workspace::state_root()?;
@@ -70,7 +75,7 @@ fn execute_inner(
         provider: &status.provider,
         resolved_images: &loaded.resolved_images,
     };
-    let model_execution = execute_candidate(
+    let candidate_run = execute_candidate(
         &loaded.task,
         &loaded.candidate,
         loaded.model.as_deref(),
@@ -109,14 +114,22 @@ fn execute_inner(
             judge_identity: &judge_identity(&loaded.judge.identity, judge_model.as_ref()),
             runtime_provider: &status.provider,
             model: loaded.model.as_deref(),
-            model_usage: model_execution.as_ref(),
+            candidate_execution: &candidate_run.execution,
+            model_usage: candidate_run.model_usage.as_ref(),
             primary_metric: &primary.name,
             score,
             judge_result: &judge_result,
         },
     )?;
     journal.complete(&path, &record.result_digest)?;
-    print_result(options, &loaded.task.id, score, &record.run_id, &path)?;
+    print_result(
+        options,
+        &loaded.task.id,
+        score,
+        &record.run_id,
+        &path,
+        &candidate_run.execution,
+    )?;
     Ok(0)
 }
 
@@ -169,23 +182,38 @@ fn execute_candidate(
     candidate_workspace: &Path,
     game: Option<&game_judge::GameSession>,
     runtime_execution: &RuntimeExecution<'_>,
-) -> Result<Option<model_candidate::ModelExecution>> {
+) -> Result<CandidateRun> {
     let Some(model) = model else {
         anyhow::ensure!(
             game.is_none(),
             "interactive game Tasks require a model-backed Candidate"
         );
-        match runtime_execution.provider {
-            "docker" => runtime::execute_docker_candidate(task, candidate, candidate_workspace)?,
+        let execution = match runtime_execution.provider {
+            "docker" => {
+                match runtime::execute_docker_candidate(task, candidate, candidate_workspace)? {
+                    runtime::CandidateProcessOutcome::Completed => {
+                        crate::result_record::CandidateExecution::completed()
+                    }
+                    runtime::CandidateProcessOutcome::TimedOut => {
+                        crate::result_record::CandidateExecution::timed_out(
+                            task.candidate_timeout_sec,
+                        )
+                    }
+                }
+            }
             crate::os_runtime::PROVIDER => crate::os_runtime::execute_candidate(
                 task,
                 candidate,
                 candidate_workspace,
                 runtime_execution.resolved_images,
-            )?,
+            )
+            .map(|()| crate::result_record::CandidateExecution::completed())?,
             provider => anyhow::bail!("Candidate Runtime {provider:?} is not implemented"),
-        }
-        return Ok(None);
+        };
+        return Ok(CandidateRun {
+            execution,
+            model_usage: None,
+        });
     };
     anyhow::ensure!(
         runtime_execution.provider == "docker",
@@ -204,30 +232,38 @@ fn execute_candidate(
         )
     })?;
     let game_url = game.map(game_judge::GameSession::url);
-    Ok(Some(model_candidate::execute(
-        model_candidate::ModelCandidateRequest {
-            config_path,
-            model,
-            task_prompt: &prompt,
-            candidate_instructions: &instructions,
-            workspace: candidate_workspace,
-            workspace_source_path: task
-                .workspace_seed
-                .as_ref()
-                .map(|seed| seed.source_path.as_str()),
-            work_image: &task.work_image,
-            work_platform: task.work_platform.as_deref(),
-            game_network: game.map(|session| {
-                (
-                    session.network(),
-                    game_url.as_deref().expect("game URL accompanies session"),
-                )
-            }),
-            public_internet: task.work_network_need == "public_internet",
-            timeout_sec: task.candidate_timeout_sec,
-            max_tool_rounds: candidate.model_max_steps()?,
+    let outcome = model_candidate::execute(model_candidate::ModelCandidateRequest {
+        config_path,
+        model,
+        task_prompt: &prompt,
+        candidate_instructions: &instructions,
+        workspace: candidate_workspace,
+        workspace_source_path: task
+            .workspace_seed
+            .as_ref()
+            .map(|seed| seed.source_path.as_str()),
+        work_image: &task.work_image,
+        work_platform: task.work_platform.as_deref(),
+        game_network: game.map(|session| {
+            (
+                session.network(),
+                game_url.as_deref().expect("game URL accompanies session"),
+            )
+        }),
+        public_internet: task.work_network_need == "public_internet",
+        timeout_sec: task.candidate_timeout_sec,
+        max_tool_rounds: candidate.model_max_steps()?,
+    })?;
+    Ok(match outcome {
+        model_candidate::ModelCandidateOutcome::Completed(model_usage) => CandidateRun {
+            execution: crate::result_record::CandidateExecution::completed(),
+            model_usage: Some(model_usage),
         },
-    )?))
+        model_candidate::ModelCandidateOutcome::TimedOut { timeout_sec } => CandidateRun {
+            execution: crate::result_record::CandidateExecution::timed_out(timeout_sec),
+            model_usage: None,
+        },
+    })
 }
 
 fn execute_judge(
@@ -315,6 +351,7 @@ fn print_result(
     score: &str,
     run_id: &str,
     path: &Path,
+    candidate_execution: &crate::result_record::CandidateExecution,
 ) -> Result<()> {
     if options.json {
         crate::output::print_success(
@@ -322,11 +359,19 @@ fn print_result(
             json!({
                 "status":"completed", "governance_status":"local_unofficial",
                 "run_id":run_id, "task_id":task_id, "score":score,
-                "result_path":path
+                "result_path":path,
+                "candidate_execution":candidate_execution
             }),
         )?;
     } else {
         println!("COMPLETED  score={score}  task={task_id}");
+        if let Some(timeout_sec) = candidate_execution
+            .is_timed_out()
+            .then_some(candidate_execution.timeout_sec)
+            .flatten()
+        {
+            println!("candidate: timed_out ({timeout_sec}s)");
+        }
         println!("run:    {run_id}");
         println!("result: {}", path.display());
     }

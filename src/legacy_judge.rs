@@ -35,14 +35,14 @@ pub fn execute(
     command
         .args(["--env", "A3S_BENCH_JUDGE_COMMAND"])
         .env("A3S_BENCH_JUDGE_COMMAND", &source.command);
-    let destination = shell_quote(&source.workspace_source_path);
     let timeout_runner = format!(
         "import os,subprocess,sys\ntry:\n p=subprocess.run(['/bin/bash','-lc',os.environ['A3S_BENCH_JUDGE_COMMAND']],timeout={})\n sys.exit(p.returncode)\nexcept subprocess.TimeoutExpired:\n print('Judge exceeded descriptor timeout',file=sys.stderr)\n sys.exit(124)",
         source.timeout_sec
     );
-    let judge_command = format!(
-        "cp -R /a3s/submission/. {destination}/ && chmod -R u+rwX {destination} && python3 -c {}",
-        shell_quote(&timeout_runner)
+    let judge_command = legacy_judge_command(
+        "/a3s/submission",
+        &source.workspace_source_path,
+        &timeout_runner,
     );
     let output = command
         .arg("--mount")
@@ -116,6 +116,16 @@ fn container_base_url(value: &str) -> String {
 
 fn shell_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\"'\"'"))
+}
+
+fn legacy_judge_command(source: &str, destination: &str, timeout_runner: &str) -> String {
+    let source = format!("{}/.", source.trim_end_matches('/'));
+    let destination = shell_quote(destination);
+    format!(
+        "cp -R {} {destination}/ && (chmod -R u+rwX {destination} 2>/dev/null || true) && python3 -c {}",
+        shell_quote(&source),
+        shell_quote(timeout_runner)
+    )
 }
 
 fn parse_score(source: &LegacyJudgeSource, output: &str) -> Result<f64> {
@@ -221,36 +231,107 @@ fn pytest_ratio(output: &str) -> Result<f64> {
 }
 
 pub(crate) fn normalize_raw(spec: Option<&Value>, raw: f64) -> Result<f64> {
+    if !raw.is_finite() {
+        return Ok(0.0);
+    }
     let Some(spec) = spec else {
         return Ok(raw.clamp(0.0, 1.0));
     };
     let get = |name: &str| -> Result<f64> {
-        spec.get(name)
+        let value = spec
+            .get(name)
             .and_then(Value::as_f64)
-            .ok_or_else(|| anyhow::anyhow!("rescale is missing {name}"))
+            .ok_or_else(|| anyhow::anyhow!("rescale is missing {name}"))?;
+        anyhow::ensure!(value.is_finite(), "rescale {name} is not finite");
+        Ok(value)
     };
     let percent = match spec.get("kind").and_then(Value::as_str).unwrap_or("") {
-        "linear" => 100.0 * (raw - get("lower")?) / (get("upper")? - get("lower")?),
-        "log_anchor" => get("anchor_score")? * raw.ln() / get("anchor_raw")?.ln(),
+        "linear" => scale(100.0 * (raw - get("lower")?), get("upper")? - get("lower")?),
+        "min_linear" => scale(
+            100.0 * (get("baseline")? - raw),
+            get("baseline")? - get("expert")?,
+        ),
+        "min_linear_positive" => {
+            if raw <= 0.0 {
+                0.0
+            } else {
+                scale(
+                    100.0 * (get("baseline")? - raw),
+                    get("baseline")? - get("expert")?,
+                )
+            }
+        }
+        "min_inverse_anchor" => {
+            let anchor_raw = get("anchor_raw")?;
+            if raw <= 0.0 || anchor_raw <= 0.0 {
+                0.0
+            } else {
+                get("anchor_score")? * anchor_raw / raw
+            }
+        }
+        "compression_ratio_cropped_guarded" => {
+            if raw < 0.05 {
+                0.0
+            } else {
+                scale(
+                    100.0 * (get("baseline")? - raw),
+                    get("baseline")? - get("expert")?,
+                )
+            }
+        }
+        "log_anchor" => {
+            let anchor_raw = get("anchor_raw")?;
+            if raw <= 1.0 || anchor_raw <= 1.0 {
+                0.0
+            } else {
+                scale(get("anchor_score")? * raw.ln(), anchor_raw.ln())
+            }
+        }
         "log_max" => {
-            100.0 * (raw / get("baseline")?).ln() / (get("expert")? / get("baseline")?).ln()
+            let baseline = get("baseline")?;
+            let expert = get("expert")?;
+            if raw <= 0.0 || baseline <= 0.0 || expert <= 0.0 || baseline == expert {
+                0.0
+            } else {
+                scale(100.0 * (raw / baseline).ln(), (expert / baseline).ln())
+            }
         }
         "log_min" => {
-            100.0 * (get("baseline")? / raw).ln() / (get("baseline")? / get("expert")?).ln()
+            let baseline = get("baseline")?;
+            let expert = get("expert")?;
+            if raw <= 0.0 || baseline <= 0.0 || expert <= 0.0 || baseline == expert {
+                0.0
+            } else {
+                scale(100.0 * (baseline / raw).ln(), (baseline / expert).ln())
+            }
         }
         "log1p_max" => {
-            100.0 * (raw / get("baseline")?).ln_1p() / (get("upper")? / get("baseline")?).ln_1p()
+            let baseline = get("baseline")?;
+            let upper = get("upper")?;
+            if raw <= 0.0 || baseline <= 0.0 || upper <= 0.0 {
+                0.0
+            } else {
+                scale(100.0 * (raw / baseline).ln_1p(), (upper / baseline).ln_1p())
+            }
         }
         "piecewise_max" => piecewise(raw, spec, false, false)?,
         "piecewise_min" => piecewise(raw, spec, true, false)?,
         "piecewise_log_min" => piecewise(raw, spec, true, true)?,
         kind => anyhow::bail!("unsupported rescale kind {kind:?}"),
     };
-    anyhow::ensure!(
-        percent.is_finite(),
-        "Judge rescale produced a non-finite value"
-    );
-    Ok((percent.clamp(0.0, 100.0)) / 100.0)
+    Ok(if percent.is_finite() {
+        percent.clamp(0.0, 100.0) / 100.0
+    } else {
+        0.0
+    })
+}
+
+fn scale(numerator: f64, denominator: f64) -> f64 {
+    if denominator == 0.0 || !numerator.is_finite() || !denominator.is_finite() {
+        0.0
+    } else {
+        numerator / denominator
+    }
 }
 
 fn piecewise(raw: f64, spec: &Value, minimize: bool, logarithmic: bool) -> Result<f64> {
@@ -266,7 +347,21 @@ fn piecewise(raw: f64, spec: &Value, minimize: bool, logarithmic: bool) -> Resul
         value("super_anchor")?,
     ];
     let scores = [0.0, 20.0, 80.0, 100.0];
+    let ordered = if minimize {
+        points.windows(2).all(|pair| pair[0] > pair[1])
+    } else {
+        points.windows(2).all(|pair| pair[0] < pair[1])
+    };
+    if !ordered || (logarithmic && points.iter().any(|point| *point <= 0.0)) {
+        return Ok(0.0);
+    }
+    if minimize && raw <= 0.0 {
+        return Ok(0.0);
+    }
     let transformed = |item: f64| if logarithmic { item.ln() } else { item };
+    if logarithmic && raw <= 0.0 {
+        return Ok(0.0);
+    }
     if (minimize && raw >= points[0]) || (!minimize && raw <= points[0]) {
         return Ok(0.0);
     }
@@ -280,9 +375,14 @@ fn piecewise(raw: f64, spec: &Value, minimize: bool, logarithmic: bool) -> Resul
             raw >= points[index] && raw <= points[index + 1]
         };
         if inside {
-            let fraction = (transformed(raw) - transformed(points[index]))
-                / (transformed(points[index + 1]) - transformed(points[index]));
-            return Ok(scores[index] + fraction * (scores[index + 1] - scores[index]));
+            let fraction = scale(
+                transformed(raw) - transformed(points[index]),
+                transformed(points[index + 1]) - transformed(points[index]),
+            );
+            return Ok(
+                (scores[index] + fraction * (scores[index + 1] - scores[index]))
+                    .clamp(scores[index], scores[index + 1]),
+            );
         }
     }
     Ok(0.0)
@@ -303,6 +403,10 @@ pub(crate) fn canonical_ratio(value: f64) -> String {
 mod tests {
     use super::*;
 
+    fn rescale(value: Value, raw: f64) -> f64 {
+        normalize_raw(Some(&value), raw).unwrap()
+    }
+
     #[test]
     fn parses_upstream_output_forms() {
         assert_eq!(
@@ -314,6 +418,205 @@ mod tests {
         )
         .unwrap();
         assert_eq!(structured["score"], 0.75);
+    }
+
+    #[test]
+    fn normalization_supports_all_upstream_rescale_kinds() {
+        assert_eq!(
+            rescale(
+                serde_json::json!({"kind":"min_linear","baseline":10.0,"expert":0.0}),
+                5.0,
+            ),
+            0.5
+        );
+        assert_eq!(
+            rescale(
+                serde_json::json!({"kind":"min_linear_positive","baseline":10.0,"expert":0.0}),
+                5.0,
+            ),
+            0.5
+        );
+        assert_eq!(
+            rescale(
+                serde_json::json!({"kind":"min_inverse_anchor","anchor_raw":10.0,"anchor_score":50.0}),
+                20.0,
+            ),
+            0.25
+        );
+        assert_eq!(
+            rescale(
+                serde_json::json!({
+                    "kind":"compression_ratio_cropped_guarded",
+                    "baseline":10.0,
+                    "expert":0.0
+                }),
+                5.0,
+            ),
+            0.5
+        );
+    }
+
+    #[test]
+    fn normalization_returns_finite_zero_for_invalid_domains_and_degenerate_specs() {
+        let cases = [
+            (
+                serde_json::json!({"kind":"linear","lower":1.0,"upper":1.0}),
+                1.0,
+            ),
+            (
+                serde_json::json!({"kind":"min_linear","baseline":1.0,"expert":1.0}),
+                1.0,
+            ),
+            (
+                serde_json::json!({"kind":"log_anchor","anchor_raw":1.0,"anchor_score":50.0}),
+                0.0,
+            ),
+            (
+                serde_json::json!({"kind":"log_max","baseline":0.0,"expert":10.0}),
+                0.0,
+            ),
+            (
+                serde_json::json!({"kind":"log_min","baseline":10.0,"expert":0.0}),
+                0.0,
+            ),
+            (
+                serde_json::json!({"kind":"log1p_max","baseline":1.0,"upper":0.0}),
+                1.0,
+            ),
+            (
+                serde_json::json!({
+                    "kind":"piecewise_max",
+                    "baseline":1.0,
+                    "rank30":1.0,
+                    "rank1":2.0,
+                    "super_anchor":3.0
+                }),
+                1.0,
+            ),
+            (
+                serde_json::json!({
+                    "kind":"piecewise_min",
+                    "baseline":3.0,
+                    "rank30":2.0,
+                    "rank1":2.0,
+                    "super_anchor":1.0
+                }),
+                2.0,
+            ),
+            (
+                serde_json::json!({
+                    "kind":"piecewise_min",
+                    "baseline":4.0,
+                    "rank30":3.0,
+                    "rank1":2.0,
+                    "super_anchor":1.0
+                }),
+                0.0,
+            ),
+            (
+                serde_json::json!({
+                    "kind":"piecewise_log_min",
+                    "baseline":3.0,
+                    "rank30":2.0,
+                    "rank1":1.0,
+                    "super_anchor":0.0
+                }),
+                1.0,
+            ),
+        ];
+        for (spec, raw) in cases {
+            let value = rescale(spec, raw);
+            assert!(value.is_finite());
+            assert_eq!(value, 0.0);
+        }
+        for raw in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let value = normalize_raw(None, raw).unwrap();
+            assert!(value.is_finite());
+            assert_eq!(value, 0.0);
+        }
+    }
+
+    #[test]
+    fn piecewise_segments_are_clipped_to_their_score_bands() {
+        let max = serde_json::json!({
+            "kind":"piecewise_max",
+            "baseline":0.0,
+            "rank30":10.0,
+            "rank1":20.0,
+            "super_anchor":30.0
+        });
+        assert_eq!(rescale(max.clone(), 5.0), 0.1);
+        assert_eq!(rescale(max.clone(), 15.0), 0.5);
+        assert_eq!(rescale(max, 25.0), 0.9);
+
+        let min = serde_json::json!({
+            "kind":"piecewise_min",
+            "baseline":30.0,
+            "rank30":20.0,
+            "rank1":10.0,
+            "super_anchor":0.0
+        });
+        assert_eq!(rescale(min.clone(), 25.0), 0.1);
+        assert_eq!(rescale(min.clone(), 15.0), 0.5);
+        assert_eq!(rescale(min, 5.0), 0.9);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn judge_still_runs_after_chmod_failure_but_not_after_copy_failure() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = tempfile::tempdir().unwrap();
+        let source = root.path().join("submission");
+        let destination = root.path().join("workspace");
+        let bin = root.path().join("bin");
+        let marker = root.path().join("judge-ran");
+        std::fs::create_dir(&source).unwrap();
+        std::fs::create_dir(&destination).unwrap();
+        std::fs::create_dir(&bin).unwrap();
+        std::fs::write(source.join("answer"), "42").unwrap();
+        std::fs::write(bin.join("chmod"), "#!/bin/sh\nexit 1\n").unwrap();
+        std::fs::write(bin.join("python3"), "#!/bin/sh\n: > \"$MARKER\"\n").unwrap();
+        for executable in [bin.join("chmod"), bin.join("python3")] {
+            std::fs::set_permissions(executable, std::fs::Permissions::from_mode(0o700)).unwrap();
+        }
+        let path = format!("{}:/usr/bin:/bin", bin.display());
+        let command = legacy_judge_command(
+            source.to_str().unwrap(),
+            destination.to_str().unwrap(),
+            "ignored",
+        );
+        let output = Command::new("/bin/bash")
+            .args(["-c", &command])
+            .env("PATH", &path)
+            .env("MARKER", &marker)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            std::fs::read_to_string(destination.join("answer")).unwrap(),
+            "42"
+        );
+        assert!(marker.is_file());
+
+        std::fs::remove_file(&marker).unwrap();
+        let command = legacy_judge_command(
+            root.path().join("missing").to_str().unwrap(),
+            destination.to_str().unwrap(),
+            "ignored",
+        );
+        let output = Command::new("/bin/bash")
+            .args(["-c", &command])
+            .env("PATH", path)
+            .env("MARKER", &marker)
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert!(!marker.exists());
     }
 
     #[test]

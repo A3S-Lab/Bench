@@ -254,6 +254,14 @@ fn print_completed_result(
         crate::output::print_success("result", record.public_projection())?;
     } else {
         println!("COMPLETED  score={}  task={}", record.score, record.task_id);
+        if let Some(timeout_sec) = record
+            .candidate_execution
+            .as_ref()
+            .filter(|execution| execution.is_timed_out())
+            .and_then(|execution| execution.timeout_sec)
+        {
+            println!("candidate: timed_out ({timeout_sec}s)");
+        }
         println!("run:    {}", record.run_id);
     }
     Ok(())

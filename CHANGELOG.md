@@ -4,6 +4,26 @@ All notable changes to a3s-bench are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Candidate deadline expiry now preserves and judges the final workspace
+  instead of discarding partial work. Result schema v5 records a typed
+  `candidate_execution` status and timeout while remaining able to load v4
+  results.
+
+### Fixed
+
+- Accepted workspace-internal relative symlinks from OCI seeds while rejecting
+  absolute, escaping, cyclic, and unresolvable links.
+- Implemented every imported score-rescale kind and made invalid domains or
+  degenerate parameters resolve to finite scores.
+- Kept Judge execution running when best-effort `chmod` is denied, without
+  hiding submission copy failures.
+- Preserved case-distinct Linux paths and copied hard-linked files as
+  independent regular submission files.
+- Replaced candidate pipe capture with anonymous temporary files so descendant
+  processes cannot hold the runner open indefinitely.
+
 ## [0.1.1] - 2026-07-19
 
 ### Added

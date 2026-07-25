@@ -20,6 +20,7 @@ data = value["data"]
 assert data["status"] == "completed", value
 assert data["governance_status"] == "local_unofficial", value
 assert data["task_id"] == "juliet_vulnerability_analyzer", value
+assert data["candidate_execution"] == {"status": "completed"}, value
 score = float(data["score"])
 assert 0.0 <= score <= 1.0, value
 PY

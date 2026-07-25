@@ -329,6 +329,14 @@ exactly one of `data` or `error`.
 Runs store private state below the current project's `.a3s/bench/`. That layout
 is not a public API; use `a3s bench result [run-id]` to inspect results.
 
+When a Candidate reaches the Task's `solution_timeout_sec`, Bench stops the
+Candidate, projects its final workspace, and still runs the Judge. The result
+remains scoreable and reports
+`candidate_execution: {"status":"timed_out","timeout_sec":...}`; model usage is
+absent because a timed-out model turn cannot return authoritative token usage.
+Initialization, configuration, process, and workspace-projection errors remain
+run failures rather than being misclassified as timeouts.
+
 ## Development
 
 Run checks from this crate, not the monorepo root:

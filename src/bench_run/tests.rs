@@ -88,6 +88,7 @@ fn model_candidate_game_and_task_owned_judge_run_end_to_end() {
         &runtime_execution,
     )
     .unwrap()
+    .model_usage
     .unwrap();
     server.join().unwrap();
     assert_eq!(execution.tool_calls_count, 1);

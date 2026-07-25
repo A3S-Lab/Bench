@@ -1,6 +1,6 @@
 use crate::state_fs::{seal_role_input_tree, secure_directory, set_owner_only_file};
 use crate::task::{TaskInfo, WorkspaceSeed};
-use anyhow::Result;
+use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -92,12 +92,18 @@ fn materialize_seed(seed: &WorkspaceSeed, destination: &Path) -> Result<()> {
 }
 
 fn set_tree_owner_only(path: &Path) -> Result<()> {
+    let root = path.canonicalize()?;
+    set_tree_owner_only_inner(&root, &root)
+}
+
+fn set_tree_owner_only_inner(root: &Path, path: &Path) -> Result<()> {
     for entry in std::fs::read_dir(path)? {
         let entry = entry?;
         let kind = entry.file_type()?;
-        anyhow::ensure!(!kind.is_symlink(), "workspace OCI seed contains a symlink");
-        if kind.is_dir() {
-            set_tree_owner_only(&entry.path())?;
+        if kind.is_symlink() {
+            validate_seed_symlink(root, &entry.path())?;
+        } else if kind.is_dir() {
+            set_tree_owner_only_inner(root, &entry.path())?;
         } else if kind.is_file() {
             set_owner_only_file(&entry.path(), false)?;
         } else {
@@ -105,6 +111,32 @@ fn set_tree_owner_only(path: &Path) -> Result<()> {
         }
     }
     secure_directory(path)
+}
+
+fn validate_seed_symlink(root: &Path, link: &Path) -> Result<()> {
+    let target = std::fs::read_link(link).with_context(|| {
+        format!(
+            "could not read workspace OCI seed symlink {}",
+            link.display()
+        )
+    })?;
+    anyhow::ensure!(
+        !target.is_absolute(),
+        "workspace OCI seed contains an absolute symlink: {}",
+        link.display()
+    );
+    let resolved = link.canonicalize().with_context(|| {
+        format!(
+            "workspace OCI seed contains an unresolvable symlink: {}",
+            link.display()
+        )
+    })?;
+    anyhow::ensure!(
+        resolved.starts_with(root),
+        "workspace OCI seed symlink escapes the workspace: {}",
+        link.display()
+    );
+    Ok(())
 }
 
 fn copy_tree(source: &Path, destination: &Path) -> Result<()> {
@@ -124,4 +156,50 @@ fn copy_tree(source: &Path, destination: &Path) -> Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn owner_only_permissions_preserve_internal_relative_symlinks() {
+        use std::os::unix::fs::symlink;
+
+        let workspace = tempfile::tempdir().unwrap();
+        std::fs::create_dir(workspace.path().join("packages")).unwrap();
+        std::fs::write(workspace.path().join("packages/mathlib"), "package").unwrap();
+        symlink("packages/mathlib", workspace.path().join("mathlib")).unwrap();
+
+        set_tree_owner_only(workspace.path()).unwrap();
+
+        assert_eq!(
+            std::fs::read_link(workspace.path().join("mathlib")).unwrap(),
+            Path::new("packages/mathlib")
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn owner_only_permissions_reject_unsafe_or_unresolvable_symlinks() {
+        use std::os::unix::fs::symlink;
+
+        let parent = tempfile::tempdir().unwrap();
+        let workspace = parent.path().join("workspace");
+        std::fs::create_dir(&workspace).unwrap();
+        std::fs::write(parent.path().join("outside"), "outside").unwrap();
+
+        symlink("../outside", workspace.join("escape")).unwrap();
+        assert!(set_tree_owner_only(&workspace).is_err());
+        std::fs::remove_file(workspace.join("escape")).unwrap();
+
+        symlink(parent.path().join("outside"), workspace.join("absolute")).unwrap();
+        assert!(set_tree_owner_only(&workspace).is_err());
+        std::fs::remove_file(workspace.join("absolute")).unwrap();
+
+        symlink("cycle-b", workspace.join("cycle-a")).unwrap();
+        symlink("cycle-a", workspace.join("cycle-b")).unwrap();
+        assert!(set_tree_owner_only(&workspace).is_err());
+    }
 }

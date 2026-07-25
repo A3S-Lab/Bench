@@ -1,7 +1,6 @@
 use crate::task::SubmissionPolicy;
 use anyhow::{Context, Result};
 use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
-use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 pub fn project(source: &Path, destination: &Path, policy: &SubmissionPolicy) -> Result<()> {
@@ -45,36 +44,25 @@ fn collect_terminal_files(root: &Path, policy: &SubmissionPolicy) -> Result<Vec<
         root: &Path,
         directory: &Path,
         files: &mut Vec<(PathBuf, u64)>,
-        seen_case: &mut HashSet<String>,
         policy: &SubmissionPolicy,
         total: &mut u64,
     ) -> Result<()> {
         for entry in std::fs::read_dir(directory)? {
             let entry = entry?;
             let kind = entry.file_type()?;
-            anyhow::ensure!(!kind.is_symlink(), "terminal workspace contains a symlink");
+            if kind.is_symlink() {
+                continue;
+            }
             let relative = entry.path().strip_prefix(root)?.to_path_buf();
             let normalized = normalize(&relative)?;
-            anyhow::ensure!(
-                seen_case.insert(normalized.to_lowercase()),
-                "terminal workspace contains a case-colliding path"
-            );
             if kind.is_dir() {
                 anyhow::ensure!(
                     normalized.split('/').count() <= 64,
                     "terminal path is too deep"
                 );
-                visit(root, &entry.path(), files, seen_case, policy, total)?;
+                visit(root, &entry.path(), files, policy, total)?;
             } else if kind.is_file() {
                 let metadata = entry.metadata()?;
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::MetadataExt;
-                    anyhow::ensure!(
-                        metadata.nlink() == 1,
-                        "terminal workspace contains a hard link"
-                    );
-                }
                 anyhow::ensure!(
                     metadata.len() <= policy.max_file_bytes,
                     "terminal file exceeds size limit"
@@ -98,9 +86,8 @@ fn collect_terminal_files(root: &Path, policy: &SubmissionPolicy) -> Result<Vec<
         Ok(())
     }
     let mut files = Vec::new();
-    let mut seen_case = HashSet::new();
     let mut total = 0;
-    visit(root, root, &mut files, &mut seen_case, policy, &mut total)?;
+    visit(root, root, &mut files, policy, &mut total)?;
     files.sort_by(|left, right| left.0.cmp(&right.0));
     Ok(files)
 }
@@ -227,11 +214,66 @@ mod tests {
             source.path().join("ignored-link"),
         )
         .unwrap();
-        assert!(project(
+        project(
             source.path(),
             output.path(),
-            &policy(&["real"], &["ignored-link"])
+            &policy(&["real"], &["ignored-link"]),
         )
-        .is_err());
+        .unwrap();
+        assert_eq!(
+            std::fs::read_to_string(output.path().join("real")).unwrap(),
+            "data"
+        );
+        assert!(!output.path().join("ignored-link").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn hard_links_are_copied_as_independent_regular_files() {
+        use std::os::unix::fs::MetadataExt;
+
+        let source = tempfile::tempdir().unwrap();
+        let output = tempfile::tempdir().unwrap();
+        std::fs::write(source.path().join("first"), "shared").unwrap();
+        std::fs::hard_link(source.path().join("first"), source.path().join("second")).unwrap();
+
+        project(source.path(), output.path(), &policy(&["**"], &[])).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(output.path().join("first")).unwrap(),
+            "shared"
+        );
+        assert_eq!(
+            std::fs::read_to_string(output.path().join("second")).unwrap(),
+            "shared"
+        );
+        assert_ne!(
+            std::fs::metadata(output.path().join("first"))
+                .unwrap()
+                .ino(),
+            std::fs::metadata(output.path().join("second"))
+                .unwrap()
+                .ino()
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn case_distinct_paths_are_both_projected_on_linux() {
+        let source = tempfile::tempdir().unwrap();
+        let output = tempfile::tempdir().unwrap();
+        std::fs::write(source.path().join("README"), "upper").unwrap();
+        std::fs::write(source.path().join("readme"), "lower").unwrap();
+
+        project(source.path(), output.path(), &policy(&["**"], &[])).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(output.path().join("README")).unwrap(),
+            "upper"
+        );
+        assert_eq!(
+            std::fs::read_to_string(output.path().join("readme")).unwrap(),
+            "lower"
+        );
     }
 }

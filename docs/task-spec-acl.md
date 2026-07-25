@@ -470,12 +470,15 @@ Runtime mounts SubmissionSnapshot and `private/bundle/` separately and
 read-only, never mounts the full TerminalCheckpoint, and returns one typed
 JudgeResult through the protected result channel.
 
-`solution_timeout_sec` limits candidate execution and
-`harness_grace_sec` reserves protected cleanup and result collection. Judge
-resource requirements are exact scoring inputs for performance tasks. Task ACL
-cannot provide a shell command, replace the Agent Asset runtime, relax Judge
-isolation, grant capabilities, or bind secrets. Those requests belong to the
-Judge Asset and must also pass operator policy.
+`solution_timeout_sec` limits candidate execution. Reaching that deadline is a
+typed `timed_out` Candidate terminal state: Runtime stops the Candidate, Bench
+projects the final workspace, and the task-owned Judge scores the work that was
+completed before the deadline. Other Candidate errors remain non-scoreable run
+failures. `harness_grace_sec` reserves protected cleanup and result collection.
+Judge resource requirements are exact scoring inputs for performance tasks.
+Task ACL cannot provide a shell command, replace the Agent Asset runtime, relax
+Judge isolation, grant capabilities, or bind secrets. Those requests belong to
+the Judge Asset and must also pass operator policy.
 
 ### metric
 
