@@ -1,35 +1,110 @@
-# a3s-bench
+# A3S Bench
 
-`a3s-bench` runs reproducible evaluations of coding agents, automated systems,
-and deterministic tools. Each run combines an immutable Task, a packaged
-Candidate adapter, and the task-owned Judge, then stores an identity-bound
+<p align="center">
+  <strong>Reproducible Evaluation for Coding Agents and Automated Systems</strong>
+</p>
+
+<p align="center">
+  <em>Lock every input, isolate every run, and let the Task own how its result is judged</em>
+</p>
+
+<p align="center">
+  <a href="#overview">Overview</a> •
+  <a href="#features">Features</a> •
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#evaluation-model">Evaluation Model</a> •
+  <a href="#candidates">Candidates</a> •
+  <a href="#runtimes">Runtimes</a> •
+  <a href="#development">Development</a>
+</p>
+
+---
+
+## Overview
+
+**A3S Bench** is the benchmark control component for A3S. It snapshots a Task
+and Candidate into immutable locks, executes the Candidate in an isolated
+Runtime, projects the resulting workspace into a read-only submission, invokes
+the Task-owned Judge, validates its metrics, and stores an identity-bound
 result.
 
+Bench evaluates more than A3S agents. A Candidate can be a coding agent, another
+automated system, or a deterministic tool, provided that it is packaged through
+the Candidate adapter contract.
+
+Bench is not an Agent Runtime or a leaderboard. The selected Runtime provider
+executes the workload, the Task owns its Judge, and the current CLI records
+local evaluations as `local_unofficial`.
+
+### Basic usage
+
 ```bash
-a3s bench run <task> --agent <candidate>
+a3s install bench
+a3s bench list
+a3s bench run quick_file_edit --agent ./my-candidate
+a3s bench result
 ```
 
-Bench works locally without signing in to A3S OS. Local provider/model routes
-come from `.a3s/config.acl`, signed-out execution defaults to Docker, and both
-Candidates and Judges can be loaded from local directories or any
-OCI Distribution-compatible registry.
+Local Docker runs do not require an A3S OS login.
 
-> [!NOTE]
-> A stable Bench component does not make every evaluation official. Local runs
-> produce `local_unofficial` results; official evaluation additionally requires
-> signed component and Task admission.
+## Features
 
-## Quick start
+- **Immutable Inputs**: Snapshot Tasks, Candidates, Judges, work images, and
+  model bindings into digest-verified locks
+- **Task-Owned Judging**: Keep the Judge fixed by the Task instead of allowing
+  entrants to choose a more favorable scorer
+- **Product-Neutral Candidates**: Evaluate local adapters, OCI packages,
+  deterministic tools, or the bundled `a3s-code` model controller
+- **Isolated Execution**: Run the complete local path with Docker and support a
+  bounded deterministic subset through A3S OS Runtime
+- **Submission Projection**: Give the Judge a policy-filtered, read-only
+  snapshot rather than the Candidate's live workspace
+- **Validated Results**: Require canonical metric values and bind the result to
+  both input locks and the run journal
+- **Repeatable Comparisons**: Export `TaskLock` and `CandidateLock` files, then
+  rerun without resolving mutable sources
+- **Automation Output**: Return a stable `a3s.bench.output.v1` JSON envelope
+  from commands that support `--json`
 
-The smallest built-in Task, `quick_file_edit`, verifies the complete execution
-and judging path in seconds:
+### Capability matrix
+
+| Area | Current capability |
+| --- | --- |
+| Tasks | 52 locally runnable built-ins, local TaskBundle directories, and exported TaskLocks |
+| Candidates | Bundled `a3s-code`, local adapter directories, Docker-compatible OCI images, generic ORAS artifacts, and CandidateLocks |
+| Judges | Task-owned local or OCI Asset Judges plus the packaged legacy, game, and model-backed adapters used by built-ins |
+| Runtime | Docker by default; limited `os-runtime`; `a3s-box` discovery and preflight only |
+| Results | Digest-bound local result, run journal, primary score, public projection, and Candidate timeout status |
+| Governance | Local runs are `local_unofficial`; catalog admission metadata does not promote a local result |
+
+## Quick Start
+
+### Requirements
+
+- A current `a3s` CLI
+- Docker for the default local Runtime
+- Rust only when running Bench directly from a repository checkout
+- ORAS only when resolving a generic, non-Docker OCI artifact
+- A configured provider only for a model-backed Candidate or Judge
+
+Install the managed Bench component:
+
+```bash
+a3s install bench
+a3s bench advanced doctor
+```
+
+### Run the smoke Task
+
+The built-in `quick_file_edit` Task exercises Task locking, Candidate execution,
+submission projection, judging, and result persistence in a few seconds.
 
 ```bash
 git clone git@github.com:A3S-Lab/Bench.git
 cd Bench
 
 docker build -q -t a3s-bench-smoke-agent:test ./examples/smoke-candidate
-cargo run -- run quick_file_edit --agent ./examples/smoke-candidate
+a3s bench run quick_file_edit --agent ./examples/smoke-candidate
 ```
 
 Expected output:
@@ -38,72 +113,132 @@ Expected output:
 COMPLETED  score=1  task=quick_file_edit
 ```
 
-With an installed component, use the same workflow as:
+From a development checkout, the equivalent command is:
 
 ```bash
-a3s bench run quick_file_edit --agent <candidate>
-a3s bench result
+cargo run -- run quick_file_edit --agent ./examples/smoke-candidate
 ```
 
-Docker is required for the current local execution path. An A3S OS account is
-not.
+Use `a3s bench result` to reopen the latest result or
+`a3s bench result <run-id>` to inspect a specific run.
 
-## Choose a Task
+## Evaluation Model
+
+A normal run resolves mutable inputs once and records their immutable identity:
+
+```text
+Task source      → Task snapshot      → TaskLock + task-owned Judge
+Candidate source → Candidate snapshot → CandidateLock
+TaskLock + CandidateLock
+        ↓
+isolated Candidate execution
+        ↓
+read-only SubmissionSnapshot
+        ↓
+task-owned Judge → validated metrics → identity-bound local result
+```
+
+The Task defines the prompt, workspace, execution class, resource limits,
+submission policy, metrics, and Judge. There is intentionally no `--judge`
+option.
+
+The current built-in catalog contains:
+
+| Class | Count | Purpose |
+| --- | ---: | --- |
+| Conformance | 1 | Fast end-to-end installation and Runtime check |
+| Long horizon | 51 | Provisional imported software, data, optimization, simulation, and game Tasks |
+
+All 52 entries are locally available by bare ID. The 51 imported Tasks are
+quarantined for official admission, but can still produce local unofficial
+results. Inspect a Task before running it:
 
 ```bash
-# List locally runnable built-ins.
 a3s bench list
-
-# Inspect execution class, requirements, and metrics.
 a3s bench info quick_file_edit
 a3s bench info juliet_vulnerability_analyzer
-
-# Inspect or validate a local TaskBundle.
-a3s bench info ./my-task
-a3s bench advanced check ./my-task
+a3s bench info college_english_exam_bank
 ```
 
-Bench includes one short conformance Task and 51 provisional, imported
-long-horizon Tasks. The long-horizon set is not a fixed catalog or product
-boundary: Tasks can be added, revised, replaced, or removed. All currently
-packaged Tasks are locally available by bare ID.
+`list --all` and `info <id> --all` also expose catalog entries that a future
+release may ship as locally blocked.
 
-Use `quick_file_edit` for installation checks. Before running a long-horizon
-Task, inspect its `execution_class`, resource needs, and Judge requirements.
-`college_english_exam_bank`, for example, requires a configured model Judge.
+### Local Tasks
 
-## Choose or add a Candidate
+A local Task reference must begin with `./` or `../`:
 
-A Candidate is accessed through a packaged adapter. It can represent any
-coding agent, automated system, or deterministic tool; it does not need to be
-an A3S-native agent.
+```bash
+a3s bench advanced check ./my-task
+a3s bench info ./my-task
+a3s bench run ./my-task --agent ./my-candidate
+```
 
-| Source | Example |
+A minimal TaskBundle follows this shape:
+
+```text
+my-task/
+├── task.acl
+├── public/
+│   ├── prompt.md
+│   └── workspace/
+└── private/
+    ├── bundle/
+    └── judge/
+        ├── .a3s/asset.acl
+        ├── agent.md
+        └── judge.py
+```
+
+Candidates receive public inputs only. The Judge receives the projected
+submission and its protected private bundle through separate read-only paths.
+See [Task Spec ACL](docs/task-spec-acl.md) for the complete schema.
+
+## Candidates
+
+A Candidate adapter is a closed A3S Asset package. Bench does not guess how to
+run an arbitrary directory, host executable, or container image.
+
+| Source | Reference |
 | --- | --- |
-| Bundled adapter | `a3s-code` |
-| Local adapter directory | `./agents/my-agent` |
-| OCI adapter | `oci://ghcr.io/example/my-agent@sha256:<digest>` |
-| Exported immutable lock | `./candidate.lock.json` with `--locked` |
+| Bundled model controller | `a3s-code` |
+| Local adapter | `./agents/my-agent` |
+| Docker-compatible OCI package | `oci://ghcr.io/acme/my-agent@sha256:<digest>` |
+| Generic OCI artifact | `oci://registry.example.com/acme/my-agent@sha256:<digest>` |
+| Exported lock | `./candidate.lock.json` with `--locked` |
 
-Local and OCI adapters use the same closed package contract and contain
-`.a3s/asset.acl`. Bench does not guess how to run an arbitrary directory,
-container image, or host executable.
+A minimal executable adapter contains:
 
-To add an agent:
+```text
+my-agent/
+├── .a3s/
+│   └── asset.acl
+└── run.sh
+```
 
-1. Create an adapter directory with `.a3s/asset.acl`, its entrypoint, and any
-   controller instructions.
-2. Validate it by running `quick_file_edit`.
-3. Publish the directory as an OCI artifact if it should be shared.
-4. Use a digest-pinned OCI reference for repeatable comparisons.
+```acl
+version = "a3s.asset.v1"
+category = "agent"
+kind = "tool"
+name = "my-agent"
 
-See [Candidate adapter authoring](docs/candidate-adapters.md) for the package
-schema and complete local/OCI workflow.
+source {
+  package_path = "."
+  entrypoint   = "run.sh"
+}
+```
 
-## Configure models without A3S OS login
+An executable Candidate entrypoint receives the private workspace path as its
+first argument. Asset paths must be package-relative, and local packages reject
+symlinks, hard links, and special files during snapshotting.
 
-Bench resolves custom providers and models from the standard project-local or
-user-local `.a3s/config.acl`:
+See [Candidate adapter authoring](docs/candidate-adapters.md) for executable,
+model-backed, local, and OCI examples.
+
+### Model-backed Candidates
+
+`--model` binds a configured `provider/model` route to the CandidateLock.
+Credentials stay in `.a3s/config.acl`; locks and results contain model identity
+and usage, not provider secrets.
 
 ```acl
 providers "openai" {
@@ -114,104 +249,26 @@ providers "openai" {
     name = "GPT-5.2 Codex"
   }
 }
-
-providers "anthropic" {
-  api_key  = "..."
-  base_url = "https://api.anthropic.com"
-
-  models "claude-opus-4-6" {
-    name = "Claude Opus 4.6"
-  }
-}
 ```
-
-Use any supported provider name, model name, or custom compatible endpoint.
-Credentials remain in local configuration: locks and results contain model
-identity and usage, never API keys or provider credentials. Bench deliberately
-does not inherit an ambient `default_model`; the benchmark input must bind the
-model explicitly.
-
-### Compare models with the same controller
-
-`a3s-code` is the bundled, versioned A3S Code Core 5.3.4 Candidate adapter. Its
-locked package records the Core version and enables automatic planning,
-continuation, and manual delegation. Freeze one Task and bind the same
-controller to each model:
 
 ```bash
-a3s bench advanced task lock quick_file_edit --out ./task.lock.json
-
-a3s bench advanced candidate lock a3s-code \
-  --model openai/gpt-5.2-codex \
-  --out ./a3s-code-openai.candidate.lock.json
-
-a3s bench advanced candidate lock a3s-code \
-  --model anthropic/claude-opus-4-6 \
-  --out ./a3s-code-claude.candidate.lock.json
-
-a3s bench run ./task.lock.json \
-  --agent ./a3s-code-openai.candidate.lock.json --locked
-
-a3s bench run ./task.lock.json \
-  --agent ./a3s-code-claude.candidate.lock.json --locked
+a3s bench run quick_file_edit \
+  --agent a3s-code \
+  --model openai/gpt-5.2-codex
 ```
 
-This compares models under the same versioned A3S Code Core controller. It does
-**not** run the interactive A3S Code host or compare the native Codex and Claude
-Code products.
+The bundled `a3s-code` adapter uses the versioned A3S Code Core 5.3.4
+controller with automatic planning, continuation, and manual delegation. It is
+not the interactive A3S Code CLI or TUI.
 
-### Compare Codex, Claude Code, and A3S Code
+Using one `a3s-code` adapter with different model bindings compares models under
+the same controller. Comparing complete Codex, Claude Code, and A3S Code
+products requires one separately packaged native Candidate adapter per product;
+Bench does not currently bundle native `codex` or `claude` aliases.
 
-A product comparison requires one native Candidate adapter per product and
-model combination. Freeze product version, controller behavior, tools, and
-model in that adapter's identity, then run every CandidateLock against the same
-TaskLock:
+### Model-backed Judges
 
-```bash
-a3s bench advanced task lock <task-id> --out ./task.lock.json
-
-a3s bench advanced candidate lock ./agents/codex-gpt-5.2-codex \
-  --out ./codex.candidate.lock.json
-
-a3s bench advanced candidate lock \
-  oci://registry.example.com/agents/claude-code-opus-4-6@sha256:<digest> \
-  --out ./claude-code.candidate.lock.json
-
-a3s bench advanced candidate lock a3s-code \
-  --model openai/gpt-5.2-codex \
-  --out ./a3s-code.candidate.lock.json
-
-for candidate in codex claude-code a3s-code; do
-  a3s bench run ./task.lock.json \
-    --agent "./${candidate}.candidate.lock.json" --locked
-done
-```
-
-The Codex and Claude Code paths above are examples of adapters you supply; the
-current release does not bundle native adapters or bare `codex` and `claude`
-aliases. Do not add `--model` to those native locks unless their adapter
-contract explicitly supports it. In the current release, `--model` selects the
-versioned A3S Code Core model controller.
-
-## Task-owned Judges
-
-The Task selects its Judge, so there is intentionally no `--judge` option. A
-replaceable Judge would make results for the same Task incomparable.
-
-Judge adapters use the same source forms as Candidate adapters:
-
-- a local adapter directory inside a TaskBundle;
-- a Docker-compatible OCI image;
-- a generic OCI artifact from Docker Hub, GHCR, Harbor, ECR, ACR, or another
-  OCI Distribution-compatible registry.
-
-Docker-compatible images are inspected and extracted through Docker. Other OCI
-media types are pulled with [ORAS](https://oras.land/), which treats arbitrary
-files as content-addressed OCI artifacts. The `oras` executable is needed only
-for that generic-artifact path. Registry credentials stay with Docker or ORAS
-and are never copied into a TaskLock or result.
-
-For a model-backed Judge, configure its route separately:
+The small number of Tasks that require a model Judge read a separate route:
 
 ```acl
 bench {
@@ -219,13 +276,13 @@ bench {
 }
 ```
 
-Only Tasks whose Judge declares a model gateway use this setting. The resolved
-Judge model identity is sealed into the TaskLock and result.
+The route is bound into the TaskLock. It does not change which Judge the Task
+owns.
 
-## Runtime selection
+## Runtimes
 
-With no authenticated A3S OS policy or explicit operator setting, Bench chooses
-Docker. Override the Runtime provider in `.a3s/config.acl`:
+Docker is the signed-out default. Select another implemented provider explicitly
+in `.a3s/config.acl`:
 
 ```acl
 runtime {
@@ -233,83 +290,101 @@ runtime {
 }
 ```
 
-Selection order is explicit operator configuration, authenticated session
-policy, then the signed-out Docker default. If an explicitly selected provider
-is unavailable, Bench fails instead of silently changing the execution
-environment.
+Bench never silently falls back to Docker when an explicit provider is missing
+or unsupported.
+
+| Provider | Status | Current scope |
+| --- | --- | --- |
+| `docker` | Implemented, default | Executable and model Candidates; embedded or OCI workspaces; Asset, legacy, game, and model-backed Judges |
+| `os-runtime` | Implemented subset | Deterministic Candidates and Python Asset Judges with embedded `public/workspace` |
+| `a3s-box` | Preflight only | Installation can be detected, but benchmark execution is not implemented |
+
+The current `os-runtime` slice rejects model-backed Candidates, legacy or game
+Judges, OCI workspace seeds, payload envelopes larger than 64 KiB, and step
+timeouts over 600 seconds. It reads the active session from
+`~/.a3s/os-auth.json`; automation can set `A3S_OS_ADDRESS` and
+`A3S_OS_ACCESS_TOKEN` together. Managed runner overrides must remain
+digest-pinned; the supported variables are `A3S_BENCH_OS_NODE_IMAGE` and
+`A3S_BENCH_OS_PYTHON_IMAGE`.
+
+Check the selected provider without starting a run:
 
 ```bash
 a3s bench advanced doctor
 a3s bench advanced doctor --json
 ```
 
-`os-runtime` submits deterministic Candidates and Python asset Judges to A3S
-OS as digest-pinned OCI steps. It reads the active session from
-`~/.a3s/os-auth.json`; automation may instead set `A3S_OS_ADDRESS` and
-`A3S_OS_ACCESS_TOKEN` together. The managed runner images can be overridden with
-`A3S_BENCH_OS_NODE_IMAGE` and `A3S_BENCH_OS_PYTHON_IMAGE`, but must remain
-digest-pinned and admitted by A3S OS. TaskLock creation captures both selected
-runner digests, and execution reads only those locked values. In this lifecycle
-slice, the managed Node runner replaces the Task `work.image`; the Task image is
-not submitted to A3S OS.
+## Reproducible Runs
 
-The first lifecycle slice intentionally fails closed for unsupported execution
-classes: model-backed Candidates, legacy/game Judges, OCI workspace seeds, and
-input or output envelopes larger than 64 KiB. Use Docker for those Tasks until
-artifact-backed workspace transfer and the remaining shared Runtime lifecycle
-are implemented. `a3s-box` selection and preflight remain available, but
-execution is not yet implemented. Bench never silently falls back to Docker.
-
-## Reproducibility model
-
-Every ordinary run snapshots mutable inputs and creates canonical Task and
-Candidate locks. A `--locked` run consumes exported lock files and performs no
-source re-resolution.
-
-```text
-Task source      -> TaskLock (Task + task-owned Judge + work images)
-Candidate source -> CandidateLock (adapter + optional model binding)
-TaskLock + CandidateLock -> isolated run -> SubmissionSnapshot
-SubmissionSnapshot -> JudgeResult -> identity-bound durable result
-```
-
-The lock/result chain detects changed sources, preserves executable file
-semantics, resolves mutable OCI selectors to content-addressed snapshots, and
-binds the complete Judge result and execution evidence to both input locks.
-Local digests establish integrity; they do not grant official admission.
-
-`--locked` accepts only explicit TaskLock and CandidateLock files. It rejects
-mutable sources, aliases, and OCI selectors, and requires every artifact to
-already exist locally.
-
-## Author a Task
-
-Start from [examples/smoke](examples/smoke/):
-
-```text
-task.acl
-public/
-  prompt.md
-  workspace/
-private/
-  bundle/
-  judge/
-    .a3s/asset.acl
-    agent.md
-    judge.py
-```
+Ordinary runs create Task and Candidate locks automatically under the current
+project's `.a3s/bench/` state. Export locks when a comparison must reuse the
+exact same inputs:
 
 ```bash
-a3s bench advanced check ./my-task
-a3s bench run ./my-task --agent ./my-candidate
+a3s bench advanced task lock quick_file_edit \
+  --out ./task.lock.json
+
+a3s bench advanced candidate lock a3s-code \
+  --model openai/gpt-5.2-codex \
+  --out ./candidate.lock.json
+
+a3s bench run ./task.lock.json \
+  --agent ./candidate.lock.json \
+  --locked
 ```
 
-Candidates see public inputs only. The Judge receives a policy-projected,
-read-only `SubmissionSnapshot`, not the Candidate workspace or hidden Task
-data. See [Task Spec ACL](docs/task-spec-acl.md) for schemas, defaults, metric
-contracts, limits, and import rules.
+A locked run:
 
-## CLI reference
+- accepts explicit TaskLock and CandidateLock files only;
+- does not re-resolve aliases, directories, tags, or model choices;
+- verifies semantic digests and captured artifacts;
+- requires referenced artifacts to remain available in local Bench state.
+
+Mutable OCI tags can be used while creating a lock. Lock creation records the
+resolved manifest and canonical package snapshot; locked execution does not
+follow the tag again.
+
+### Results and timeouts
+
+Project state is private implementation data:
+
+```text
+<project>/.a3s/bench/
+├── artifacts/
+├── assets/
+├── locks/
+├── runs/
+├── workspaces/
+├── submissions/
+├── runtime-assets/
+└── results/
+```
+
+Use the CLI rather than reading this layout directly:
+
+```bash
+a3s bench result
+a3s bench result <run-id>
+a3s bench result <run-id> --json
+```
+
+When a Candidate reaches `solution_timeout_sec`, Bench terminates it, preserves
+the final projected workspace, and still runs the Judge. The result remains
+scoreable and records:
+
+```json
+{
+  "candidate_execution": {
+    "status": "timed_out",
+    "timeout_sec": 600
+  }
+}
+```
+
+Initialization, configuration, process, and workspace-projection errors remain
+run failures. They are not converted into Candidate timeouts or scores.
+
+## CLI Reference
 
 ```text
 a3s bench list [--all] [--json]
@@ -323,39 +398,50 @@ a3s bench advanced task lock <source> --out <file>
 a3s bench advanced candidate lock <candidate> [--model <provider/model>] --out <file>
 ```
 
-`--json` returns one `a3s.bench.output.v1` object with `command`, `ok`, and
-exactly one of `data` or `error`.
+The public entrypoint is `a3s bench`. The managed `a3s-bench` executable is a
+private component invoked by the top-level CLI.
 
-Runs store private state below the current project's `.a3s/bench/`. That layout
-is not a public API; use `a3s bench result [run-id]` to inspect results.
+Commands with `--json` emit one closed envelope:
 
-When a Candidate reaches the Task's `solution_timeout_sec`, Bench stops the
-Candidate, projects its final workspace, and still runs the Judge. The result
-remains scoreable and reports
-`candidate_execution: {"status":"timed_out","timeout_sec":...}`; model usage is
-absent because a timed-out model turn cannot return authoritative token usage.
-Initialization, configuration, process, and workspace-projection errors remain
-run failures rather than being misclassified as timeouts.
+```json
+{
+  "schema": "a3s.bench.output.v1",
+  "command": "list",
+  "ok": true,
+  "data": {}
+}
+```
+
+An error replaces `data` with `error`.
+
+## Current Boundaries
+
+Version 0.1 implements one Task and one Candidate per run. It does not yet
+provide suites, campaigns, leaderboards, distributed scheduling,
+`advanced init`, or `advanced cancel`.
+
+`a3s-box` execution and the remaining shared Runtime lifecycle are still
+pending. The limited `os-runtime` path is intentionally fail-closed outside its
+supported subset. The 51 imported long-horizon Tasks are useful for local
+evaluation but remain provisional and quarantined for official admission.
 
 ## Development
 
-Run checks from this crate, not the monorepo root:
+Run checks from the `a3s-bench` repository, not the monorepo root:
 
 ```bash
 cargo fmt --all -- --check
-cargo test --locked -p a3s-bench
-cargo clippy --locked -p a3s-bench --all-targets -- -D warnings
+cargo test --locked
+cargo clippy --locked --all-targets -- -D warnings
 python3 tools/check_builtins.py
 
 ./tools/smoke_local.sh
 ./tools/smoke_imported.sh
 ```
 
-Version 0.1 establishes the stable local CLI and lock/result formats implemented
-by this release. `advanced init` and `advanced cancel` are specified but not
-implemented, `a3s-box` execution is pending, and the shared Runtime lifecycle
-migration is incomplete. The packaged 51-task catalog is locally runnable, but
-catalog consistency is not full execution evidence or official admission.
+The test suite covers ACL validation, immutable snapshotting, lock and result
+identity, Docker and OS Runtime boundaries, timeout recovery, OCI resolution,
+submission projection, Judge validation, and the complete built-in catalog.
 
 ## Documentation
 
@@ -365,12 +451,10 @@ catalog consistency is not full execution evidence or official admission.
 - [Candidate adapter authoring](docs/candidate-adapters.md) — local and OCI
   Candidate packages
 - [Built-in catalog](builtin/README.md) — sources, provenance, and admission
-  requirements
+  state
 - [Smoke example](examples/smoke/README.md) — smallest runnable fixture
-
-When this README and the canonical design disagree, the canonical design wins.
 
 ## License
 
 MIT. Imported sources retain their upstream licenses; see
-[THIRD_PARTY_NOTICES.md](builtin/THIRD_PARTY_NOTICES.md).
+[Third-party notices](builtin/THIRD_PARTY_NOTICES.md).
