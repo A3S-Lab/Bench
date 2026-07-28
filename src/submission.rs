@@ -40,18 +40,21 @@ fn collect_terminal_files(
     include: &GlobSet,
     exclude: &GlobSet,
 ) -> Result<Vec<(PathBuf, u64)>> {
+    struct VisitState<'a> {
+        files: &'a mut Vec<(PathBuf, u64)>,
+        total: u64,
+        limit_reached: bool,
+    }
     fn visit(
         root: &Path,
         directory: &Path,
-        files: &mut Vec<(PathBuf, u64)>,
         policy: &SubmissionPolicy,
         include: &GlobSet,
         exclude: &GlobSet,
-        total: &mut u64,
-        limit_reached: &mut bool,
+        state: &mut VisitState,
     ) -> Result<()> {
         for entry in std::fs::read_dir(directory)? {
-            if *limit_reached {
+            if state.limit_reached {
                 return Ok(());
             }
             let entry = entry?;
@@ -66,16 +69,7 @@ fn collect_terminal_files(
                     normalized.split('/').count() <= 64,
                     "terminal path is too deep"
                 );
-                visit(
-                    root,
-                    &entry.path(),
-                    files,
-                    policy,
-                    include,
-                    exclude,
-                    total,
-                    limit_reached,
-                )?;
+                visit(root, &entry.path(), policy, include, exclude, state)?;
             } else if kind.is_file() {
                 // Only count files that match the submission include/exclude policy,
                 // so build artifacts and caches outside the submission scope don't
@@ -90,15 +84,16 @@ fn collect_terminal_files(
                 if metadata.len() > policy.max_file_bytes {
                     continue;
                 }
-                let new_total = total
+                let new_total = state
+                    .total
                     .checked_add(metadata.len())
                     .ok_or_else(|| anyhow::anyhow!("terminal size overflow"))?;
-                if new_total > policy.max_total_bytes || files.len() >= policy.max_files {
-                    *limit_reached = true;
+                if new_total > policy.max_total_bytes || state.files.len() >= policy.max_files {
+                    state.limit_reached = true;
                     return Ok(());
                 }
-                *total = new_total;
-                files.push((relative, metadata.len()));
+                state.total = new_total;
+                state.files.push((relative, metadata.len()));
             } else {
                 anyhow::bail!("terminal workspace contains a special file");
             }
@@ -106,18 +101,12 @@ fn collect_terminal_files(
         Ok(())
     }
     let mut files = Vec::new();
-    let mut total = 0;
-    let mut limit_reached = false;
-    visit(
-        root,
-        root,
-        &mut files,
-        policy,
-        include,
-        exclude,
-        &mut total,
-        &mut limit_reached,
-    )?;
+    let mut state = VisitState {
+        files: &mut files,
+        total: 0,
+        limit_reached: false,
+    };
+    visit(root, root, policy, include, exclude, &mut state)?;
     files.sort_by(|left, right| left.0.cmp(&right.0));
     Ok(files)
 }
@@ -313,8 +302,8 @@ mod tests {
         let output = tempfile::tempdir().unwrap();
 
         // Create files that match the include pattern but exceed total size.
-        std::fs::write(source.path().join("a.txt"), vec![b'x'; 600]);
-        std::fs::write(source.path().join("b.txt"), vec![b'y'; 600]);
+        let _ = std::fs::write(source.path().join("a.txt"), vec![b'x'; 600]);
+        let _ = std::fs::write(source.path().join("b.txt"), vec![b'y'; 600]);
 
         // max_total_bytes = 1024, so only the first file fits.
         let small_policy = SubmissionPolicy {
@@ -340,10 +329,10 @@ mod tests {
 
         // A large file that would exceed limits but is excluded by the policy.
         std::fs::create_dir_all(source.path().join("target")).unwrap();
-        std::fs::write(source.path().join("target/big.bin"), vec![b'z'; 10_000]);
+        let _ = std::fs::write(source.path().join("target/big.bin"), vec![b'z'; 10_000]);
 
         // A small submission file that should pass.
-        std::fs::write(source.path().join("output.txt"), "result");
+        let _ = std::fs::write(source.path().join("output.txt"), "result");
 
         let small_policy = SubmissionPolicy {
             include: vec!["output.txt".into()],
