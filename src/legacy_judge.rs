@@ -119,10 +119,16 @@ fn shell_quote(value: &str) -> String {
 fn legacy_judge_command(source: &str, destination: &str, timeout_runner: &str) -> String {
     let source = format!("{}/.", source.trim_end_matches('/'));
     let destination = shell_quote(destination);
+    // The judge container runs as root (--user 0:0), so no permission fixup
+    // is needed — root can read and write any file regardless of mode bits.
+    // A previous `chmod -R u+rwX {destination}` was removed because it
+    // recursed over the entire judge workspace (which can contain 130K+
+    // files from the judge image), stalling for over an hour before the
+    // judge script could start.
     format!(
-        "cp -R {} {destination}/ && (chmod -R u+rwX {destination} 2>/dev/null || true) && python3 -c {}",
+        "cp -R {} {destination}/ && python3 -c {}",
         shell_quote(&source),
-        shell_quote(timeout_runner)
+        shell_quote(timeout_runner),
     )
 }
 
@@ -561,7 +567,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn judge_still_runs_after_chmod_failure_but_not_after_copy_failure() {
+    fn judge_runs_after_successful_copy_but_not_after_copy_failure() {
         use std::os::unix::fs::PermissionsExt;
 
         let root = tempfile::tempdir().unwrap();
@@ -573,12 +579,11 @@ mod tests {
         std::fs::create_dir(&destination).unwrap();
         std::fs::create_dir(&bin).unwrap();
         std::fs::write(source.join("answer"), "42").unwrap();
-        std::fs::write(bin.join("chmod"), "#!/bin/sh\nexit 1\n").unwrap();
         std::fs::write(bin.join("python3"), "#!/bin/sh\n: > \"$MARKER\"\n").unwrap();
-        for executable in [bin.join("chmod"), bin.join("python3")] {
-            std::fs::set_permissions(executable, std::fs::Permissions::from_mode(0o700)).unwrap();
-        }
+        std::fs::set_permissions(bin.join("python3"), std::fs::Permissions::from_mode(0o700)).unwrap();
         let path = format!("{}:/usr/bin:/bin", bin.display());
+
+        // Successful copy → judge runs
         let command = legacy_judge_command(
             source.to_str().unwrap(),
             destination.to_str().unwrap(),
@@ -601,6 +606,7 @@ mod tests {
         );
         assert!(marker.is_file());
 
+        // Copy failure (source missing) → judge does not run
         std::fs::remove_file(&marker).unwrap();
         let command = legacy_judge_command(
             root.path().join("missing").to_str().unwrap(),
