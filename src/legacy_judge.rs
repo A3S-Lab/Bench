@@ -166,10 +166,10 @@ fn parse_score(source: &LegacyJudgeSource, output: &str) -> Result<f64> {
                 eprintln!("Judge produced no structured result; scoring 0.0");
                 return Ok(0.0);
             };
-            anyhow::ensure!(
-                value.get("valid").and_then(Value::as_bool).unwrap_or(true),
-                "Judge marked result invalid"
-            );
+            if !value.get("valid").and_then(Value::as_bool).unwrap_or(true) {
+                eprintln!("Judge marked result invalid; scoring 0.0");
+                return Ok(0.0);
+            }
             if let Some(score) = value.get("score").and_then(Value::as_f64) {
                 normalize_raw(source.rescale.as_ref(), score)
             } else {
