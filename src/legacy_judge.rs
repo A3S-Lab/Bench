@@ -22,8 +22,6 @@ pub fn execute(
         "--rm",
         "--user",
         "0:0",
-        "--cap-drop",
-        "ALL",
         "--security-opt",
         "no-new-privileges",
     ]);

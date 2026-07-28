@@ -74,10 +74,17 @@ fn materialize_seed(seed: &WorkspaceSeed, destination: &Path) -> Result<()> {
     );
     let container = String::from_utf8(output.stdout)?.trim().to_owned();
     secure_directory(destination)?;
-    let copy = Command::new("docker")
-        .arg("cp")
-        .arg(format!("{}:{}/.", container, seed.source_path))
-        .arg(destination)
+    // Use `docker cp` piped through `tar --no-same-owner` to avoid
+    // preserving root ownership from the OCI image, which would make
+    // files inaccessible to the non-root bench process.
+    let copy = Command::new("sh")
+        .arg("-c")
+        .arg(format!(
+            "docker cp '{container}:{source}/.' - | tar -x --no-same-owner -C '{dest}'",
+            container = container,
+            source = seed.source_path,
+            dest = destination.display()
+        ))
         .output();
     let _ = Command::new("docker")
         .args(["rm", "-f", &container])

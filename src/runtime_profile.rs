@@ -13,7 +13,7 @@ pub const JUDGE_DOCKER_LIMITS: &[&str] = &[
     "--pids-limit",
     "256",
     "--memory",
-    "4g",
+    "16g",
     "--cpus",
     "2",
     "--tmpfs",
@@ -31,7 +31,7 @@ mod tests {
             .any(|pair| pair == ["--memory", "8g"]));
         assert!(JUDGE_DOCKER_LIMITS
             .windows(2)
-            .any(|pair| pair == ["--memory", "4g"]));
+            .any(|pair| pair == ["--memory", "16g"]));
         assert_ne!(WORK_DOCKER_LIMITS, JUDGE_DOCKER_LIMITS);
     }
 }
