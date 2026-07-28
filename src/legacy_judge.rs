@@ -135,7 +135,13 @@ fn legacy_judge_command(source: &str, destination: &str, timeout_runner: &str) -
 fn parse_score(source: &LegacyJudgeSource, output: &str) -> Result<f64> {
     match source.parser.as_str() {
         "structured_json" => {
-            let value = extract_structured(output)?;
+            // If the judge ran but produced no structured result (e.g. the
+            // candidate's code was too broken for the judge script to
+            // complete), score 0.0 instead of failing the entire run.
+            let Some(value) = extract_structured(output) else {
+                eprintln!("Judge produced no structured result; scoring 0.0");
+                return Ok(0.0);
+            };
             anyhow::ensure!(
                 value.get("valid").and_then(Value::as_bool).unwrap_or(true),
                 "Judge marked result invalid"
@@ -165,26 +171,27 @@ fn parse_score(source: &LegacyJudgeSource, output: &str) -> Result<f64> {
     }
 }
 
-fn extract_structured(output: &str) -> Result<Value> {
+fn extract_structured(output: &str) -> Option<Value> {
     const START: &str = ">>>>> Start Structured Result";
     const END: &str = ">>>>> End Structured Result";
     if let (Some(start), Some(end)) = (output.find(START), output.find(END)) {
         let body = output[start + START.len()..end].trim();
-        return serde_json::from_str(body).context("invalid structured Judge JSON");
+        if let Ok(value) = serde_json::from_str(body) {
+            return Some(value);
+        }
     }
     for (index, byte) in output.bytes().enumerate() {
         if byte == b'{' {
             if let Some(end) = json_object_end(&output[index..]) {
                 if let Ok(value) = serde_json::from_str::<Value>(&output[index..index + end]) {
                     if value.get("score").is_some() || value.get("pass_rate").is_some() {
-                        return Ok(value);
+                        return Some(value);
                     }
                 }
             }
         }
     }
-    let diagnostic: String = output.chars().take(4096).collect();
-    anyhow::bail!("Judge produced no structured result: {diagnostic}")
+    None
 }
 
 fn json_object_end(value: &str) -> Option<usize> {
