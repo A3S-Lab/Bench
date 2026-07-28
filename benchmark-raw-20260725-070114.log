@@ -1,5 +1,0 @@
-warning: terminal workspace contains a hard link, skipping: /data/my/projects/A3S-Bench/.a3s/bench/workspaces/ffmpeg_swscale_reimplementation-808932/target/release/deps/libswscale_candidate.so
-warning: terminal workspace contains a hard link, skipping: /data/my/projects/A3S-Bench/.a3s/bench/workspaces/ffmpeg_swscale_reimplementation-808932/target/release/libswscale_candidate.so
-COMPLETED  score=0  task=ffmpeg_swscale_reimplementation
-run:    local-1784934074027-808932-0
-result: /data/my/projects/A3S-Bench/.a3s/bench/results/local-1784934074027-808932-0.json

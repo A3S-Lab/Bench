@@ -1,1 +1,0 @@
-a3s bench: run local-1784931042180-793258-0 failed: workspace OCI source_path is unavailable: open /data/my/projects/A3S-Bench/.a3s/bench/workspaces/dabic_gravity_inversion-793258/data/saltdome_s7_100.grd: permission denied

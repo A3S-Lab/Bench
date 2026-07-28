@@ -1,4 +1,0 @@
-candidate ended with error (will still score): model Candidate exceeded Task solution_timeout_sec: deadline has elapsed
-COMPLETED  score=0  task=ann_vector_search_qps
-run:    local-1784903447219-670601-0
-result: /data/my/projects/A3S-Bench/.a3s/bench/results/local-1784903447219-670601-0.json

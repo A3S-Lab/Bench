@@ -1,4 +1,0 @@
-candidate ended with error (will still score): model Candidate exceeded Task solution_timeout_sec: deadline has elapsed
-COMPLETED  score=1  task=cta_risk_budget_optimization
-run:    local-1785145363598-435002-0
-result: /data/my/projects/A3S-Bench/.a3s/bench/results/local-1785145363598-435002-0.json
