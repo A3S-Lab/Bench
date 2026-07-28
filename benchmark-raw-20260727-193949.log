@@ -1,0 +1,4 @@
+COMPLETED  score=1  task=cta_risk_budget_optimization
+candidate: timed_out (600s)
+run:    local-1785152389071-457144-0
+result: /data/my/projects/A3S-Bench/.a3s/bench/results/local-1785152389071-457144-0.json

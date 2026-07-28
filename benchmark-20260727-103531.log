@@ -1,0 +1,16 @@
+A3S Bench Report
+================
+Start: Mon Jul 27 10:35:31 CST 2026
+Model: openai/deepseek-v4-flash
+
+flt_regular_formalization                | FAIL | N/A    | 0m0s
+git_rewrite_in_zig                       | FAIL | N/A    | 0m0s
+graph_node_classification                | FAIL | N/A    | 0m0s
+grid_turing_robot                        | FAIL | N/A    | 0m1s
+integer_compression_codec                | FAIL | N/A    | 0m0s
+jagua_nesting_optimization               | FAIL | N/A    | 0m0s
+juliet_vulnerability_analyzer            | FAIL | N/A    | 0m0s
+k12_math_recommendation                  | FAIL | N/A    | 0m0s
+lean_analysis_proofs                     | FAIL | N/A    | 0m0s
+molecular_self_assembly                  | FAIL | N/A    | 0m0s
+nethack_dungeon_agent                    | FAIL | N/A    | 0m1s

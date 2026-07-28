@@ -1,0 +1,2 @@
+candidate ended with error (will still score): model Candidate exceeded Task solution_timeout_sec: deadline has elapsed
+a3s bench: run local-1784894789370-628107-0 failed: terminal file exceeds size limit

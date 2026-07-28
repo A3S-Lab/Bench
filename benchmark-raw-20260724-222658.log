@@ -1,0 +1,9 @@
+warning: workspace OCI seed contains a symlink, skipping: /data/my/projects/A3S-Bench/.a3s/bench/workspaces/arc_compiler_runtime-668778/node_modules/.bin/vite
+warning: workspace OCI seed contains a symlink, skipping: /data/my/projects/A3S-Bench/.a3s/bench/workspaces/arc_compiler_runtime-668778/node_modules/.bin/why-is-node-running
+warning: workspace OCI seed contains a symlink, skipping: /data/my/projects/A3S-Bench/.a3s/bench/workspaces/arc_compiler_runtime-668778/node_modules/.bin/nanoid
+warning: workspace OCI seed contains a symlink, skipping: /data/my/projects/A3S-Bench/.a3s/bench/workspaces/arc_compiler_runtime-668778/node_modules/.bin/tsc
+warning: workspace OCI seed contains a symlink, skipping: /data/my/projects/A3S-Bench/.a3s/bench/workspaces/arc_compiler_runtime-668778/node_modules/.bin/rollup
+warning: workspace OCI seed contains a symlink, skipping: /data/my/projects/A3S-Bench/.a3s/bench/workspaces/arc_compiler_runtime-668778/node_modules/.bin/esbuild
+warning: workspace OCI seed contains a symlink, skipping: /data/my/projects/A3S-Bench/.a3s/bench/workspaces/arc_compiler_runtime-668778/node_modules/.bin/vitest
+warning: workspace OCI seed contains a symlink, skipping: /data/my/projects/A3S-Bench/.a3s/bench/workspaces/arc_compiler_runtime-668778/node_modules/.bin/tsx
+warning: workspace OCI seed contains a symlink, skipping: /data/my/projects/A3S-Bench/.a3s/bench/workspaces/arc_compiler_runtime-668778/node_modules/.bin/tsserver

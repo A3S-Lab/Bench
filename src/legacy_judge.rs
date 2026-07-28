@@ -611,7 +611,8 @@ mod tests {
         std::fs::create_dir(&bin).unwrap();
         std::fs::write(source.join("answer"), "42").unwrap();
         std::fs::write(bin.join("python3"), "#!/bin/sh\n: > \"$MARKER\"\n").unwrap();
-        std::fs::set_permissions(bin.join("python3"), std::fs::Permissions::from_mode(0o700)).unwrap();
+        std::fs::set_permissions(bin.join("python3"), std::fs::Permissions::from_mode(0o700))
+            .unwrap();
         let path = format!("{}:/usr/bin:/bin", bin.display());
 
         // Successful copy → judge runs

@@ -1,0 +1,7 @@
+warning: workspace OCI seed contains a symlink, skipping: /data/my/projects/A3S-Bench/.a3s/bench/workspaces/carleson_formalization-718213/se-bmk-intern/carleson/.lake/packages/mathlib/scripts/bench/size/run.py
+warning: workspace OCI seed contains a symlink, skipping: /data/my/projects/A3S-Bench/.a3s/bench/workspaces/carleson_formalization-718213/se-bmk-intern/carleson/.lake/packages/mathlib/scripts/bench/build/fake-root/bin/lean.py
+warning: workspace OCI seed contains a symlink, skipping: /data/my/projects/A3S-Bench/.a3s/bench/workspaces/carleson_formalization-718213/se-bmk-intern/carleson/.lake/packages/batteries/docs/README.md
+candidate ended with error (will still score): model Candidate exceeded Task solution_timeout_sec: deadline has elapsed
+warning: terminal workspace contains a symlink, skipping: /data/my/projects/A3S-Bench/.a3s/bench/workspaces/carleson_formalization-718213/se-bmk-intern/carleson/.lake/packages/mathlib/scripts/bench/size/run.py
+warning: terminal workspace contains a symlink, skipping: /data/my/projects/A3S-Bench/.a3s/bench/workspaces/carleson_formalization-718213/se-bmk-intern/carleson/.lake/packages/mathlib/scripts/bench/build/fake-root/bin/lean.py
+warning: terminal workspace contains a symlink, skipping: /data/my/projects/A3S-Bench/.a3s/bench/workspaces/carleson_formalization-718213/se-bmk-intern/carleson/.lake/packages/batteries/docs/README.md

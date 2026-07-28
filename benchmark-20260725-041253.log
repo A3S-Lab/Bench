@@ -1,0 +1,14 @@
+A3S Bench Report
+================
+Start: Sat Jul 25 04:12:53 CST 2026
+Model: openai/deepseek-v4-flash
+
+carleson_formalization                   | FAIL | N/A    | 32m25s
+college_english_exam_bank                | FAIL | N/A    | 16m30s
+combinatorial_games_formalization        | FAIL | N/A    | 48m40s
+cta_risk_budget_optimization             | PASS | 0      | 20m13s
+dabic_gravity_inversion                  | FAIL | N/A    | 0m2s
+dcss_dungeon_ai                          | PASS | 0      | 18m26s
+equivalence_class_divide_and_conquer     | PASS | 0.02466667 | 21m53s
+exchange_core_throughput                 | PASS | 0      | 10m10s
+ffmpeg_swscale_reimplementation          | PASS | 0      | 17m11s

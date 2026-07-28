@@ -1,0 +1,6 @@
+A3S Bench Report
+================
+Start: Sat Jul 25 03:22:58 CST 2026
+Model: openai/deepseek-v4-flash
+
+carleson_formalization                   | FAIL | N/A    | 41m12s

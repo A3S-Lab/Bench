@@ -1,0 +1,4 @@
+candidate ended with error (will still score): model Candidate exceeded Task solution_timeout_sec: deadline has elapsed
+COMPLETED  score=0  task=dcss_dungeon_ai
+run:    local-1784931044954-793473-0
+result: /data/my/projects/A3S-Bench/.a3s/bench/results/local-1784931044954-793473-0.json

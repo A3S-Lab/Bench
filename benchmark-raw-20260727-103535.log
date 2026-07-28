@@ -1,0 +1,1 @@
+a3s bench: run local-1785119735997-350514-0 failed: Runtime provider "docker" failed preflight: Cannot connect to the Docker daemon at unix:///home/qinmengyuan/.docker/desktop/docker.sock. Is the docker daemon running?

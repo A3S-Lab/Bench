@@ -1,0 +1,6 @@
+warning: workspace OCI seed contains a symlink, skipping: /data/my/projects/A3S-Bench/.a3s/bench/workspaces/flt_regular_formalization-814014/se-bmk-intern/FltRegular/.lake/packages/mathlib/scripts/bench/size/run.py
+warning: workspace OCI seed contains a symlink, skipping: /data/my/projects/A3S-Bench/.a3s/bench/workspaces/flt_regular_formalization-814014/se-bmk-intern/FltRegular/.lake/packages/mathlib/scripts/bench/build/fake-root/bin/lean.py
+warning: workspace OCI seed contains a symlink, skipping: /data/my/projects/A3S-Bench/.a3s/bench/workspaces/flt_regular_formalization-814014/se-bmk-intern/FltRegular/.lake/packages/batteries/docs/README.md
+warning: workspace OCI seed contains a symlink, skipping: /data/my/projects/A3S-Bench/.a3s/bench/workspaces/flt_regular_formalization-814014/baseline/.lake/packages/mathlib/scripts/bench/size/run.py
+warning: workspace OCI seed contains a symlink, skipping: /data/my/projects/A3S-Bench/.a3s/bench/workspaces/flt_regular_formalization-814014/baseline/.lake/packages/mathlib/scripts/bench/build/fake-root/bin/lean.py
+warning: workspace OCI seed contains a symlink, skipping: /data/my/projects/A3S-Bench/.a3s/bench/workspaces/flt_regular_formalization-814014/baseline/.lake/packages/batteries/docs/README.md

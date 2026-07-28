@@ -66,12 +66,23 @@ fn collect_terminal_files(
                     normalized.split('/').count() <= 64,
                     "terminal path is too deep"
                 );
-                visit(root, &entry.path(), files, policy, include, exclude, total, limit_reached)?;
+                visit(
+                    root,
+                    &entry.path(),
+                    files,
+                    policy,
+                    include,
+                    exclude,
+                    total,
+                    limit_reached,
+                )?;
             } else if kind.is_file() {
                 // Only count files that match the submission include/exclude policy,
                 // so build artifacts and caches outside the submission scope don't
                 // inflate the total.
-                if !include.is_match(&normalized) || exclude.is_match(&normalized) || reserved(&normalized)
+                if !include.is_match(&normalized)
+                    || exclude.is_match(&normalized)
+                    || reserved(&normalized)
                 {
                     continue;
                 }
@@ -79,9 +90,9 @@ fn collect_terminal_files(
                 if metadata.len() > policy.max_file_bytes {
                     continue;
                 }
-                let new_total = total.checked_add(metadata.len()).ok_or_else(|| {
-                    anyhow::anyhow!("terminal size overflow")
-                })?;
+                let new_total = total
+                    .checked_add(metadata.len())
+                    .ok_or_else(|| anyhow::anyhow!("terminal size overflow"))?;
                 if new_total > policy.max_total_bytes || files.len() >= policy.max_files {
                     *limit_reached = true;
                     return Ok(());
@@ -97,7 +108,16 @@ fn collect_terminal_files(
     let mut files = Vec::new();
     let mut total = 0;
     let mut limit_reached = false;
-    visit(root, root, &mut files, policy, include, exclude, &mut total, &mut limit_reached)?;
+    visit(
+        root,
+        root,
+        &mut files,
+        policy,
+        include,
+        exclude,
+        &mut total,
+        &mut limit_reached,
+    )?;
     files.sort_by(|left, right| left.0.cmp(&right.0));
     Ok(files)
 }

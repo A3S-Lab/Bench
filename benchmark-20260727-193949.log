@@ -1,0 +1,12 @@
+A3S Bench Report
+================
+Start: Mon Jul 27 19:39:49 CST 2026
+Model: openai/deepseek-v4-flash
+
+cta_risk_budget_optimization             | PASS | 1      | 10m14s
+
+================
+Skipped: 51
+Passed: 1 / 52
+Failed: 0
+End: Mon Jul 27 19:50:03 CST 2026

@@ -1,0 +1,10 @@
+A3S Bench Report
+================
+Start: Fri Jul 24 19:46:01 CST 2026
+Model: openai/deepseek-v4-flash
+
+quick_file_edit                          | PASS | 1      | 0m15s
+ad_placement_optimization                | PASS | 0      | 10m6s
+anchorhead_text_adventure                | PASS | 0      | 10m7s
+ann_vector_search_qps                    | FAIL | N/A    | 130m7s
+apple_incremental_game                   | PASS | 0      | 10m22s
