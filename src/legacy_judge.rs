@@ -55,7 +55,31 @@ pub fn execute(
     let mut raw = String::from_utf8_lossy(&output.stdout).into_owned();
     raw.push_str(&String::from_utf8_lossy(&output.stderr));
     anyhow::ensure!(raw.len() <= 16 * 1024 * 1024, "Judge output exceeds 16 MiB");
+
+    let exit_code = output.status.code();
+
+    // If the judge process was killed by a signal (exit_code is None, e.g.
+    // OOM kill) or timed out (exit_code 124 from the timeout runner), treat
+    // this as an infrastructure failure rather than a candidate quality
+    // issue. Include the exit code and an output snippet in the error so
+    // the failure can be diagnosed post-hoc.
+    match exit_code {
+        None | Some(124) => {
+            let snippet: String = raw.chars().take(4096).collect();
+            anyhow::bail!(
+                "Judge process terminated abnormally (exit_code: {:?}): {}",
+                exit_code,
+                snippet
+            );
+        }
+        _ => {}
+    }
+
+    // The judge exited normally (has an exit code). If the output contains
+    // no structured result, the candidate's submission was too poor to
+    // score — record 0.0 instead of failing the run.
     let ratio = parse_score(source, &raw)?;
+
     let primary = task
         .metrics
         .iter()
@@ -68,9 +92,9 @@ pub fn execute(
         solution_verdict: "valid".into(),
         metrics,
         diagnostics: serde_json::json!({
-            "adapter":"edgebench-v1",
-            "exit_code":output.status.code(),
-            "parser":source.parser
+            "adapter": "edgebench-v1",
+            "exit_code": exit_code,
+            "parser": source.parser
         }),
     })
 }
