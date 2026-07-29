@@ -8,6 +8,43 @@ use std::time::{Duration, Instant};
 
 use crate::runtime_selection::{RuntimeSelection, A3S_BOX_PROVIDER, DOCKER_PROVIDER};
 
+/// Pull a Docker image with exponential backoff retry.
+/// Transient network failures (DNS timeouts, connection refused, etc.)
+/// should not cause the entire benchmark run to fail.
+pub fn pull_image_with_retry(reference: &str, platform: Option<&str>) -> Result<()> {
+    const MAX_ATTEMPTS: u32 = 3;
+    const BASE_DELAY: Duration = Duration::from_secs(5);
+
+    for attempt in 1..=MAX_ATTEMPTS {
+        let mut pull = Command::new("docker");
+        pull.arg("pull");
+        if let Some(p) = platform {
+            pull.args(["--platform", p]);
+        }
+        let pull = pull
+            .arg(reference)
+            .output()
+            .context("could not start Docker image pull")?;
+        if pull.status.success() {
+            return Ok(());
+        }
+        let stderr = String::from_utf8_lossy(&pull.stderr).trim().to_owned();
+        if attempt < MAX_ATTEMPTS {
+            let delay = BASE_DELAY * 2u32.pow(attempt - 1);
+            eprintln!(
+                "Docker pull attempt {attempt}/{MAX_ATTEMPTS} for {reference:?} failed: {stderr}"
+            );
+            eprintln!("Retrying in {delay:?}...");
+            std::thread::sleep(delay);
+        } else {
+            anyhow::bail!(
+                "could not pull Docker image {reference:?} after {MAX_ATTEMPTS} attempts: {stderr}"
+            );
+        }
+    }
+    unreachable!()
+}
+
 static CANDIDATE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,20 +62,7 @@ pub struct ResolvedImage {
 
 pub fn resolve_image(reference: &str, platform: Option<&str>) -> Result<ResolvedImage> {
     if !local_image_matches(reference, platform)? {
-        let mut pull = Command::new("docker");
-        pull.arg("pull");
-        if let Some(platform) = platform {
-            pull.args(["--platform", platform]);
-        }
-        let pull = pull
-            .arg(reference)
-            .output()
-            .context("could not start Docker image pull")?;
-        anyhow::ensure!(
-            pull.status.success(),
-            "could not pull Docker image {reference:?}: {}",
-            String::from_utf8_lossy(&pull.stderr).trim()
-        );
+        pull_image_with_retry(reference, platform)?;
     }
     anyhow::ensure!(
         local_image_matches(reference, platform)?,

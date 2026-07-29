@@ -50,17 +50,8 @@ fn materialize_seed(seed: &WorkspaceSeed, destination: &Path) -> Result<()> {
         .args(["image", "inspect", &seed.image])
         .output()?;
     if !inspect.status.success() {
-        let mut pull = Command::new("docker");
-        pull.arg("pull");
-        if let Some(platform) = seed.platform.as_deref() {
-            pull.args(["--platform", platform]);
-        }
-        let pull = pull.arg(&seed.image).output()?;
-        anyhow::ensure!(
-            pull.status.success(),
-            "could not pull workspace OCI image: {}",
-            String::from_utf8_lossy(&pull.stderr).trim()
-        );
+        crate::runtime::pull_image_with_retry(&seed.image, seed.platform.as_deref())
+            .context("could not pull workspace OCI image")?;
     }
     let mut create = Command::new("docker");
     create.arg("create");
