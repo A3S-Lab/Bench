@@ -95,7 +95,13 @@ fn collect_terminal_files(
                 state.total = new_total;
                 state.files.push((relative, metadata.len()));
             } else {
-                anyhow::bail!("terminal workspace contains a special file");
+                // Skip special files (sockets, FIFOs, device nodes) left
+                // behind by the candidate's runtime instead of failing.
+                eprintln!(
+                    "skipping special file in terminal workspace: {}",
+                    relative.display()
+                );
+                continue;
             }
         }
         Ok(())
