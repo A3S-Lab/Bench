@@ -75,12 +75,14 @@ pub fn resolve_model_route(path: &Path, reference: &str) -> Result<ModelRoute> {
     let api_key = provider
         .attributes
         .get("api_key")
+        .or(provider.attributes.get("apiKey"))
         .and_then(Value::as_str)
         .filter(|value| !value.is_empty())
         .ok_or_else(|| anyhow::anyhow!("provider {provider_id:?} has no api_key"))?;
     let base_url = provider
         .attributes
         .get("base_url")
+        .or(provider.attributes.get("baseUrl"))
         .and_then(Value::as_str)
         .filter(|value| !value.is_empty())
         .ok_or_else(|| anyhow::anyhow!("provider {provider_id:?} has no base_url"))?;

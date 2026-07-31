@@ -4,7 +4,7 @@ use crate::{
 };
 use anyhow::{Context, Result};
 use serde_json::json;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 struct JudgeModel {
     reference: String,
@@ -19,6 +19,37 @@ struct RuntimeExecution<'a> {
 struct CandidateRun {
     execution: crate::result_record::CandidateExecution,
     model_usage: Option<model_candidate::ModelExecution>,
+}
+
+struct TransientRunDirs {
+    workspace: Option<PathBuf>,
+    submission: Option<PathBuf>,
+}
+
+impl TransientRunDirs {
+    fn new() -> Self {
+        Self {
+            workspace: None,
+            submission: None,
+        }
+    }
+}
+
+impl Drop for TransientRunDirs {
+    fn drop(&mut self) {
+        // Recycle the per-run workspace and submission directories once the
+        // result has been persisted. They are transient intermediates and
+        // would otherwise accumulate indefinitely under .a3s/bench/. The
+        // submission tree is sealed read-only, so a plain `remove_dir_all`
+        // would silently fail to reclaim it; `remove_tree` restores
+        // writability first.
+        if let Some(path) = self.workspace.take() {
+            let _ = crate::state_fs::remove_tree(&path);
+        }
+        if let Some(path) = self.submission.take() {
+            let _ = crate::state_fs::remove_tree(&path);
+        }
+    }
 }
 
 pub fn execute(args: &[String]) -> Result<u8> {
@@ -69,7 +100,9 @@ fn execute_inner(
     }
     journal.advance(RunStage::InputsResolved)?;
     let game = start_game(&loaded.task, state_root)?;
+    let mut transient = TransientRunDirs::new();
     let candidate_workspace = workspace::create(&loaded.task)?;
+    transient.workspace = Some(candidate_workspace.clone());
     journal.advance(RunStage::CandidateRunning)?;
     let runtime_execution = RuntimeExecution {
         provider: &status.provider,
@@ -86,6 +119,7 @@ fn execute_inner(
     )?;
     journal.advance(RunStage::CandidateCompleted)?;
     let submission = workspace::create_submission(&loaded.task, &candidate_workspace)?;
+    transient.submission = Some(submission.clone());
     journal.advance(RunStage::Judging)?;
     let judge_result = execute_judge(
         &loaded.task,
