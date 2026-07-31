@@ -63,8 +63,10 @@ fn materialize_seed(seed: &WorkspaceSeed, state_root: &Path, destination: &Path)
 
     let cache = seed_cache_path(state_root, &seed_cache_key(&image_id, seed))?;
     if let Some(clean) = valid_seed_cache(&cache, &image_id, seed)? {
+        // The cache tree already has owner-only permissions (set during
+        // populate_seed_staging), and `cp -a` preserves them, so we can
+        // skip the expensive set_tree_owner_only traversal here.
         clone_tree(&clean, destination)?;
-        set_tree_owner_only(destination)?;
         return Ok(());
     }
     if is_real_directory(&cache)? {
@@ -99,7 +101,8 @@ fn materialize_seed(seed: &WorkspaceSeed, state_root: &Path, destination: &Path)
         }
     }
     clone_tree(&cache.join("tree"), destination)?;
-    set_tree_owner_only(destination)
+    // Cache tree already has owner-only permissions; cp -a preserves them.
+    Ok(())
 }
 
 /// Extract the workspace seed contents into the staging directory, write the
@@ -266,28 +269,21 @@ fn sync_seed_tree(path: &Path) -> Result<()> {
 /// published). The caller is expected to run [`set_tree_owner_only`] on the
 /// destination afterwards.
 fn clone_tree(source: &Path, destination: &Path) -> Result<()> {
-    secure_directory(destination)?;
-    for entry in std::fs::read_dir(source)? {
-        let entry = entry?;
-        let kind = entry.file_type()?;
-        let target = destination.join(entry.file_name());
-        if kind.is_symlink() {
-            let link = std::fs::read_link(entry.path())?;
-            #[cfg(unix)]
-            std::os::unix::fs::symlink(&link, &target)?;
-            #[cfg(not(unix))]
-            {
-                let _ = link;
-                anyhow::bail!("workspace seed cache contains a symlink on a non-unix host");
-            }
-        } else if kind.is_dir() {
-            clone_tree(&entry.path(), &target)?;
-        } else if kind.is_file() {
-            std::fs::copy(entry.path(), &target)?;
-        } else {
-            anyhow::bail!("workspace seed cache contains a special file");
-        }
-    }
+    // Use `cp -a` which preserves symlinks, permissions, and is significantly
+    // faster than per-file std::fs::copy for large trees (14GB / 250k files).
+    // `source/.` copies the *contents* of source into destination rather
+    // than nesting source as a subdirectory of destination.
+    std::fs::create_dir_all(destination)?;
+    let output = Command::new("cp")
+        .arg("-a")
+        .arg(format!("{}/.", source.display()))
+        .arg(format!("{}/", destination.display()))
+        .output()?;
+    anyhow::ensure!(
+        output.status.success(),
+        "cp -a failed: {}",
+        String::from_utf8_lossy(&output.stderr).trim()
+    );
     Ok(())
 }
 
