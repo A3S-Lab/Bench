@@ -122,7 +122,12 @@ fn populate_seed_staging(seed: &WorkspaceSeed, staging: &Path, image_id: &str) -
         &staging.join(".complete"),
         seed_cache_marker(image_id, seed).as_bytes(),
     )?;
-    sync_seed_tree(staging)?;
+    // Previously we fsynced every file in the tree here (sync_seed_tree),
+    // but that caused multi-minute stalls on large seeds (248k files /
+    // 14GB) because each fsync forces an ext4 journal commit.  The cache
+    // is validated by the .complete marker and can be regenerated if lost
+    // to a crash, so per-file fsync is not worth the cost.  A single
+    // directory sync after the rename is sufficient.
     Ok(())
 }
 
@@ -243,25 +248,6 @@ fn is_real_directory(path: &Path) -> Result<bool> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
         Err(error) => Err(error.into()),
     }
-}
-
-fn sync_seed_tree(path: &Path) -> Result<()> {
-    for entry in std::fs::read_dir(path)? {
-        let entry = entry?;
-        let kind = entry.file_type()?;
-        if kind.is_symlink() {
-            continue;
-        } else if kind.is_dir() {
-            sync_seed_tree(&entry.path())?;
-        } else if kind.is_file() {
-            std::fs::File::open(entry.path())?.sync_all()?;
-        } else {
-            anyhow::bail!("workspace seed tree contains a special file");
-        }
-    }
-    #[cfg(unix)]
-    std::fs::File::open(path)?.sync_all()?;
-    Ok(())
 }
 
 /// Clone a cached seed tree into a fresh writable destination, preserving
