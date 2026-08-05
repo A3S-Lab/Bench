@@ -2,7 +2,7 @@ use crate::state_fs::{seal_role_input_tree, secure_directory, set_owner_only_fil
 use crate::task::{TaskInfo, WorkspaceSeed};
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 pub fn state_root() -> Result<PathBuf> {
     let root = std::env::current_dir()?.join(".a3s/bench");
@@ -65,28 +65,74 @@ fn materialize_seed(seed: &WorkspaceSeed, destination: &Path) -> Result<()> {
     );
     let container = String::from_utf8(output.stdout)?.trim().to_owned();
     secure_directory(destination)?;
-    // Use `docker cp` piped through `tar --no-same-owner` to avoid
-    // preserving root ownership from the OCI image, which would make
-    // files inaccessible to the non-root bench process.
-    let copy = Command::new("sh")
-        .arg("-c")
-        .arg(format!(
-            "docker cp '{container}:{source}/.' - | tar -x --no-same-owner -C '{dest}'",
-            container = container,
-            source = seed.source_path,
-            dest = destination.display()
-        ))
-        .output();
+    let copy = extract_seed_tree(&container, &seed.source_path, destination);
     let _ = Command::new("docker")
         .args(["rm", "-f", &container])
         .output();
-    let copy = copy?;
-    anyhow::ensure!(
-        copy.status.success(),
-        "workspace OCI source_path is unavailable: {}",
-        String::from_utf8_lossy(&copy.stderr).trim()
-    );
+    copy?;
     set_tree_owner_only(destination)
+}
+
+fn extract_seed_tree(container: &str, source_path: &str, destination: &Path) -> Result<()> {
+    // Streaming through tar with --no-same-owner prevents container uid/gid
+    // metadata from making the extracted workspace unreadable to Bench.
+    let mut copy = docker_copy_command(container, source_path)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .context("could not start workspace OCI copy")?;
+    let archive = copy
+        .stdout
+        .take()
+        .ok_or_else(|| anyhow::anyhow!("Docker workspace copy did not expose an archive"))?;
+    let mut extract = match tar_extract_command(destination)
+        .stdin(Stdio::from(archive))
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+    {
+        Ok(child) => child,
+        Err(error) => {
+            let _ = copy.kill();
+            let _ = copy.wait();
+            return Err(error).context("could not start workspace OCI extraction");
+        }
+    };
+
+    let (copy_output, extract_output) = std::thread::scope(|scope| {
+        let copy_wait = scope.spawn(move || copy.wait_with_output());
+        let extract_output = extract.wait_with_output()?;
+        let copy_output = copy_wait
+            .join()
+            .map_err(|_| anyhow::anyhow!("workspace OCI copy waiter panicked"))??;
+        Ok::<_, anyhow::Error>((copy_output, extract_output))
+    })?;
+    anyhow::ensure!(
+        copy_output.status.success(),
+        "workspace OCI source_path is unavailable: {}",
+        String::from_utf8_lossy(&copy_output.stderr).trim()
+    );
+    anyhow::ensure!(
+        extract_output.status.success(),
+        "could not extract workspace OCI seed: {}",
+        String::from_utf8_lossy(&extract_output.stderr).trim()
+    );
+    Ok(())
+}
+
+fn docker_copy_command(container: &str, source_path: &str) -> Command {
+    let source_path = source_path.trim_end_matches('/');
+    let source = format!("{container}:{source_path}/.");
+    let mut command = Command::new("docker");
+    command.args(["cp", &source, "-"]);
+    command
+}
+
+fn tar_extract_command(destination: &Path) -> Command {
+    let mut command = Command::new("tar");
+    command.args(["-x", "--no-same-owner", "-C"]);
+    command.arg(destination);
+    command
 }
 
 fn set_tree_owner_only(path: &Path) -> Result<()> {
@@ -159,6 +205,30 @@ fn copy_tree(source: &Path, destination: &Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn workspace_seed_copy_uses_argument_safe_process_pipeline() {
+        let copy = docker_copy_command("container-id", "/workspace/it's safe");
+        let copy_arguments = copy
+            .get_args()
+            .map(|value| value.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            copy_arguments,
+            ["cp", "container-id:/workspace/it's safe/.", "-"]
+        );
+
+        let destination = Path::new("destination with ' quote");
+        let extract = tar_extract_command(destination);
+        let extract_arguments = extract
+            .get_args()
+            .map(|value| value.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            extract_arguments,
+            ["-x", "--no-same-owner", "-C", "destination with ' quote"]
+        );
+    }
 
     #[cfg(unix)]
     #[test]

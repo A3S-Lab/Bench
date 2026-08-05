@@ -17,14 +17,7 @@ pub fn execute(
         "interactive Judge mode is not implemented yet"
     );
     let mut command = Command::new("docker");
-    command.args([
-        "run",
-        "--rm",
-        "--user",
-        "0:0",
-        "--security-opt",
-        "no-new-privileges",
-    ]);
+    configure_judge_container(&mut command);
     command.args(crate::runtime_profile::JUDGE_DOCKER_LIMITS);
     configure_model_gateway(&mut command, source.requires_model_gateway, model)?;
     if let Some(platform) = source.platform.as_deref() {
@@ -58,26 +51,20 @@ pub fn execute(
 
     let exit_code = output.status.code();
 
-    // If the judge process was killed by a signal (exit_code is None, e.g.
-    // OOM kill) or timed out (exit_code 124 from the timeout runner), treat
-    // this as an infrastructure failure rather than a candidate quality
-    // issue. Include the exit code and an output snippet in the error so
-    // the failure can be diagnosed post-hoc.
-    match exit_code {
-        None | Some(124) => {
-            let snippet: String = raw.chars().take(4096).collect();
-            anyhow::bail!(
-                "Judge process terminated abnormally (exit_code: {:?}): {}",
-                exit_code,
-                snippet
-            );
-        }
-        _ => {}
+    // Docker reports timeout and signal termination through conventional exit
+    // codes. These indicate an infrastructure/resource failure, unlike an
+    // ordinary non-zero judge exit caused by an unbuildable submission.
+    if abnormal_judge_exit(exit_code) {
+        let snippet: String = raw.chars().take(4096).collect();
+        anyhow::bail!(
+            "Judge process terminated abnormally (exit_code: {:?}): {}",
+            exit_code,
+            snippet
+        );
     }
 
-    // The judge exited normally (has an exit code). If the output contains
-    // no structured result, the candidate's submission was too poor to
-    // score — record 0.0 instead of failing the run.
+    // An ordinary exit without a structured result means the candidate's
+    // submission could not be scored (for example, it failed to compile).
     let ratio = parse_score(source, &raw)?;
 
     let primary = task
@@ -97,6 +84,25 @@ pub fn execute(
             "parser": source.parser
         }),
     })
+}
+
+fn configure_judge_container(command: &mut Command) {
+    command.args([
+        "run",
+        "--rm",
+        "--user",
+        "0:0",
+        "--cap-drop",
+        "ALL",
+        "--cap-add",
+        "DAC_OVERRIDE",
+        "--security-opt",
+        "no-new-privileges",
+    ]);
+}
+
+fn abnormal_judge_exit(exit_code: Option<i32>) -> bool {
+    matches!(exit_code, None | Some(124 | 137 | 143))
 }
 
 fn configure_model_gateway(
@@ -143,8 +149,8 @@ fn shell_quote(value: &str) -> String {
 fn legacy_judge_command(source: &str, destination: &str, timeout_runner: &str) -> String {
     let source = format!("{}/.", source.trim_end_matches('/'));
     let destination = shell_quote(destination);
-    // The judge container runs as root (--user 0:0), so no permission fixup
-    // is needed — root can read and write any file regardless of mode bits.
+    // The judge container runs as root with DAC_OVERRIDE, so no permission
+    // fixup is needed for the destination tree.
     // A previous `chmod -R u+rwX {destination}` was removed because it
     // recursed over the entire judge workspace (which can contain 130K+
     // files from the judge image), stalling for over an hour before the
@@ -162,7 +168,7 @@ fn parse_score(source: &LegacyJudgeSource, output: &str) -> Result<f64> {
             // If the judge ran but produced no structured result (e.g. the
             // candidate's code was too broken for the judge script to
             // complete), score 0.0 instead of failing the entire run.
-            let Some(value) = extract_structured(output) else {
+            let Some(value) = extract_structured(output)? else {
                 eprintln!("Judge produced no structured result; scoring 0.0");
                 return Ok(0.0);
             };
@@ -195,27 +201,27 @@ fn parse_score(source: &LegacyJudgeSource, output: &str) -> Result<f64> {
     }
 }
 
-fn extract_structured(output: &str) -> Option<Value> {
+fn extract_structured(output: &str) -> Result<Option<Value>> {
     const START: &str = ">>>>> Start Structured Result";
     const END: &str = ">>>>> End Structured Result";
     if let (Some(start), Some(end)) = (output.find(START), output.find(END)) {
         let body = output[start + START.len()..end].trim();
-        if let Ok(value) = serde_json::from_str(body) {
-            return Some(value);
-        }
+        return serde_json::from_str(body)
+            .map(Some)
+            .context("invalid structured Judge JSON");
     }
     for (index, byte) in output.bytes().enumerate() {
         if byte == b'{' {
             if let Some(end) = json_object_end(&output[index..]) {
                 if let Ok(value) = serde_json::from_str::<Value>(&output[index..index + end]) {
                     if value.get("score").is_some() || value.get("pass_rate").is_some() {
-                        return Some(value);
+                        return Ok(Some(value));
                     }
                 }
             }
         }
     }
-    None
+    Ok(None)
 }
 
 fn json_object_end(value: &str) -> Option<usize> {
@@ -451,8 +457,78 @@ mod tests {
         let structured = extract_structured(
             ">>>>> Start Structured Result\n{\"valid\":true,\"score\":0.75}\n>>>>> End Structured Result",
         )
+        .unwrap()
         .unwrap();
         assert_eq!(structured["score"], 0.75);
+    }
+
+    fn structured_source() -> LegacyJudgeSource {
+        LegacyJudgeSource {
+            image: "judge:latest".into(),
+            command: "judge".into(),
+            mode: "batch".into(),
+            parser: "structured_json".into(),
+            workspace_source_path: "/workspace".into(),
+            rescale: None,
+            platform: None,
+            game_server_command: None,
+            requires_model_gateway: false,
+            timeout_sec: 60,
+        }
+    }
+
+    #[test]
+    fn candidate_quality_failures_score_zero() {
+        let source = structured_source();
+        assert_eq!(parse_score(&source, "compiler error").unwrap(), 0.0);
+        assert_eq!(
+            parse_score(
+                &source,
+                ">>>>> Start Structured Result\n{\"valid\":false}\n>>>>> End Structured Result",
+            )
+            .unwrap(),
+            0.0
+        );
+    }
+
+    #[test]
+    fn malformed_marked_result_remains_a_protocol_error() {
+        let error = parse_score(
+            &structured_source(),
+            ">>>>> Start Structured Result\n{not json}\n>>>>> End Structured Result",
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("invalid structured Judge JSON"));
+    }
+
+    #[test]
+    fn judge_container_uses_only_the_required_override_capability() {
+        let mut command = Command::new("docker");
+        configure_judge_container(&mut command);
+        let arguments = command
+            .get_args()
+            .map(|value| value.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert!(arguments
+            .windows(2)
+            .any(|pair| pair == ["--cap-drop", "ALL"]));
+        assert!(arguments
+            .windows(2)
+            .any(|pair| pair == ["--cap-add", "DAC_OVERRIDE"]));
+        assert!(arguments
+            .windows(2)
+            .any(|pair| pair == ["--security-opt", "no-new-privileges"]));
+    }
+
+    #[test]
+    fn judge_exit_classification_separates_candidate_and_infrastructure_failures() {
+        for exit_code in [None, Some(124), Some(137), Some(143)] {
+            assert!(abnormal_judge_exit(exit_code));
+        }
+        for exit_code in [Some(0), Some(1), Some(2)] {
+            assert!(!abnormal_judge_exit(exit_code));
+        }
     }
 
     #[test]

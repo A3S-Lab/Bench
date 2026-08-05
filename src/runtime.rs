@@ -8,41 +8,75 @@ use std::time::{Duration, Instant};
 
 use crate::runtime_selection::{RuntimeSelection, A3S_BOX_PROVIDER, DOCKER_PROVIDER};
 
-/// Pull a Docker image with exponential backoff retry.
-/// Transient network failures (DNS timeouts, connection refused, etc.)
-/// should not cause the entire benchmark run to fail.
-pub fn pull_image_with_retry(reference: &str, platform: Option<&str>) -> Result<()> {
-    const MAX_ATTEMPTS: u32 = 3;
-    const BASE_DELAY: Duration = Duration::from_secs(5);
+const IMAGE_PULL_ATTEMPTS: u32 = 3;
+const IMAGE_PULL_BASE_DELAY: Duration = Duration::from_secs(5);
 
-    for attempt in 1..=MAX_ATTEMPTS {
-        let mut pull = Command::new("docker");
-        pull.arg("pull");
-        if let Some(p) = platform {
-            pull.args(["--platform", p]);
-        }
-        let pull = pull
-            .arg(reference)
-            .output()
-            .context("could not start Docker image pull")?;
-        if pull.status.success() {
+struct ImagePullAttempt {
+    succeeded: bool,
+    stderr: String,
+}
+
+/// Pull a Docker image with exponential backoff so a transient registry or
+/// network failure does not abort an otherwise valid benchmark run.
+pub fn pull_image_with_retry(reference: &str, platform: Option<&str>) -> Result<()> {
+    retry_image_pull(
+        reference,
+        IMAGE_PULL_ATTEMPTS,
+        IMAGE_PULL_BASE_DELAY,
+        || {
+            let output = docker_pull_command(reference, platform)
+                .output()
+                .context("could not start Docker image pull")?;
+            Ok(ImagePullAttempt {
+                succeeded: output.status.success(),
+                stderr: String::from_utf8_lossy(&output.stderr).trim().to_owned(),
+            })
+        },
+        std::thread::sleep,
+    )
+}
+
+fn docker_pull_command(reference: &str, platform: Option<&str>) -> Command {
+    let mut command = Command::new("docker");
+    command.arg("pull");
+    if let Some(platform) = platform {
+        command.args(["--platform", platform]);
+    }
+    command.arg(reference);
+    command
+}
+
+fn retry_image_pull<P, S>(
+    reference: &str,
+    max_attempts: u32,
+    base_delay: Duration,
+    mut pull: P,
+    mut sleep: S,
+) -> Result<()>
+where
+    P: FnMut() -> Result<ImagePullAttempt>,
+    S: FnMut(Duration),
+{
+    anyhow::ensure!(max_attempts > 0, "Docker pull attempts must be positive");
+    let mut last_error = String::new();
+    for attempt in 1..=max_attempts {
+        let outcome = pull()?;
+        if outcome.succeeded {
             return Ok(());
         }
-        let stderr = String::from_utf8_lossy(&pull.stderr).trim().to_owned();
-        if attempt < MAX_ATTEMPTS {
-            let delay = BASE_DELAY * 2u32.pow(attempt - 1);
+        last_error = outcome.stderr;
+        if attempt < max_attempts {
+            let delay = base_delay * 2u32.pow(attempt - 1);
             eprintln!(
-                "Docker pull attempt {attempt}/{MAX_ATTEMPTS} for {reference:?} failed: {stderr}"
+                "Docker pull attempt {attempt}/{max_attempts} for {reference:?} failed: {last_error}"
             );
             eprintln!("Retrying in {delay:?}...");
-            std::thread::sleep(delay);
-        } else {
-            anyhow::bail!(
-                "could not pull Docker image {reference:?} after {MAX_ATTEMPTS} attempts: {stderr}"
-            );
+            sleep(delay);
         }
     }
-    unreachable!()
+    anyhow::bail!(
+        "could not pull Docker image {reference:?} after {max_attempts} attempts: {last_error}"
+    )
 }
 
 static CANDIDATE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -478,6 +512,71 @@ mod tests {
         assert_eq!(canonical_platform("linux/aarch64").unwrap(), "linux/arm64");
         assert!(canonical_platform("linux").is_err());
         assert!(canonical_platform("linux/amd64/v2").is_err());
+    }
+
+    #[test]
+    fn docker_pull_command_keeps_reference_and_platform_as_arguments() {
+        let command = docker_pull_command("registry.example/image:tag", Some("linux/amd64"));
+        let arguments = command
+            .get_args()
+            .map(|value| value.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            arguments,
+            [
+                "pull",
+                "--platform",
+                "linux/amd64",
+                "registry.example/image:tag"
+            ]
+        );
+    }
+
+    #[test]
+    fn docker_pull_retries_with_exponential_backoff() {
+        let mut attempts = 0;
+        let mut delays = Vec::new();
+        retry_image_pull(
+            "example.invalid/image:tag",
+            3,
+            Duration::from_millis(5),
+            || {
+                attempts += 1;
+                Ok(ImagePullAttempt {
+                    succeeded: attempts == 3,
+                    stderr: "temporary registry failure".into(),
+                })
+            },
+            |delay| delays.push(delay),
+        )
+        .unwrap();
+
+        assert_eq!(attempts, 3);
+        assert_eq!(
+            delays,
+            [Duration::from_millis(5), Duration::from_millis(10)]
+        );
+    }
+
+    #[test]
+    fn docker_pull_reports_the_last_failure() {
+        let error = retry_image_pull(
+            "example.invalid/image:tag",
+            2,
+            Duration::ZERO,
+            || {
+                Ok(ImagePullAttempt {
+                    succeeded: false,
+                    stderr: "registry unavailable".into(),
+                })
+            },
+            |_| {},
+        )
+        .unwrap_err();
+
+        let message = error.to_string();
+        assert!(message.contains("after 2 attempts"));
+        assert!(message.contains("registry unavailable"));
     }
 
     #[cfg(unix)]
