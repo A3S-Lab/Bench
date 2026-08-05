@@ -4,12 +4,17 @@ All notable changes to a3s-bench are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-08-05
+
 ### Changed
 
 - Candidate deadline expiry now preserves and judges the final workspace
   instead of discarding partial work. Result schema v5 records a typed
   `candidate_execution` status and timeout while remaining able to load v4
   results.
+- Redesigned the project README around the immutable evaluation contract,
+  complete smoke run, Task-owned Judge boundary, supported providers, and
+  current release limitations.
 
 ### Fixed
 
@@ -119,7 +124,8 @@ Initial development preview.
   execution, and native Codex/Claude Code adapters remain incomplete.
 - Preview artifacts produce only `local_unofficial` results.
 
+[0.1.2]: https://github.com/A3S-Lab/Bench/releases/tag/v0.1.2
 [0.1.1]: https://github.com/A3S-Lab/Bench/releases/tag/v0.1.1
 [0.1.0]: https://github.com/A3S-Lab/Bench/releases/tag/v0.1.0
 [0.1.0-preview.1]: https://github.com/A3S-Lab/Bench/releases/tag/v0.1.0-preview.1
-[Unreleased]: https://github.com/A3S-Lab/Bench/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/A3S-Lab/Bench/compare/v0.1.2...HEAD
