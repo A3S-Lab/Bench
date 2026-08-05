@@ -6,20 +6,15 @@ use std::path::{Path, PathBuf};
 pub fn project(source: &Path, destination: &Path, policy: &SubmissionPolicy) -> Result<()> {
     let include = compile_patterns(&policy.include)?;
     let exclude = compile_patterns(&policy.exclude)?;
-    let files = collect_terminal_files(source, policy)?;
+    let files = collect_terminal_files(source, policy, &include, &exclude)?;
     crate::state_fs::secure_directory(destination)?;
     for (relative, _) in files {
-        let normalized = normalize(&relative)?;
-        if !include.is_match(&normalized) || exclude.is_match(&normalized) || reserved(&normalized)
-        {
-            continue;
-        }
         let target = destination.join(&relative);
         if let Some(parent) = target.parent() {
             crate::state_fs::secure_directory(parent)?;
         }
         std::fs::copy(source.join(&relative), &target)
-            .with_context(|| format!("could not project submission file {normalized:?}"))?;
+            .with_context(|| format!("could not project submission file {}", relative.display()))?;
         crate::state_fs::set_owner_only_file(&target, false)?;
     }
     Ok(())
@@ -39,13 +34,19 @@ pub fn validate_policy(policy: &SubmissionPolicy) -> Result<()> {
     Ok(())
 }
 
-fn collect_terminal_files(root: &Path, policy: &SubmissionPolicy) -> Result<Vec<(PathBuf, u64)>> {
+fn collect_terminal_files(
+    root: &Path,
+    policy: &SubmissionPolicy,
+    include: &GlobSet,
+    exclude: &GlobSet,
+) -> Result<Vec<(PathBuf, u64)>> {
     fn visit(
         root: &Path,
         directory: &Path,
-        files: &mut Vec<(PathBuf, u64)>,
         policy: &SubmissionPolicy,
-        total: &mut u64,
+        include: &GlobSet,
+        exclude: &GlobSet,
+        files: &mut Vec<(PathBuf, u64)>,
     ) -> Result<()> {
         for entry in std::fs::read_dir(directory)? {
             let entry = entry?;
@@ -60,36 +61,54 @@ fn collect_terminal_files(root: &Path, policy: &SubmissionPolicy) -> Result<Vec<
                     normalized.split('/').count() <= 64,
                     "terminal path is too deep"
                 );
-                visit(root, &entry.path(), files, policy, total)?;
+                visit(root, &entry.path(), policy, include, exclude, files)?;
             } else if kind.is_file() {
+                // Only count files that match the submission include/exclude policy,
+                // so build artifacts and caches outside the submission scope don't
+                // inflate the total.
+                if !include.is_match(&normalized)
+                    || exclude.is_match(&normalized)
+                    || reserved(&normalized)
+                {
+                    continue;
+                }
                 let metadata = entry.metadata()?;
-                anyhow::ensure!(
-                    metadata.len() <= policy.max_file_bytes,
-                    "terminal file exceeds size limit"
-                );
-                *total = total
-                    .checked_add(metadata.len())
-                    .ok_or_else(|| anyhow::anyhow!("terminal size overflow"))?;
-                anyhow::ensure!(
-                    *total <= policy.max_total_bytes,
-                    "terminal workspace exceeds total size limit"
-                );
+                if metadata.len() > policy.max_file_bytes {
+                    continue;
+                }
                 files.push((relative, metadata.len()));
-                anyhow::ensure!(
-                    files.len() <= policy.max_files,
-                    "terminal workspace exceeds file-count limit"
-                );
             } else {
-                anyhow::bail!("terminal workspace contains a special file");
+                // Skip special files (sockets, FIFOs, device nodes) left
+                // behind by the candidate's runtime instead of failing.
+                eprintln!(
+                    "skipping special file in terminal workspace: {}",
+                    relative.display()
+                );
+                continue;
             }
         }
         Ok(())
     }
-    let mut files = Vec::new();
-    let mut total = 0;
-    visit(root, root, &mut files, policy, &mut total)?;
-    files.sort_by(|left, right| left.0.cmp(&right.0));
-    Ok(files)
+    let mut candidates = Vec::new();
+    visit(root, root, policy, include, exclude, &mut candidates)?;
+    candidates.sort_by(|left, right| left.0.cmp(&right.0));
+
+    let mut selected = Vec::with_capacity(candidates.len().min(policy.max_files));
+    let mut total = 0_u64;
+    for (relative, size) in candidates {
+        if selected.len() == policy.max_files {
+            break;
+        }
+        let Some(new_total) = total.checked_add(size) else {
+            continue;
+        };
+        if new_total > policy.max_total_bytes {
+            continue;
+        }
+        total = new_total;
+        selected.push((relative, size));
+    }
+    Ok(selected)
 }
 
 fn compile_patterns(patterns: &[String]) -> Result<GlobSet> {
@@ -275,5 +294,98 @@ mod tests {
             std::fs::read_to_string(output.path().join("readme")).unwrap(),
             "lower"
         );
+    }
+
+    #[test]
+    fn oversized_workspace_is_truncated_not_aborted() {
+        let source = tempfile::tempdir().unwrap();
+        let output = tempfile::tempdir().unwrap();
+
+        // Create files that match the include pattern but exceed total size.
+        let _ = std::fs::write(source.path().join("a.txt"), vec![b'x'; 600]);
+        let _ = std::fs::write(source.path().join("b.txt"), vec![b'y'; 600]);
+
+        // max_total_bytes = 1024, so only the first file fits.
+        let small_policy = SubmissionPolicy {
+            include: vec!["**".into()],
+            exclude: vec![],
+            max_files: 100,
+            max_total_bytes: 1024,
+            max_file_bytes: 1024,
+        };
+
+        project(source.path(), output.path(), &small_policy).unwrap();
+
+        assert!(output.path().join("a.txt").is_file());
+        assert!(!output.path().join("b.txt").exists());
+    }
+
+    #[test]
+    fn truncation_is_deterministic_and_keeps_later_files_that_fit() {
+        let source = tempfile::tempdir().unwrap();
+        let output = tempfile::tempdir().unwrap();
+        std::fs::write(source.path().join("c.txt"), vec![b'c'; 400]).unwrap();
+        std::fs::write(source.path().join("b.txt"), vec![b'b'; 600]).unwrap();
+        std::fs::write(source.path().join("a.txt"), vec![b'a'; 600]).unwrap();
+        let small_policy = SubmissionPolicy {
+            include: vec!["**".into()],
+            exclude: vec![],
+            max_files: 100,
+            max_total_bytes: 1024,
+            max_file_bytes: 1024,
+        };
+
+        project(source.path(), output.path(), &small_policy).unwrap();
+
+        assert!(output.path().join("a.txt").is_file());
+        assert!(!output.path().join("b.txt").exists());
+        assert!(output.path().join("c.txt").is_file());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn special_files_are_skipped_without_losing_regular_files() {
+        use std::os::unix::net::UnixListener;
+
+        let source = tempfile::tempdir().unwrap();
+        let output = tempfile::tempdir().unwrap();
+        std::fs::write(source.path().join("answer.txt"), "42").unwrap();
+        let _socket = UnixListener::bind(source.path().join("runtime.sock")).unwrap();
+
+        project(source.path(), output.path(), &policy(&["**"], &[])).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(output.path().join("answer.txt")).unwrap(),
+            "42"
+        );
+        assert!(!output.path().join("runtime.sock").exists());
+    }
+
+    #[test]
+    fn build_artifacts_outside_submission_scope_do_not_count_toward_limits() {
+        let source = tempfile::tempdir().unwrap();
+        let output = tempfile::tempdir().unwrap();
+
+        // A large file that would exceed limits but is excluded by the policy.
+        std::fs::create_dir_all(source.path().join("target")).unwrap();
+        let _ = std::fs::write(source.path().join("target/big.bin"), vec![b'z'; 10_000]);
+
+        // A small submission file that should pass.
+        let _ = std::fs::write(source.path().join("output.txt"), "result");
+
+        let small_policy = SubmissionPolicy {
+            include: vec!["output.txt".into()],
+            exclude: vec![],
+            max_files: 100,
+            max_total_bytes: 1024,
+            max_file_bytes: 1024,
+        };
+
+        project(source.path(), output.path(), &small_policy).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(output.path().join("output.txt")).unwrap(),
+            "result"
+        );
+        assert!(!output.path().join("target").exists());
     }
 }

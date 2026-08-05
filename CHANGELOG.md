@@ -15,10 +15,19 @@ All notable changes to a3s-bench are documented in this file.
 
 - Accepted workspace-internal relative symlinks from OCI seeds while rejecting
   absolute, escaping, cyclic, and unresolvable links.
+- Extracted OCI workspace seeds without preserving container ownership or
+  interpolating paths through a shell.
+- Retried transient Docker image-pull failures with exponential backoff.
 - Implemented every imported score-rescale kind and made invalid domains or
   degenerate parameters resolve to finite scores.
-- Kept Judge execution running when best-effort `chmod` is denied, without
-  hiding submission copy failures.
+- Let legacy Judges access their workspace with only `CAP_DAC_OVERRIDE`, raised
+  their memory limit to 16 GiB, and removed the recursive permission rewrite.
+- Recorded zero for ordinary Judge rejections and unbuildable submissions while
+  retaining infrastructure errors for timeouts, signal kills, and malformed
+  structured output.
+- Applied submission filters before limits, truncated oversized projections
+  deterministically, and ignored non-projectable sockets and other special
+  files.
 - Preserved case-distinct Linux paths and copied hard-linked files as
   independent regular submission files.
 - Replaced candidate pipe capture with anonymous temporary files so descendant

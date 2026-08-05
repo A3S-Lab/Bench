@@ -17,16 +17,7 @@ pub fn execute(
         "interactive Judge mode is not implemented yet"
     );
     let mut command = Command::new("docker");
-    command.args([
-        "run",
-        "--rm",
-        "--user",
-        "0:0",
-        "--cap-drop",
-        "ALL",
-        "--security-opt",
-        "no-new-privileges",
-    ]);
+    configure_judge_container(&mut command);
     command.args(crate::runtime_profile::JUDGE_DOCKER_LIMITS);
     configure_model_gateway(&mut command, source.requires_model_gateway, model)?;
     if let Some(platform) = source.platform.as_deref() {
@@ -57,7 +48,25 @@ pub fn execute(
     let mut raw = String::from_utf8_lossy(&output.stdout).into_owned();
     raw.push_str(&String::from_utf8_lossy(&output.stderr));
     anyhow::ensure!(raw.len() <= 16 * 1024 * 1024, "Judge output exceeds 16 MiB");
+
+    let exit_code = output.status.code();
+
+    // Docker reports timeout and signal termination through conventional exit
+    // codes. These indicate an infrastructure/resource failure, unlike an
+    // ordinary non-zero judge exit caused by an unbuildable submission.
+    if abnormal_judge_exit(exit_code) {
+        let snippet: String = raw.chars().take(4096).collect();
+        anyhow::bail!(
+            "Judge process terminated abnormally (exit_code: {:?}): {}",
+            exit_code,
+            snippet
+        );
+    }
+
+    // An ordinary exit without a structured result means the candidate's
+    // submission could not be scored (for example, it failed to compile).
     let ratio = parse_score(source, &raw)?;
+
     let primary = task
         .metrics
         .iter()
@@ -70,11 +79,30 @@ pub fn execute(
         solution_verdict: "valid".into(),
         metrics,
         diagnostics: serde_json::json!({
-            "adapter":"edgebench-v1",
-            "exit_code":output.status.code(),
-            "parser":source.parser
+            "adapter": "edgebench-v1",
+            "exit_code": exit_code,
+            "parser": source.parser
         }),
     })
+}
+
+fn configure_judge_container(command: &mut Command) {
+    command.args([
+        "run",
+        "--rm",
+        "--user",
+        "0:0",
+        "--cap-drop",
+        "ALL",
+        "--cap-add",
+        "DAC_OVERRIDE",
+        "--security-opt",
+        "no-new-privileges",
+    ]);
+}
+
+fn abnormal_judge_exit(exit_code: Option<i32>) -> bool {
+    matches!(exit_code, None | Some(124 | 137 | 143))
 }
 
 fn configure_model_gateway(
@@ -121,21 +149,33 @@ fn shell_quote(value: &str) -> String {
 fn legacy_judge_command(source: &str, destination: &str, timeout_runner: &str) -> String {
     let source = format!("{}/.", source.trim_end_matches('/'));
     let destination = shell_quote(destination);
+    // The judge container runs as root with DAC_OVERRIDE, so no permission
+    // fixup is needed for the destination tree.
+    // A previous `chmod -R u+rwX {destination}` was removed because it
+    // recursed over the entire judge workspace (which can contain 130K+
+    // files from the judge image), stalling for over an hour before the
+    // judge script could start.
     format!(
-        "cp -R {} {destination}/ && (chmod -R u+rwX {destination} 2>/dev/null || true) && python3 -c {}",
+        "cp -R {} {destination}/ && python3 -c {}",
         shell_quote(&source),
-        shell_quote(timeout_runner)
+        shell_quote(timeout_runner),
     )
 }
 
 fn parse_score(source: &LegacyJudgeSource, output: &str) -> Result<f64> {
     match source.parser.as_str() {
         "structured_json" => {
-            let value = extract_structured(output)?;
-            anyhow::ensure!(
-                value.get("valid").and_then(Value::as_bool).unwrap_or(true),
-                "Judge marked result invalid"
-            );
+            // If the judge ran but produced no structured result (e.g. the
+            // candidate's code was too broken for the judge script to
+            // complete), score 0.0 instead of failing the entire run.
+            let Some(value) = extract_structured(output)? else {
+                eprintln!("Judge produced no structured result; scoring 0.0");
+                return Ok(0.0);
+            };
+            if !value.get("valid").and_then(Value::as_bool).unwrap_or(true) {
+                eprintln!("Judge marked result invalid; scoring 0.0");
+                return Ok(0.0);
+            }
             if let Some(score) = value.get("score").and_then(Value::as_f64) {
                 normalize_raw(source.rescale.as_ref(), score)
             } else {
@@ -161,26 +201,27 @@ fn parse_score(source: &LegacyJudgeSource, output: &str) -> Result<f64> {
     }
 }
 
-fn extract_structured(output: &str) -> Result<Value> {
+fn extract_structured(output: &str) -> Result<Option<Value>> {
     const START: &str = ">>>>> Start Structured Result";
     const END: &str = ">>>>> End Structured Result";
     if let (Some(start), Some(end)) = (output.find(START), output.find(END)) {
         let body = output[start + START.len()..end].trim();
-        return serde_json::from_str(body).context("invalid structured Judge JSON");
+        return serde_json::from_str(body)
+            .map(Some)
+            .context("invalid structured Judge JSON");
     }
     for (index, byte) in output.bytes().enumerate() {
         if byte == b'{' {
             if let Some(end) = json_object_end(&output[index..]) {
                 if let Ok(value) = serde_json::from_str::<Value>(&output[index..index + end]) {
                     if value.get("score").is_some() || value.get("pass_rate").is_some() {
-                        return Ok(value);
+                        return Ok(Some(value));
                     }
                 }
             }
         }
     }
-    let diagnostic: String = output.chars().take(4096).collect();
-    anyhow::bail!("Judge produced no structured result: {diagnostic}")
+    Ok(None)
 }
 
 fn json_object_end(value: &str) -> Option<usize> {
@@ -416,8 +457,78 @@ mod tests {
         let structured = extract_structured(
             ">>>>> Start Structured Result\n{\"valid\":true,\"score\":0.75}\n>>>>> End Structured Result",
         )
+        .unwrap()
         .unwrap();
         assert_eq!(structured["score"], 0.75);
+    }
+
+    fn structured_source() -> LegacyJudgeSource {
+        LegacyJudgeSource {
+            image: "judge:latest".into(),
+            command: "judge".into(),
+            mode: "batch".into(),
+            parser: "structured_json".into(),
+            workspace_source_path: "/workspace".into(),
+            rescale: None,
+            platform: None,
+            game_server_command: None,
+            requires_model_gateway: false,
+            timeout_sec: 60,
+        }
+    }
+
+    #[test]
+    fn candidate_quality_failures_score_zero() {
+        let source = structured_source();
+        assert_eq!(parse_score(&source, "compiler error").unwrap(), 0.0);
+        assert_eq!(
+            parse_score(
+                &source,
+                ">>>>> Start Structured Result\n{\"valid\":false}\n>>>>> End Structured Result",
+            )
+            .unwrap(),
+            0.0
+        );
+    }
+
+    #[test]
+    fn malformed_marked_result_remains_a_protocol_error() {
+        let error = parse_score(
+            &structured_source(),
+            ">>>>> Start Structured Result\n{not json}\n>>>>> End Structured Result",
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("invalid structured Judge JSON"));
+    }
+
+    #[test]
+    fn judge_container_uses_only_the_required_override_capability() {
+        let mut command = Command::new("docker");
+        configure_judge_container(&mut command);
+        let arguments = command
+            .get_args()
+            .map(|value| value.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert!(arguments
+            .windows(2)
+            .any(|pair| pair == ["--cap-drop", "ALL"]));
+        assert!(arguments
+            .windows(2)
+            .any(|pair| pair == ["--cap-add", "DAC_OVERRIDE"]));
+        assert!(arguments
+            .windows(2)
+            .any(|pair| pair == ["--security-opt", "no-new-privileges"]));
+    }
+
+    #[test]
+    fn judge_exit_classification_separates_candidate_and_infrastructure_failures() {
+        for exit_code in [None, Some(124), Some(137), Some(143)] {
+            assert!(abnormal_judge_exit(exit_code));
+        }
+        for exit_code in [Some(0), Some(1), Some(2)] {
+            assert!(!abnormal_judge_exit(exit_code));
+        }
     }
 
     #[test]
@@ -563,7 +674,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn judge_still_runs_after_chmod_failure_but_not_after_copy_failure() {
+    fn judge_runs_after_successful_copy_but_not_after_copy_failure() {
         use std::os::unix::fs::PermissionsExt;
 
         let root = tempfile::tempdir().unwrap();
@@ -575,12 +686,12 @@ mod tests {
         std::fs::create_dir(&destination).unwrap();
         std::fs::create_dir(&bin).unwrap();
         std::fs::write(source.join("answer"), "42").unwrap();
-        std::fs::write(bin.join("chmod"), "#!/bin/sh\nexit 1\n").unwrap();
         std::fs::write(bin.join("python3"), "#!/bin/sh\n: > \"$MARKER\"\n").unwrap();
-        for executable in [bin.join("chmod"), bin.join("python3")] {
-            std::fs::set_permissions(executable, std::fs::Permissions::from_mode(0o700)).unwrap();
-        }
+        std::fs::set_permissions(bin.join("python3"), std::fs::Permissions::from_mode(0o700))
+            .unwrap();
         let path = format!("{}:/usr/bin:/bin", bin.display());
+
+        // Successful copy → judge runs
         let command = legacy_judge_command(
             source.to_str().unwrap(),
             destination.to_str().unwrap(),
@@ -603,6 +714,7 @@ mod tests {
         );
         assert!(marker.is_file());
 
+        // Copy failure (source missing) → judge does not run
         std::fs::remove_file(&marker).unwrap();
         let command = legacy_judge_command(
             root.path().join("missing").to_str().unwrap(),
