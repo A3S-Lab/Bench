@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" role="img" aria-labelledby="title desc">
+  <title id="title">A3S Bench — reproducible evaluation for agents and automated systems</title>
+  <desc id="desc">An immutable TaskLock and CandidateLock enter an isolated run, a Task-owned Judge validates the projected submission, and Bench records a completed score.</desc>
+
+  <rect x="1" y="1" width="1198" height="418" rx="20" fill="#f7f6f2" stroke="#d8d9d5"/>
+  <path d="M0 354H1200" stroke="#d8d9d5"/>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+    <text x="54" y="54" fill="#62666d" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18" font-weight="700" letter-spacing="2">REPRODUCIBLE EVALUATION / RUST</text>
+    <text x="54" y="143" fill="#101214" font-size="72" font-weight="700" letter-spacing="-2.4">A3S BENCH</text>
+    <text x="54" y="193" fill="#101214" font-size="28" font-weight="600">Lock every input. Isolate every run.</text>
+    <text x="54" y="229" fill="#2563eb" font-size="28" font-weight="600">Let the Task own the Judge.</text>
+    <text x="54" y="279" fill="#62666d" font-size="21">
+      <tspan x="54" dy="0">Evaluate coding agents, automated systems,</tspan>
+      <tspan x="54" dy="30">and deterministic tools under one contract.</tspan>
+    </text>
+
+    <g transform="translate(54 340)" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" font-weight="700">
+      <text x="0" y="0" fill="#62666d">TASK</text>
+      <text x="58" y="0" fill="#101214">→</text>
+      <text x="90" y="0" fill="#62666d">CANDIDATE</text>
+      <text x="209" y="0" fill="#101214">→</text>
+      <text x="241" y="0" fill="#62666d">JUDGE</text>
+      <text x="307" y="0" fill="#101214">→</text>
+      <text x="339" y="0" fill="#178452">RESULT</text>
+    </g>
+
+    <g transform="translate(620 34)">
+      <rect width="526" height="292" rx="14" fill="#ffffff" stroke="#c9cbc8"/>
+      <text x="26" y="36" fill="#62666d" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17" font-weight="700" letter-spacing="1.4">EVALUATION RECEIPT</text>
+      <text x="414" y="36" fill="#178452" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17" font-weight="700">VALID</text>
+      <path d="M26 54H500" stroke="#d8d9d5"/>
+
+      <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+        <text x="26" y="85" fill="#62666d" font-size="17">TASK LOCK</text>
+        <text x="181" y="85" fill="#101214" font-size="18">sha256:8b0d…c14e</text>
+        <rect x="458" y="69" width="42" height="22" rx="4" fill="#eef3ff"/>
+        <text x="468" y="85" fill="#2563eb" font-size="15" font-weight="700">LOCK</text>
+
+        <text x="26" y="121" fill="#62666d" font-size="17">CANDIDATE</text>
+        <text x="181" y="121" fill="#101214" font-size="18">sha256:94fe…aa09</text>
+        <rect x="458" y="105" width="42" height="22" rx="4" fill="#eef3ff"/>
+        <text x="468" y="121" fill="#2563eb" font-size="15" font-weight="700">LOCK</text>
+      </g>
+
+      <rect x="26" y="143" width="474" height="54" rx="8" fill="#101214"/>
+      <text x="48" y="176" fill="#ffffff" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18" font-weight="700">ISOLATED RUN  →  TASK-OWNED JUDGE</text>
+
+      <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+        <text x="26" y="232" fill="#62666d" font-size="17">DISPOSITION</text>
+        <text x="181" y="232" fill="#178452" font-size="19" font-weight="700">COMPLETED</text>
+        <text x="26" y="268" fill="#62666d" font-size="17">PRIMARY SCORE</text>
+        <text x="181" y="268" fill="#101214" font-size="28" font-weight="700">1.0000</text>
+        <text x="340" y="268" fill="#62666d" font-size="15">local_unofficial</text>
+      </g>
+    </g>
+
+    <g transform="translate(54 381)" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17" font-weight="700">
+      <text x="0" y="0" fill="#101214">52 TASKS</text>
+      <text x="144" y="0" fill="#62666d">·</text>
+      <text x="176" y="0" fill="#101214">IMMUTABLE LOCKS</text>
+      <text x="376" y="0" fill="#62666d">·</text>
+      <text x="408" y="0" fill="#101214">READ-ONLY SUBMISSIONS</text>
+      <text x="671" y="0" fill="#62666d">·</text>
+      <text x="703" y="0" fill="#101214">IDENTITY-BOUND RESULTS</text>
+    </g>
+  </g>
+</svg>
