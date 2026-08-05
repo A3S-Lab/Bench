@@ -116,6 +116,8 @@ fn execute_inner(
         &candidate_workspace,
         game.as_ref(),
         &runtime_execution,
+        &journal.run_id,
+        state_root,
     )?;
     journal.advance(RunStage::CandidateCompleted)?;
     let submission = workspace::create_submission(&loaded.task, &candidate_workspace)?;
@@ -216,6 +218,8 @@ fn execute_candidate(
     candidate_workspace: &Path,
     game: Option<&game_judge::GameSession>,
     runtime_execution: &RuntimeExecution<'_>,
+    run_id: &str,
+    state_root: &Path,
 ) -> Result<CandidateRun> {
     let Some(model) = model else {
         anyhow::ensure!(
@@ -266,6 +270,10 @@ fn execute_candidate(
         )
     })?;
     let game_url = game.map(game_judge::GameSession::url);
+    // Persist the full candidate conversation under the bench state root
+    // so it can be inspected post-hoc (mirrors EdgeBench agent_output.txt).
+    let log_dir = state_root.join("runs").join(run_id);
+    std::fs::create_dir_all(&log_dir)?;
     let outcome = model_candidate::execute(model_candidate::ModelCandidateRequest {
         config_path,
         model,
@@ -287,6 +295,7 @@ fn execute_candidate(
         public_internet: task.work_network_need == "public_internet",
         timeout_sec: task.candidate_timeout_sec,
         max_tool_rounds: candidate.model_max_steps()?,
+        log_dir: Some(&log_dir),
     })?;
     Ok(match outcome {
         model_candidate::ModelCandidateOutcome::Completed(model_usage) => CandidateRun {

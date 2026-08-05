@@ -51,9 +51,10 @@ pub fn execute(
 
     let exit_code = output.status.code();
 
-    // Docker reports timeout and signal termination through conventional exit
-    // codes. These indicate an infrastructure/resource failure, unlike an
-    // ordinary non-zero judge exit caused by an unbuildable submission.
+    // Signal kills (OOM, SIGTERM) are infrastructure failures.  A timeout
+    // (exit_code 124) is NOT: the judge ran for the full descriptor timeout
+    // without crashing, meaning the candidate's code was too slow.  In that
+    // case we fall through to the normal scoring path.
     if abnormal_judge_exit(exit_code) {
         let snippet: String = raw.chars().take(4096).collect();
         anyhow::bail!(
@@ -61,6 +62,10 @@ pub fn execute(
             exit_code,
             snippet
         );
+    }
+
+    if exit_code == Some(124) {
+        eprintln!("Judge exceeded descriptor timeout; scoring 0.0");
     }
 
     // An ordinary exit without a structured result means the candidate's
@@ -102,7 +107,7 @@ fn configure_judge_container(command: &mut Command) {
 }
 
 fn abnormal_judge_exit(exit_code: Option<i32>) -> bool {
-    matches!(exit_code, None | Some(124 | 137 | 143))
+    matches!(exit_code, None | Some(137 | 143))
 }
 
 fn configure_model_gateway(
@@ -523,9 +528,11 @@ mod tests {
 
     #[test]
     fn judge_exit_classification_separates_candidate_and_infrastructure_failures() {
-        for exit_code in [None, Some(124), Some(137), Some(143)] {
+        for exit_code in [None, Some(137), Some(143)] {
             assert!(abnormal_judge_exit(exit_code));
         }
+        // Timeout (124) is not abnormal — it means the candidate was too slow.
+        assert!(!abnormal_judge_exit(Some(124)));
         for exit_code in [Some(0), Some(1), Some(2)] {
             assert!(!abnormal_judge_exit(exit_code));
         }

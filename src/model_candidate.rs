@@ -32,6 +32,11 @@ pub struct ModelCandidateRequest<'a> {
     pub public_internet: bool,
     pub timeout_sec: u64,
     pub max_tool_rounds: usize,
+    /// Optional directory for persisting the candidate's full conversation
+    /// history (session snapshot JSON + JSONL trajectory).  When set, a
+    /// sub-directory is created for this run so that every task's dialogue
+    /// can be inspected post-hoc, mirroring EdgeBench's `agent_output.txt`.
+    pub log_dir: Option<&'a Path>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -83,8 +88,13 @@ async fn execute_async(request: ModelCandidateRequest<'_>) -> Result<ModelCandid
             .map(|(network, url)| (network.to_owned(), url.to_owned())),
         public_internet: request.public_internet,
     });
-    let options =
-        candidate_session_options(request.model, &workspace, sandbox, request.max_tool_rounds);
+    let options = candidate_session_options(
+        request.model,
+        &workspace,
+        sandbox,
+        request.max_tool_rounds,
+        request.log_dir,
+    );
     let session = agent
         .session_builder(workspace.display().to_string())
         .options(options)
@@ -147,8 +157,9 @@ fn candidate_session_options(
     workspace: &Path,
     sandbox: Arc<dyn BashSandbox>,
     max_tool_rounds: usize,
+    log_dir: Option<&Path>,
 ) -> SessionOptions {
-    SessionOptions::new()
+    let mut options = SessionOptions::new()
         .with_model(model)
         .with_workspace_backend(WorkspaceServices::local(workspace))
         .with_sandbox_handle(sandbox)
@@ -157,7 +168,21 @@ fn candidate_session_options(
         .with_max_tool_rounds(max_tool_rounds)
         .with_planning_mode(PlanningMode::Auto)
         .with_continuation(true)
-        .with_manual_delegation_enabled(true)
+        .with_manual_delegation_enabled(true);
+
+    // Persist the full candidate conversation so it can be inspected
+    // after the run — mirrors EdgeBench's `agent_output.txt`.
+    if let Some(dir) = log_dir {
+        let session_dir = dir.join("sessions");
+        let trajectory_path = dir.join("trajectory.jsonl");
+        options = options
+            .with_file_session_store(&session_dir)
+            .with_rl_trajectory(a3s_code_core::rl_trajectory::RlTrajectoryConfig::new(
+                &trajectory_path,
+            ));
+    }
+
+    options
 }
 
 struct DockerBashSandbox {
