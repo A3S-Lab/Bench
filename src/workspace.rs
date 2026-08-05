@@ -85,7 +85,7 @@ fn extract_seed_tree(container: &str, source_path: &str, destination: &Path) -> 
         .stdout
         .take()
         .ok_or_else(|| anyhow::anyhow!("Docker workspace copy did not expose an archive"))?;
-    let mut extract = match tar_extract_command(destination)
+    let extract = match tar_extract_command(destination)
         .stdin(Stdio::from(archive))
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
