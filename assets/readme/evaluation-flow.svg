@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 620" role="img" aria-labelledby="title desc">
+  <title id="title">A3S Bench evaluation contract</title>
+  <desc id="desc">A TaskLock and CandidateLock define an isolated Candidate run. Runtime captures a private workspace, Bench projects a bounded read-only submission, the Task-owned Judge receives that submission and a separate hidden bundle, and Bench validates metrics into an identity-bound score.</desc>
+  <defs>
+    <marker id="arrow-blue" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0 0L10 5L0 10Z" fill="#2563eb"/>
+    </marker>
+    <marker id="arrow-gray" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0 0L10 5L0 10Z" fill="#8a8e95"/>
+    </marker>
+  </defs>
+
+  <rect x="1" y="1" width="1198" height="618" rx="20" fill="#ffffff" stroke="#d8d9d5"/>
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+    <text x="48" y="54" fill="#101214" font-size="34" font-weight="700" letter-spacing="-0.6">One Task · one Candidate · one Judge · one result</text>
+    <text x="48" y="86" fill="#62666d" font-size="20">Every boundary is explicit, digest-bound, and independently validated.</text>
+
+    <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17" font-weight="700" letter-spacing="1.1" fill="#62666d">
+      <text x="48" y="151">LOCKED INPUTS</text>
+      <text x="48" y="265">CANDIDATE</text>
+      <text x="48" y="382">PROJECTION</text>
+      <text x="48" y="499">JUDGE</text>
+    </g>
+
+    <g>
+      <rect x="204" y="116" width="270" height="70" rx="10" fill="#f7f6f2" stroke="#c9cbc8"/>
+      <text x="228" y="145" fill="#101214" font-size="20" font-weight="700">TaskLock</text>
+      <text x="228" y="171" fill="#62666d" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17">prompt · limits · judge</text>
+
+      <rect x="492" y="116" width="270" height="70" rx="10" fill="#f7f6f2" stroke="#c9cbc8"/>
+      <text x="516" y="145" fill="#101214" font-size="20" font-weight="700">CandidateLock</text>
+      <text x="516" y="171" fill="#62666d" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17">adapter · model · digest</text>
+
+      <rect x="780" y="116" width="368" height="70" rx="10" fill="#f7f6f2" stroke="#c9cbc8"/>
+      <text x="804" y="145" fill="#101214" font-size="20" font-weight="700">Task-owned Judge snapshot</text>
+      <text x="804" y="171" fill="#62666d" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17">locked with the Task</text>
+    </g>
+
+    <path d="M339 186V218H508" fill="none" stroke="#2563eb" stroke-width="3"/>
+    <path d="M627 186V218H508" fill="none" stroke="#2563eb" stroke-width="3"/>
+    <path d="M508 218V232" stroke="#2563eb" stroke-width="3" marker-end="url(#arrow-blue)"/>
+
+    <g>
+      <rect x="204" y="244" width="558" height="78" rx="10" fill="#101214"/>
+      <text x="230" y="275" fill="#8eb3ff" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17" font-weight="700">ISOLATED RUNTIME EXECUTION</text>
+      <text x="230" y="305" fill="#ffffff" font-size="20" font-weight="600">Candidate receives public Task inputs only</text>
+
+      <rect x="780" y="244" width="368" height="78" rx="10" fill="#fff7ed" stroke="#e7caa5"/>
+      <text x="804" y="275" fill="#8a5a18" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17" font-weight="700">PROTECTED</text>
+      <text x="804" y="305" fill="#101214" font-size="19" font-weight="600">Hidden bundle never enters Candidate</text>
+    </g>
+
+    <path d="M483 322V348" stroke="#2563eb" stroke-width="3" marker-end="url(#arrow-blue)"/>
+
+    <g>
+      <rect x="204" y="360" width="270" height="78" rx="10" fill="#f7f6f2" stroke="#c9cbc8"/>
+      <text x="228" y="391" fill="#101214" font-size="20" font-weight="700">Private workspace</text>
+      <text x="228" y="419" fill="#62666d" font-size="18">Candidate terminal state</text>
+
+      <rect x="492" y="360" width="270" height="78" rx="10" fill="#eef3ff" stroke="#a8bce7"/>
+      <text x="516" y="391" fill="#101214" font-size="20" font-weight="700">SubmissionSnapshot</text>
+      <text x="516" y="419" fill="#2563eb" font-size="18">filtered · bounded · read-only</text>
+
+      <path d="M474 399H480" stroke="#2563eb" stroke-width="3" marker-end="url(#arrow-blue)"/>
+
+      <rect x="780" y="360" width="368" height="78" rx="10" fill="#fff7ed" stroke="#e7caa5"/>
+      <text x="804" y="391" fill="#101214" font-size="20" font-weight="700">Separate hidden mount</text>
+      <text x="804" y="419" fill="#8a5a18" font-size="18">read-only · Judge only</text>
+    </g>
+
+    <path d="M627 438V463H660" fill="none" stroke="#2563eb" stroke-width="3" marker-end="url(#arrow-blue)"/>
+    <path d="M964 438V475H754" fill="none" stroke="#8a8e95" stroke-width="3" marker-end="url(#arrow-gray)"/>
+    <path d="M964 186V232" stroke="#8a8e95" stroke-width="3" marker-end="url(#arrow-gray)"/>
+
+    <g>
+      <rect x="204" y="476" width="558" height="82" rx="10" fill="#101214"/>
+      <text x="230" y="507" fill="#8eb3ff" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17" font-weight="700">TASK-OWNED JUDGE</text>
+      <text x="230" y="538" fill="#ffffff" font-size="20" font-weight="600">typed metrics · closed result contract</text>
+
+      <path d="M762 517H790" stroke="#2563eb" stroke-width="3" marker-end="url(#arrow-blue)"/>
+
+      <rect x="804" y="476" width="344" height="82" rx="10" fill="#edf8f2" stroke="#9bcbb0"/>
+      <text x="828" y="507" fill="#178452" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17" font-weight="700">VALIDATED RESULT</text>
+      <text x="828" y="538" fill="#101214" font-size="20" font-weight="700">metrics → score → receipt</text>
+    </g>
+
+    <text x="204" y="592" fill="#62666d" font-size="18">Bench binds the result to both locks, the run journal, the submission policy, and the Judge identity.</text>
+  </g>
+</svg>
