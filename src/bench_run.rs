@@ -210,6 +210,7 @@ fn start_game(task: &task::TaskInfo, state_root: &Path) -> Result<Option<game_ju
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn execute_candidate(
     task: &task::TaskInfo,
     candidate: &asset::LocalAssetPackage,

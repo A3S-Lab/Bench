@@ -297,7 +297,7 @@ mod tests {
             game_network: None,
             public_internet: false,
         });
-        let options = candidate_session_options("openai/fake", workspace.path(), sandbox, 64);
+        let options = candidate_session_options("openai/fake", workspace.path(), sandbox, 64, None);
 
         assert_eq!(options.planning_mode, PlanningMode::Auto);
         assert_eq!(options.continuation_enabled, Some(true));
@@ -480,6 +480,7 @@ mod tests {
             public_internet: false,
             timeout_sec: 30,
             max_tool_rounds: 32,
+            log_dir: None,
         })
         .unwrap();
         let ModelCandidateOutcome::Completed(execution) = execution else {

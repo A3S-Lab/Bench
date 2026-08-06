@@ -281,7 +281,7 @@ pub(crate) fn normalize_raw(spec: Option<&Value>, raw: f64) -> Result<f64> {
         return Ok(0.0);
     }
     let Some(spec) = spec else {
-        return Ok(raw.clamp(0.0, 1.0));
+        return Ok(raw.clamp(0.0, 100.0) / 100.0);
     };
     let get = |name: &str| -> Result<f64> {
         let value = spec
@@ -652,6 +652,21 @@ mod tests {
             assert!(value.is_finite());
             assert_eq!(value, 0.0);
         }
+    }
+
+    #[test]
+    fn normalize_raw_without_rescale_maps_0_100_to_0_1() {
+        // Tasks without a rescale_hint output raw scores already in the
+        // 0–100 range (e.g. structured_json judges).  normalize_raw(None, _)
+        // must clamp to 0–100 and divide by 100 so that e.g. a raw 15.1
+        // becomes 0.151 — not a clamped 1.0 perfect score.
+        assert_eq!(normalize_raw(None, 0.0).unwrap(), 0.0);
+        assert_eq!(normalize_raw(None, 50.0).unwrap(), 0.5);
+        assert_eq!(normalize_raw(None, 100.0).unwrap(), 1.0);
+        assert_eq!(normalize_raw(None, 15.1).unwrap(), 0.151);
+        // out-of-range values are clamped to the 0–100 band before scaling
+        assert_eq!(normalize_raw(None, 150.0).unwrap(), 1.0);
+        assert_eq!(normalize_raw(None, -10.0).unwrap(), 0.0);
     }
 
     #[test]
