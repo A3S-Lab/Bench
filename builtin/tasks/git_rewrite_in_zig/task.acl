@@ -39,7 +39,7 @@ bench "git_rewrite_in_zig" {
 
   judge {
     asset                = "private/judge"
-    solution_timeout_sec = 7200
+    solution_timeout_sec = 43200
   }
 
   metric "score" {

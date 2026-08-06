@@ -105,7 +105,11 @@ def render_task_acl(task: dict[str, Any]) -> str:
     network = "public_internet" if task.get("internet", True) else "none"
     include = acl_list(task["submit_paths"], indent="      ")
     exclude = acl_list(normalized_excludes(task), indent="      ")
-    timeout = int(task["judge"].get("eval_timeout", 600))
+    eval_timeout = int(task["judge"].get("eval_timeout", 600))
+    # EdgeBench official leaderboard gives every task 43200s (12h) of agent
+    # solving time (experiment.yaml defaults.timeout).  The per-task
+    # eval_timeout is the judge-script budget, NOT the agent budget.
+    agent_timeout = 43200
     return f'''# Third-party source details: ../../{PROVENANCE_REF}
 bench {acl_string(task_id)} {{
   schema  = "a3s-bench/task/v1"
@@ -137,7 +141,7 @@ bench {acl_string(task_id)} {{
 
   judge {{
     asset                = "private/judge"
-    solution_timeout_sec = {timeout}
+    solution_timeout_sec = {agent_timeout}
   }}
 
   metric "score" {{

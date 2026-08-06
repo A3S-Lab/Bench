@@ -33,7 +33,7 @@ bench "warehouse_forklift_routing" {
 
   judge {
     asset                = "private/judge"
-    solution_timeout_sec = 3600
+    solution_timeout_sec = 43200
   }
 
   metric "score" {

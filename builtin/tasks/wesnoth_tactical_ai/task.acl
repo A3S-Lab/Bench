@@ -33,7 +33,7 @@ bench "wesnoth_tactical_ai" {
 
   judge {
     asset                = "private/judge"
-    solution_timeout_sec = 900
+    solution_timeout_sec = 43200
   }
 
   metric "score" {

@@ -39,7 +39,7 @@ bench "jagua_nesting_optimization" {
 
   judge {
     asset                = "private/judge"
-    solution_timeout_sec = 1200
+    solution_timeout_sec = 43200
   }
 
   metric "score" {

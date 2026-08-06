@@ -36,7 +36,7 @@ bench "ffmpeg_swscale_reimplementation" {
 
   judge {
     asset                = "private/judge"
-    solution_timeout_sec = 5400
+    solution_timeout_sec = 43200
   }
 
   metric "score" {

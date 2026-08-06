@@ -35,7 +35,7 @@ bench "graph_node_classification" {
 
   judge {
     asset                = "private/judge"
-    solution_timeout_sec = 1800
+    solution_timeout_sec = 43200
   }
 
   metric "score" {

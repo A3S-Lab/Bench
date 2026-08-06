@@ -39,7 +39,7 @@ bench "arc_compiler_runtime" {
 
   judge {
     asset                = "private/judge"
-    solution_timeout_sec = 1500
+    solution_timeout_sec = 43200
   }
 
   metric "score" {

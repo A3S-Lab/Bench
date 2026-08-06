@@ -35,7 +35,7 @@ bench "exchange_core_throughput" {
 
   judge {
     asset                = "private/judge"
-    solution_timeout_sec = 2400
+    solution_timeout_sec = 43200
   }
 
   metric "score" {

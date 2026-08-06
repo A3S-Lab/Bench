@@ -43,7 +43,7 @@ bench "k12_math_recommendation" {
 
   judge {
     asset                = "private/judge"
-    solution_timeout_sec = 900
+    solution_timeout_sec = 43200
   }
 
   metric "score" {

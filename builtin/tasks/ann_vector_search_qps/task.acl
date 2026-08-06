@@ -33,7 +33,7 @@ bench "ann_vector_search_qps" {
 
   judge {
     asset                = "private/judge"
-    solution_timeout_sec = 7800
+    solution_timeout_sec = 43200
   }
 
   metric "score" {

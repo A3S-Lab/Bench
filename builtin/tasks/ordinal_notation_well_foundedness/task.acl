@@ -53,7 +53,7 @@ bench "ordinal_notation_well_foundedness" {
 
   judge {
     asset                = "private/judge"
-    solution_timeout_sec = 7200
+    solution_timeout_sec = 43200
   }
 
   metric "score" {
