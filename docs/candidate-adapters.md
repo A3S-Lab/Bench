@@ -83,12 +83,27 @@ has already been extracted as the editable workspace root. Task-provided public
 fixtures elsewhere in the work image remain readable through the Bash sandbox,
 while every deliverable write remains confined to `/workspace`.
 
-The current model-backed implementation is a versioned A3S Code Core controller,
+The model-backed implementation above is a versioned A3S Code Core controller,
 not the interactive CLI or TUI host. A controller prompt named after Codex or
-Claude does not make it the Codex or Claude Code product. Native product
-adapters require the shared Runtime to expose their declared network,
-ModelGateway, tool, and credential capabilities without placing secrets in the
-Candidate sandbox.
+Claude does not make it the Codex or Claude Code product.
+
+The bundled `codex` adapter is a separate native product protocol. It invokes a
+host-installed, already authenticated Codex CLI through `codex exec`, binds the
+reported CLI version into CandidateLock v2, uses an ephemeral session, ignores
+ambient user configuration and rules, and gives generated commands only the
+benchmark workspace. Provider credentials remain owned by Codex and are not
+copied into the adapter or lock.
+
+```bash
+codex login status
+a3s bench run ./task --agent codex
+a3s bench run ./task --agent codex --model <codex-model-id>
+```
+
+`--model` is passed directly to Codex for this adapter, so use a Codex model ID,
+not an A3S `provider/model` route. Bench refuses locked execution after the
+installed Codex CLI version changes; create a new CandidateLock so comparisons
+remain attributable to an exact product version.
 
 ## Lock before comparing
 

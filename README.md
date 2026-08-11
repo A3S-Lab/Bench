@@ -169,6 +169,7 @@ run an arbitrary directory, host executable, or container image.
 | Source | Reference |
 | --- | --- |
 | Bundled model controller | `a3s-code` |
+| Native Codex product | `codex` (authenticated Codex CLI required) |
 | Local adapter | `./agents/my-agent` |
 | Docker-compatible OCI package | `oci://ghcr.io/acme/my-agent@sha256:<digest>` |
 | Generic OCI artifact | `oci://registry.example.com/acme/my-agent@sha256:<digest>` |
@@ -212,10 +213,11 @@ a3s bench run quick_file_edit \
   --model openai/gpt-5.2-codex
 ```
 
-The bundled adapter uses A3S Code Core 5.3.4 as a versioned controller. Varying
-the model compares models under that same controller. Comparing complete Codex,
-Claude Code, and A3S Code products requires one separately packaged Candidate
-adapter per product.
+The `a3s-code` adapter uses A3S Code Core 5.3.4 as a versioned controller.
+Varying the model compares models under that same controller. The separate
+`codex` adapter runs the native Codex CLI and binds its reported version into
+the CandidateLock, enabling complete-product comparisons without presenting a
+prompt template as the Codex product.
 
 ## Runtime providers
 

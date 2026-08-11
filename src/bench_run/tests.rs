@@ -71,6 +71,7 @@ fn model_candidate_game_and_task_owned_judge_run_end_to_end() {
         entrypoint: "unused".into(),
         definition_path: Some("agent.md".into()),
         identity: "test-candidate".into(),
+        protocol: asset::CandidateProtocol::AgentTool,
     };
     let candidate_workspace = workspace::create(&task).unwrap();
     let resolved_images = std::collections::BTreeMap::new();

@@ -3,6 +3,7 @@ mod asset;
 mod bench_run;
 mod catalog;
 mod cli;
+mod codex_candidate;
 mod comparison;
 mod config;
 mod game_judge;

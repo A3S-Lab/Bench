@@ -71,7 +71,7 @@ fn execute_inner(
     match status.provider.as_str() {
         "docker" => resolve_task_images(&mut loaded.task, &loaded.resolved_images)?,
         crate::os_runtime::PROVIDER => {
-            validate_os_runtime_task(&loaded.task, loaded.model.as_deref())?
+            validate_os_runtime_task(&loaded.task, &loaded.candidate, loaded.model.as_deref())?
         }
         provider => anyhow::bail!(
             "execution through configured Runtime {provider:?} is not implemented yet"
@@ -195,6 +195,35 @@ fn execute_candidate(
     game: Option<&game_judge::GameSession>,
     runtime_execution: &RuntimeExecution<'_>,
 ) -> Result<CandidateRun> {
+    if candidate.protocol == asset::CandidateProtocol::CodexExec {
+        anyhow::ensure!(
+            game.is_none(),
+            "Codex Candidate does not support game Tasks"
+        );
+        let prompt = std::fs::read_to_string(task.root.join("public/prompt.md"))?;
+        let instructions = std::fs::read_to_string(candidate.model_instructions_path()?)?;
+        return Ok(
+            match crate::codex_candidate::execute(
+                candidate_workspace,
+                &instructions,
+                &prompt,
+                model,
+                task.work_network_need == "public_internet",
+                task.candidate_timeout_sec,
+            )? {
+                crate::codex_candidate::CodexOutcome::Completed(model_usage) => CandidateRun {
+                    execution: crate::result_record::CandidateExecution::completed(),
+                    model_usage,
+                },
+                crate::codex_candidate::CodexOutcome::TimedOut => CandidateRun {
+                    execution: crate::result_record::CandidateExecution::timed_out(
+                        task.candidate_timeout_sec,
+                    ),
+                    model_usage: None,
+                },
+            },
+        );
+    }
     let Some(model) = model else {
         anyhow::ensure!(
             game.is_none(),
@@ -302,9 +331,13 @@ fn execute_judge(
     }
 }
 
-fn validate_os_runtime_task(task: &task::TaskInfo, model: Option<&str>) -> Result<()> {
+fn validate_os_runtime_task(
+    task: &task::TaskInfo,
+    candidate: &asset::LocalAssetPackage,
+    model: Option<&str>,
+) -> Result<()> {
     anyhow::ensure!(
-        model.is_none(),
+        model.is_none() || candidate.protocol == asset::CandidateProtocol::CodexExec,
         "os-runtime does not support model-backed Candidates yet"
     );
     anyhow::ensure!(

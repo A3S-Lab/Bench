@@ -20,6 +20,8 @@ struct CandidateLockIdentity<'a> {
     candidate_revision: &'a str,
     artifact_digest: &'a str,
     model: &'a Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    product: &'a Option<crate::lock::CandidateProductLock>,
 }
 
 pub fn task(value: &TaskLock) -> Result<String> {
@@ -40,6 +42,7 @@ pub fn candidate(value: &CandidateLock) -> Result<String> {
         candidate_revision: &value.candidate_revision,
         artifact_digest: &value.artifact_digest,
         model: &value.model,
+        product: &value.product,
     })
 }
 
@@ -72,11 +75,19 @@ mod tests {
             candidate_revision: format!("sha256:{}", "a".repeat(64)),
             artifact_digest: format!("sha256:{}", "b".repeat(64)),
             model: None,
+            product: None,
         };
         let first = candidate(&value).unwrap();
         assert_eq!(first, candidate(&value).unwrap());
         value.model = Some("openai/test".into());
         assert_ne!(first, candidate(&value).unwrap());
+        let model_digest = candidate(&value).unwrap();
+        value.schema = "a3s.bench.candidate-lock.v2".into();
+        value.product = Some(crate::lock::CandidateProductLock {
+            name: "codex-cli".into(),
+            version: "codex-cli 1.0.0".into(),
+        });
+        assert_ne!(model_digest, candidate(&value).unwrap());
 
         let task_lock = TaskLock {
             schema: "a3s.bench.task-lock.v1".into(),

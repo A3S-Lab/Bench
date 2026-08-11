@@ -625,6 +625,7 @@ mod tests {
             entrypoint: "run.sh".into(),
             definition_path: None,
             identity: "test-candidate".into(),
+            protocol: crate::asset::CandidateProtocol::AgentTool,
         };
         let workspace = tempfile::tempdir().unwrap();
         let task = TaskInfo {
