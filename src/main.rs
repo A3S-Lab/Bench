@@ -23,6 +23,7 @@ mod runtime_profile;
 mod runtime_selection;
 mod state_fs;
 mod submission;
+mod suite;
 mod task;
 mod task_snapshot;
 mod workspace;

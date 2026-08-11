@@ -84,6 +84,37 @@ The `a3s.bench.comparison.v1` report records per-Task scores and outcomes plus
 aggregate wins, ties, timeouts, and complete-model token totals when available.
 Like its source results, the report remains `local_unofficial`.
 
+Run a reproducible two-Candidate suite when the same comparison should cover
+multiple Tasks. Bench resolves every Task lock and both Candidate locks before
+the first execution, then persists each completed member. A failed or
+interrupted suite can continue without rerunning recorded members:
+
+```bash
+a3s bench suite run ./examples/coding-suite.acl
+a3s bench suite run ./examples/coding-suite.acl --resume <suite-run-id>
+```
+
+```acl
+bench_suite "coding-core" {
+  schema = "a3s-bench/suite/v1"
+  tasks  = ["quick_file_edit"]
+
+  candidate "baseline" {
+    agent = "a3s-code"
+    model = "openai/baseline-model"
+  }
+
+  candidate "candidate" {
+    agent = "a3s-code"
+    model = "openai/candidate-model"
+  }
+}
+```
+
+Resume is bound to the exact suite digest and persisted locks. Editing the
+suite, changing either model, reordering Tasks, or replacing a lock fails
+closed instead of silently changing the comparison.
+
 Local Docker runs do not require an A3S OS login. From a development checkout,
 replace `a3s bench` with `cargo run --`.
 
@@ -278,6 +309,7 @@ a3s bench info <task> [--all] [--json]
 a3s bench run <task> --agent <candidate> [--model <provider/model>] [--locked] [--json]
 a3s bench result [run-id] [--json]
 a3s bench compare <baseline-run> <candidate-run> [<baseline-run> <candidate-run> ...] [--json]
+a3s bench suite run <suite.acl> [--resume <suite-run-id>] [--json]
 
 a3s bench advanced check <./task>
 a3s bench advanced doctor [--json]
@@ -292,7 +324,7 @@ private component invoked by the top-level CLI.
 
 - One run contains one Task, one Candidate execution, one projected submission,
   one Judge execution, and one result.
-- Suite execution, campaigns, leaderboards, distributed scheduling, `advanced init`, and
+- Parallel/distributed suites, campaigns, leaderboards, `advanced init`, and
   `advanced cancel` are not implemented.
 - All local results are `local_unofficial`; official admission and publication
   remain separate governance work.

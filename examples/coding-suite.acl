@@ -1,0 +1,14 @@
+bench_suite "coding-core" {
+  schema = "a3s-bench/suite/v1"
+  tasks  = ["quick_file_edit"]
+
+  candidate "baseline" {
+    agent = "a3s-code"
+    model = "openai/baseline-model"
+  }
+
+  candidate "candidate" {
+    agent = "a3s-code"
+    model = "openai/candidate-model"
+  }
+}

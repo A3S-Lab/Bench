@@ -3,7 +3,7 @@ use anyhow::Result;
 use serde_json::json;
 use std::path::Path;
 
-const USAGE: &str = "a3s bench\n\nUsage:\n  a3s bench list [--all] [--json]\n  a3s bench info <task> [--all] [--json]\n  a3s bench run <task> --agent <candidate> [--model <provider/model>] [--locked] [--json]\n  a3s bench result [run-id] [--json]\n  a3s bench compare <baseline-run> <candidate-run> [<baseline-run> <candidate-run> ...] [--json]\n  a3s bench advanced check <./task>\n  a3s bench advanced doctor [--json]\n  a3s bench advanced task lock <source> --out <file>\n  a3s bench advanced candidate lock <candidate> [--model <provider/model>] --out <file>\n";
+const USAGE: &str = "a3s bench\n\nUsage:\n  a3s bench list [--all] [--json]\n  a3s bench info <task> [--all] [--json]\n  a3s bench run <task> --agent <candidate> [--model <provider/model>] [--locked] [--json]\n  a3s bench result [run-id] [--json]\n  a3s bench compare <baseline-run> <candidate-run> [<baseline-run> <candidate-run> ...] [--json]\n  a3s bench suite run <suite.acl> [--resume <suite-run-id>] [--json]\n  a3s bench advanced check <./task>\n  a3s bench advanced doctor [--json]\n  a3s bench advanced task lock <source> --out <file>\n  a3s bench advanced candidate lock <candidate> [--model <provider/model>] --out <file>\n";
 
 pub fn run(args: Vec<String>) -> Result<u8> {
     if args.as_slice() == ["--component-info", "--json"] {
@@ -23,6 +23,7 @@ pub fn run(args: Vec<String>) -> Result<u8> {
         Some("info") => info(&args[1..]),
         Some("result") => result(&args[1..]),
         Some("compare") => compare(&args[1..]),
+        Some("suite") => crate::suite::execute(&args[1..]),
         Some("advanced") => advanced(&args[1..]),
         Some("run") => crate::bench_run::execute(&args[1..]),
         Some(command) => Err(anyhow::anyhow!("unknown command {command:?}\n\n{USAGE}")),

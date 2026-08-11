@@ -21,13 +21,22 @@ struct CandidateRun {
     model_usage: Option<model_candidate::ModelExecution>,
 }
 
+pub struct CompletedRun {
+    pub record: crate::result_record::LocalResultRecord,
+}
+
 pub fn execute(args: &[String]) -> Result<u8> {
     let options = run_input::RunOptions::parse(args)?;
+    execute_options(options, true)?;
+    Ok(0)
+}
+
+pub fn execute_options(options: run_input::RunOptions, emit_result: bool) -> Result<CompletedRun> {
     let state_root = workspace::state_root()?;
     let mut journal =
         crate::run_journal::RunJournal::begin(&state_root, &options.task, &options.agent)?;
-    match execute_inner(&options, &state_root, &mut journal) {
-        Ok(code) => Ok(code),
+    match execute_inner(&options, &state_root, &mut journal, emit_result) {
+        Ok(completed) => Ok(completed),
         Err(error) => match journal.fail(&error) {
             Ok(()) => Err(error.context(format!("run {} failed", journal.run_id))),
             Err(journal_error) => Err(error.context(format!(
@@ -41,7 +50,8 @@ fn execute_inner(
     options: &run_input::RunOptions,
     state_root: &Path,
     journal: &mut crate::run_journal::RunJournal,
-) -> Result<u8> {
+    emit_result: bool,
+) -> Result<CompletedRun> {
     use crate::run_journal::RunStage;
 
     let config = config::discover(&std::env::current_dir()?)?;
@@ -122,15 +132,17 @@ fn execute_inner(
         },
     )?;
     journal.complete(&path, &record.result_digest)?;
-    print_result(
-        options,
-        &loaded.task.id,
-        score,
-        &record.run_id,
-        &path,
-        &candidate_run.execution,
-    )?;
-    Ok(0)
+    if emit_result {
+        print_result(
+            options,
+            &loaded.task.id,
+            score,
+            &record.run_id,
+            &path,
+            &candidate_run.execution,
+        )?;
+    }
+    Ok(CompletedRun { record })
 }
 
 fn resolve_judge_model(
