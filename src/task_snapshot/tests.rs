@@ -53,12 +53,8 @@ fn verification_detects_content_tampering() {
     let digest = capture(source.path(), state.path()).unwrap();
     let artifact = artifact_path(state.path(), &digest).unwrap();
     let file = artifact.join("agent.md");
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600)).unwrap();
-    }
-    std::fs::write(file, "tampered").unwrap();
+    crate::state_fs::set_owner_only_file(&file, false).unwrap();
+    std::fs::write(&file, "tampered").unwrap();
     assert!(verify(&artifact, &digest).is_err());
     crate::state_fs::remove_sealed_tree(&artifact).unwrap();
 }

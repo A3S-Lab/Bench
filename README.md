@@ -69,6 +69,21 @@ a3s bench result
 a3s bench result <run-id> --json
 ```
 
+Compare completed runs in Task-lock-matched pairs. Every baseline result must
+identify the same Candidate and model, as must every candidate result; Bench
+rejects mixed identities and pairs produced from different Task locks.
+
+```bash
+a3s bench compare \
+  <baseline-task-a-run> <candidate-task-a-run> \
+  <baseline-task-b-run> <candidate-task-b-run>
+a3s bench compare <baseline-run> <candidate-run> --json
+```
+
+The `a3s.bench.comparison.v1` report records per-Task scores and outcomes plus
+aggregate wins, ties, timeouts, and complete-model token totals when available.
+Like its source results, the report remains `local_unofficial`.
+
 Local Docker runs do not require an A3S OS login. From a development checkout,
 replace `a3s bench` with `cargo run --`.
 
@@ -262,6 +277,7 @@ a3s bench list [--all] [--json]
 a3s bench info <task> [--all] [--json]
 a3s bench run <task> --agent <candidate> [--model <provider/model>] [--locked] [--json]
 a3s bench result [run-id] [--json]
+a3s bench compare <baseline-run> <candidate-run> [<baseline-run> <candidate-run> ...] [--json]
 
 a3s bench advanced check <./task>
 a3s bench advanced doctor [--json]
@@ -276,7 +292,7 @@ private component invoked by the top-level CLI.
 
 - One run contains one Task, one Candidate execution, one projected submission,
   one Judge execution, and one result.
-- Suites, campaigns, leaderboards, distributed scheduling, `advanced init`, and
+- Suite execution, campaigns, leaderboards, distributed scheduling, `advanced init`, and
   `advanced cancel` are not implemented.
 - All local results are `local_unofficial`; official admission and publication
   remain separate governance work.

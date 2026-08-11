@@ -31,9 +31,14 @@ where
             if let Some(parent) = target.parent() {
                 std::fs::create_dir_all(parent)?;
             }
-            std::fs::copy(source.join(relative), target).map_err(|error| {
+            std::fs::copy(source.join(relative), &target).map_err(|error| {
                 anyhow::anyhow!("source_changed: Task source changed during capture: {error}")
             })?;
+            // A source file may carry the Windows read-only attribute. The
+            // private staging generation must remain owner-writable until its
+            // bytes are flushed and atomically published; sealing happens
+            // only after the immutable destination has been verified.
+            crate::state_fs::set_owner_only_file(&target, false)?;
         }
         ensure_stable_generation(&source, &staging, &files, &digest)?;
         crate::state_fs::sync_tree(&staging).context("could not sync artifact staging")?;

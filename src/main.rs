@@ -3,6 +3,7 @@ mod asset;
 mod bench_run;
 mod catalog;
 mod cli;
+mod comparison;
 mod config;
 mod game_judge;
 mod judge_source;
