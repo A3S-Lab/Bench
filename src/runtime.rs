@@ -624,6 +624,7 @@ mod tests {
             root: candidate_root.path().canonicalize().unwrap(),
             entrypoint: "run.sh".into(),
             definition_path: None,
+            isolation: None,
             identity: "test-candidate".into(),
         };
         let workspace = tempfile::tempdir().unwrap();

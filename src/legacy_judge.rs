@@ -23,12 +23,12 @@ pub fn execute(
     if let Some(platform) = source.platform.as_deref() {
         command.args(["--platform", platform]);
     }
-    command
-        .args(["--env", "A3S_BENCH_JUDGE_COMMAND"])
-        .env("A3S_BENCH_JUDGE_COMMAND", &source.command);
+    // Judge command runs under `timeout` inside the container; no
+    // environment variable passthrough is needed.
     let timeout_runner = format!(
-        "import os,subprocess,sys\ntry:\n p=subprocess.run(['/bin/bash','-lc',os.environ['A3S_BENCH_JUDGE_COMMAND']],timeout={})\n sys.exit(p.returncode)\nexcept subprocess.TimeoutExpired:\n print('Judge exceeded descriptor timeout',file=sys.stderr)\n sys.exit(124)",
-        source.timeout_sec
+        "timeout --kill-after=10 {} /bin/bash -lc {}",
+        source.timeout_sec,
+        shell_quote(&source.command),
     );
     let judge_command = legacy_judge_command(
         "/a3s/submission",
@@ -161,9 +161,9 @@ fn legacy_judge_command(source: &str, destination: &str, timeout_runner: &str) -
     // files from the judge image), stalling for over an hour before the
     // judge script could start.
     format!(
-        "cp -R {} {destination}/ && python3 -c {}",
+        "cp -R {} {destination}/ && {}",
         shell_quote(&source),
-        shell_quote(timeout_runner),
+        timeout_runner,
     )
 }
 
@@ -708,16 +708,21 @@ mod tests {
         std::fs::create_dir(&destination).unwrap();
         std::fs::create_dir(&bin).unwrap();
         std::fs::write(source.join("answer"), "42").unwrap();
-        std::fs::write(bin.join("python3"), "#!/bin/sh\n: > \"$MARKER\"\n").unwrap();
-        std::fs::set_permissions(bin.join("python3"), std::fs::Permissions::from_mode(0o700))
-            .unwrap();
+        // The timeout_runner is now a plain shell command (no python3);
+        // use a script that touches the marker file.
+        std::fs::write(bin.join("judge-mock"), "#!/bin/sh\n: > \"$MARKER\"\n").unwrap();
+        std::fs::set_permissions(
+            bin.join("judge-mock"),
+            std::fs::Permissions::from_mode(0o700),
+        )
+        .unwrap();
         let path = format!("{}:/usr/bin:/bin", bin.display());
 
         // Successful copy → judge runs
         let command = legacy_judge_command(
             source.to_str().unwrap(),
             destination.to_str().unwrap(),
-            "ignored",
+            "judge-mock",
         );
         let output = Command::new("/bin/bash")
             .args(["-c", &command])
@@ -741,7 +746,7 @@ mod tests {
         let command = legacy_judge_command(
             root.path().join("missing").to_str().unwrap(),
             destination.to_str().unwrap(),
-            "ignored",
+            "judge-mock",
         );
         let output = Command::new("/bin/bash")
             .args(["-c", &command])

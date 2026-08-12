@@ -8,6 +8,9 @@ pub struct LocalAssetPackage {
     pub root: PathBuf,
     pub entrypoint: String,
     pub definition_path: Option<String>,
+    /// Isolation requirement declared in the asset.acl `runtime` block
+    /// (e.g. "host" for host-runtime candidates, "serving" for Docker).
+    pub isolation: Option<String>,
     pub identity: String,
 }
 
@@ -71,10 +74,17 @@ pub(crate) fn load_directory(reference: &Path, identity: String) -> Result<Local
             "Asset package definition is missing: {path}"
         );
     }
+    let isolation = unique_top_block(&document, "runtime")
+        .ok()
+        .and_then(|block| block.attributes.get("isolation"))
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+
     Ok(LocalAssetPackage {
         root: reference.canonicalize()?,
         entrypoint: entrypoint.to_owned(),
         definition_path: definition_path.map(str::to_owned),
+        isolation,
         identity,
     })
 }

@@ -75,7 +75,18 @@ fn execute_inner(
 ) -> Result<u8> {
     use crate::run_journal::RunStage;
 
-    let config = config::discover(&std::env::current_dir()?)?;
+    let mut config = config::discover(&std::env::current_dir()?)?;
+    // When the operator has not explicitly configured a runtime provider,
+    // auto-select based on the candidate's declared isolation requirement:
+    // a "host" candidate (e.g. codex) runs on the host runtime; everything
+    // else defaults to Docker.
+    if config.runtime.source == crate::runtime_selection::RuntimeSelectionSource::BenchDefault {
+        if let Ok(candidate) = asset::resolve(&options.agent, state_root) {
+            if candidate.isolation.as_deref() == Some(crate::runtime_selection::HOST_PROVIDER) {
+                config.runtime = crate::runtime_selection::RuntimeSelection::host()?;
+            }
+        }
+    }
     if let (Some(path), Some(model)) = (config.path.as_deref(), config.judge_model.as_deref()) {
         config::resolve_model_route(path, model)?;
     }
