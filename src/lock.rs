@@ -30,6 +30,15 @@ pub struct CandidateLock {
     pub candidate_revision: String,
     pub artifact_digest: String,
     pub model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub product: Option<CandidateProductLock>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CandidateProductLock {
+    pub name: String,
+    pub version: String,
 }
 
 pub fn create_task_with_provider(
@@ -130,7 +139,7 @@ pub fn create_candidate(
     let digest = crate::task_snapshot::capture(&asset.root, state_root)?;
     let captured = crate::task_snapshot::artifact_path(state_root, &digest)?;
     let locked_asset = crate::asset::load_local(&captured)?;
-    if model.is_some() {
+    if model.is_some() && locked_asset.protocol == crate::asset::CandidateProtocol::AgentTool {
         locked_asset
             .model_instructions_path()
             .context("Candidate cannot be locked with a model")?;
@@ -138,12 +147,25 @@ pub fn create_candidate(
             .model_max_steps()
             .context("Candidate cannot be locked with a model")?;
     }
+    let product = match locked_asset.protocol {
+        crate::asset::CandidateProtocol::AgentTool => None,
+        crate::asset::CandidateProtocol::CodexExec => Some(CandidateProductLock {
+            name: "codex-cli".into(),
+            version: crate::codex_candidate::version()?,
+        }),
+    };
     let mut value = CandidateLock {
-        schema: "a3s.bench.candidate-lock.v1".into(),
+        schema: if product.is_some() {
+            "a3s.bench.candidate-lock.v2"
+        } else {
+            "a3s.bench.candidate-lock.v1"
+        }
+        .into(),
         lock_digest: String::new(),
         candidate_revision: locked_asset.identity,
         artifact_digest: digest,
         model,
+        product,
     };
     value.lock_digest = crate::lock_identity::candidate(&value)?;
     write_exclusive(output, &serde_json::to_vec_pretty(&value)?)?;
@@ -204,7 +226,10 @@ pub fn load_task(path: &Path, state_root: &Path) -> Result<LoadedTaskLock> {
 pub fn load_candidate(path: &Path, state_root: &Path) -> Result<(CandidateLock, PathBuf)> {
     let value: CandidateLock = serde_json::from_slice(&read_lock_file(path)?)?;
     anyhow::ensure!(
-        value.schema == "a3s.bench.candidate-lock.v1",
+        matches!(
+            value.schema.as_str(),
+            "a3s.bench.candidate-lock.v1" | "a3s.bench.candidate-lock.v2"
+        ),
         "invalid CandidateLock schema"
     );
     crate::lock_identity::validate_digest(&value.lock_digest)?;
@@ -225,6 +250,21 @@ pub fn load_candidate(path: &Path, state_root: &Path) -> Result<(CandidateLock, 
         candidate.identity == value.candidate_revision,
         "CandidateLock revision does not match artifact"
     );
+    match (candidate.protocol, value.product.as_ref()) {
+        (crate::asset::CandidateProtocol::AgentTool, None) => {}
+        (crate::asset::CandidateProtocol::CodexExec, Some(product)) => {
+            anyhow::ensure!(
+                value.schema == "a3s.bench.candidate-lock.v2" && product.name == "codex-cli",
+                "Codex Candidate has an invalid product lock"
+            );
+            anyhow::ensure!(
+                crate::codex_candidate::version()? == product.version,
+                "installed Codex CLI does not match locked version {:?}",
+                product.version
+            );
+        }
+        _ => anyhow::bail!("Candidate protocol does not match its product lock"),
+    }
     Ok((value, artifact))
 }
 

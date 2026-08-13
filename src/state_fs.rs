@@ -21,7 +21,10 @@ pub fn secure_directory(path: &Path) -> Result<()> {
 }
 
 pub fn create_secure_directory_exclusive(path: &Path) -> Result<()> {
+    #[cfg(unix)]
     let mut builder = std::fs::DirBuilder::new();
+    #[cfg(not(unix))]
+    let builder = std::fs::DirBuilder::new();
     #[cfg(unix)]
     {
         use std::os::unix::fs::DirBuilderExt;
@@ -125,7 +128,14 @@ pub fn sync_tree(path: &Path) -> Result<()> {
         if kind.is_dir() {
             sync_tree(&entry.path())?;
         } else if kind.is_file() {
-            std::fs::File::open(entry.path())?.sync_all()?;
+            // Windows requires a write-capable handle for FlushFileBuffers.
+            // Staging trees are still owner-writable here and are sealed only
+            // after publication, so use one explicit cross-platform handle.
+            std::fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(entry.path())?
+                .sync_all()?;
         } else {
             anyhow::bail!("durable tree contains a special file");
         }
@@ -339,6 +349,7 @@ fn set_directory_owner_writable(path: &Path) -> Result<()> {
     #[cfg(not(unix))]
     {
         let mut permissions = std::fs::metadata(path)?.permissions();
+        #[allow(clippy::permissions_set_readonly_false)]
         permissions.set_readonly(false);
         std::fs::set_permissions(path, permissions)?;
     }

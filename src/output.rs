@@ -33,6 +33,7 @@ fn error(command: &str, message: &str) -> serde_json::Value {
 
 pub fn command_name(args: &[String]) -> String {
     match args {
+        [suite, action, ..] if suite == "suite" => format!("suite {action}"),
         [advanced, group, action, ..] if advanced == "advanced" => {
             format!("advanced {group} {action}")
         }
@@ -49,6 +50,10 @@ mod tests {
     #[test]
     fn derives_stable_command_names() {
         assert_eq!(command_name(&["list".into(), "--json".into()]), "list");
+        assert_eq!(
+            command_name(&["suite".into(), "run".into(), "suite.acl".into()]),
+            "suite run"
+        );
         assert_eq!(
             command_name(&["advanced".into(), "candidate".into(), "lock".into()]),
             "advanced candidate lock"

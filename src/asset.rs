@@ -8,10 +8,14 @@ pub struct LocalAssetPackage {
     pub root: PathBuf,
     pub entrypoint: String,
     pub definition_path: Option<String>,
-    /// Isolation requirement declared in the asset.acl `runtime` block
-    /// (e.g. "host" for host-runtime candidates, "serving" for Docker).
-    pub isolation: Option<String>,
     pub identity: String,
+    pub protocol: CandidateProtocol,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CandidateProtocol {
+    AgentTool,
+    CodexExec,
 }
 
 pub fn load_local(reference: &Path) -> Result<LocalAssetPackage> {
@@ -25,8 +29,12 @@ pub fn load_local(reference: &Path) -> Result<LocalAssetPackage> {
 }
 
 pub fn resolve(reference: &str, state_root: &Path) -> Result<LocalAssetPackage> {
-    if reference == "a3s-code" {
-        return load_local(&crate::catalog::builtin_root().join("candidates/a3s-code"));
+    if matches!(reference, "a3s-code" | "codex") {
+        return load_local(
+            &crate::catalog::builtin_root()
+                .join("candidates")
+                .join(reference),
+        );
     }
     if reference.starts_with("./") || reference.starts_with("../") {
         return load_local(Path::new(reference));
@@ -67,6 +75,18 @@ pub(crate) fn load_directory(reference: &Path, identity: String) -> Result<Local
                 .ok_or_else(|| anyhow::anyhow!("source.definition_path must be a string"))
         })
         .transpose()?;
+    let protocol = document
+        .blocks
+        .iter()
+        .find(|block| block.name == "runtime")
+        .and_then(|block| block.attributes.get("protocol"))
+        .and_then(Value::as_str)
+        .unwrap_or("agent-tool");
+    let protocol = match protocol {
+        "agent-tool" => CandidateProtocol::AgentTool,
+        "codex-exec" => CandidateProtocol::CodexExec,
+        value => anyhow::bail!("unsupported Candidate runtime protocol {value:?}"),
+    };
     if let Some(path) = definition_path {
         validate_package_path(path, "source.definition_path")?;
         anyhow::ensure!(
@@ -74,18 +94,12 @@ pub(crate) fn load_directory(reference: &Path, identity: String) -> Result<Local
             "Asset package definition is missing: {path}"
         );
     }
-    let isolation = unique_top_block(&document, "runtime")
-        .ok()
-        .and_then(|block| block.attributes.get("isolation"))
-        .and_then(Value::as_str)
-        .map(str::to_owned);
-
     Ok(LocalAssetPackage {
         root: reference.canonicalize()?,
         entrypoint: entrypoint.to_owned(),
         definition_path: definition_path.map(str::to_owned),
-        isolation,
         identity,
+        protocol,
     })
 }
 
@@ -321,6 +335,18 @@ mod tests {
         let runtime = std::fs::read_to_string(asset.root.join("runtime.acl")).unwrap();
         assert!(runtime.contains("implementation_version = \"5.3.4\""));
         assert!(include_str!("../Cargo.toml").contains("a3s-code-core = \"=5.3.4\""));
+    }
+
+    #[test]
+    fn resolves_bundled_codex_product_candidate() {
+        let state = tempfile::tempdir().unwrap();
+        let asset = resolve("codex", state.path()).unwrap();
+        assert_eq!(asset.protocol, CandidateProtocol::CodexExec);
+        assert_eq!(
+            asset.definition_path.as_deref(),
+            Some("prompts/controller.md")
+        );
+        assert!(asset.identity.starts_with("sha256:"));
     }
 
     #[test]

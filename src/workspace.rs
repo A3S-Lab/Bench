@@ -6,6 +6,9 @@ use anyhow::{Context, Result};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static RUN_DIRECTORY_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 pub fn state_root() -> Result<PathBuf> {
     let root = std::env::current_dir()?.join(".a3s/bench");
@@ -40,7 +43,12 @@ pub fn create_submission(task: &TaskInfo, workspace: &Path) -> Result<PathBuf> {
 fn run_directory(state_root: &Path, kind: &str, task_id: &str) -> Result<PathBuf> {
     let root = state_root.join(kind);
     secure_directory(&root)?;
-    Ok(root.join(format!("{task_id}-{}", std::process::id())))
+    Ok(unique_run_directory(&root, task_id))
+}
+
+fn unique_run_directory(root: &Path, task_id: &str) -> PathBuf {
+    let sequence = RUN_DIRECTORY_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    root.join(format!("{task_id}-{}-{sequence}", std::process::id()))
 }
 
 fn replace_directory(path: &Path) -> Result<()> {
@@ -428,6 +436,14 @@ mod tests {
             extract_arguments,
             ["-x", "--no-same-owner", "-C", "destination with ' quote"]
         );
+    }
+
+    #[test]
+    fn run_directories_are_unique_for_sequential_suite_members() {
+        let root = Path::new("workspaces");
+        let first = unique_run_directory(root, "task");
+        let second = unique_run_directory(root, "task");
+        assert_ne!(first, second);
     }
 
     #[cfg(unix)]

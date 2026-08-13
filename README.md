@@ -69,6 +69,52 @@ a3s bench result
 a3s bench result <run-id> --json
 ```
 
+Compare completed runs in Task-lock-matched pairs. Every baseline result must
+identify the same Candidate and model, as must every candidate result; Bench
+rejects mixed identities and pairs produced from different Task locks.
+
+```bash
+a3s bench compare \
+  <baseline-task-a-run> <candidate-task-a-run> \
+  <baseline-task-b-run> <candidate-task-b-run>
+a3s bench compare <baseline-run> <candidate-run> --json
+```
+
+The `a3s.bench.comparison.v1` report records per-Task scores and outcomes plus
+aggregate wins, ties, timeouts, and complete-model token totals when available.
+Like its source results, the report remains `local_unofficial`.
+
+Run a reproducible two-Candidate suite when the same comparison should cover
+multiple Tasks. Bench resolves every Task lock and both Candidate locks before
+the first execution, then persists each completed member. A failed or
+interrupted suite can continue without rerunning recorded members:
+
+```bash
+a3s bench suite run ./examples/coding-suite.acl
+a3s bench suite run ./examples/coding-suite.acl --resume <suite-run-id>
+```
+
+```acl
+bench_suite "coding-core" {
+  schema = "a3s-bench/suite/v1"
+  tasks  = ["quick_file_edit"]
+
+  candidate "baseline" {
+    agent = "a3s-code"
+    model = "openai/baseline-model"
+  }
+
+  candidate "candidate" {
+    agent = "a3s-code"
+    model = "openai/candidate-model"
+  }
+}
+```
+
+Resume is bound to the exact suite digest and persisted locks. Editing the
+suite, changing either model, reordering Tasks, or replacing a lock fails
+closed instead of silently changing the comparison.
+
 Local Docker runs do not require an A3S OS login. From a development checkout,
 replace `a3s bench` with `cargo run --`.
 
@@ -123,6 +169,7 @@ run an arbitrary directory, host executable, or container image.
 | Source | Reference |
 | --- | --- |
 | Bundled model controller | `a3s-code` |
+| Native Codex product | `codex` (authenticated Codex CLI required) |
 | Local adapter | `./agents/my-agent` |
 | Docker-compatible OCI package | `oci://ghcr.io/acme/my-agent@sha256:<digest>` |
 | Generic OCI artifact | `oci://registry.example.com/acme/my-agent@sha256:<digest>` |
@@ -166,10 +213,11 @@ a3s bench run quick_file_edit \
   --model openai/gpt-5.2-codex
 ```
 
-The bundled adapter uses A3S Code Core 5.3.4 as a versioned controller. Varying
-the model compares models under that same controller. Comparing complete Codex,
-Claude Code, and A3S Code products requires one separately packaged Candidate
-adapter per product.
+The `a3s-code` adapter uses A3S Code Core 5.3.4 as a versioned controller.
+Varying the model compares models under that same controller. The separate
+`codex` adapter runs the native Codex CLI and binds its reported version into
+the CandidateLock, enabling complete-product comparisons without presenting a
+prompt template as the Codex product.
 
 ## Runtime providers
 
@@ -262,6 +310,8 @@ a3s bench list [--all] [--json]
 a3s bench info <task> [--all] [--json]
 a3s bench run <task> --agent <candidate> [--model <provider/model>] [--locked] [--json]
 a3s bench result [run-id] [--json]
+a3s bench compare <baseline-run> <candidate-run> [<baseline-run> <candidate-run> ...] [--json]
+a3s bench suite run <suite.acl> [--resume <suite-run-id>] [--json]
 
 a3s bench advanced check <./task>
 a3s bench advanced doctor [--json]
@@ -276,7 +326,7 @@ private component invoked by the top-level CLI.
 
 - One run contains one Task, one Candidate execution, one projected submission,
   one Judge execution, and one result.
-- Suites, campaigns, leaderboards, distributed scheduling, `advanced init`, and
+- Parallel/distributed suites, campaigns, leaderboards, `advanced init`, and
   `advanced cancel` are not implemented.
 - All local results are `local_unofficial`; official admission and publication
   remain separate governance work.

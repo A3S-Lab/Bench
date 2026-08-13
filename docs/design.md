@@ -59,6 +59,7 @@ The common path is:
 ~~~bash
 a3s bench list
 a3s bench run ./examples/smoke --agent a3s-code --model openai/example
+a3s bench run ./examples/smoke --agent codex --model <codex-model-id>
 ~~~
 
 An admitted built-in uses its bare Task ID. A local path is always explicit:
@@ -482,11 +483,13 @@ configuration are identical. The adapter currently uses the `a3s.asset.v1`,
 `category = "agent"` wire format; this is a packaging and execution contract,
 not a restriction on the Candidate implementation.
 
-An installed component may later provide `codex` or `claude` under exactly the
-same embedded selector contract once native product adapters exist. These names
-are convenience selectors, not product-specific execution modes. Bench resolves
-every selector to a normal Candidate adapter and then uses the same Candidate,
-Runtime, locking, and result pipeline.
+The installed component provides `codex` through the same embedded selector
+contract. Its locked adapter declares the `codex-exec` product protocol, and
+CandidateLock v2 binds the installed Codex CLI version. The selector remains a
+convenience name: Bench resolves it to a normal immutable Candidate adapter and
+uses the same Task, locking, result, and comparison pipeline. Future products
+such as Claude Code can add distinct protocols without adding product branches
+to task or result logic.
 
 A Codex-versus-Claude Code comparison is two ordinary runs over the same
 TaskLock, with one CandidateLock for each exact adapter and model combination.
@@ -500,8 +503,8 @@ rejects selectors.
 
 A local Candidate reference beginning `./` or `../` is classified by `lstat`
 and schema content. A directory must contain the standard root
-`.a3s/asset.acl`; a regular file must be a complete
-`a3s.bench.candidate-lock.v1` envelope. Symlinks, special files, direct paths to
+`.a3s/asset.acl`; a regular file must be a complete supported CandidateLock
+envelope. Symlinks, special files, direct paths to
 an internal asset file, and extension-based guessing are rejected. Candidate
 lock commands accept an Asset source, while `run --locked` accepts only the
 lock; neither command wraps an existing lock into another lock.

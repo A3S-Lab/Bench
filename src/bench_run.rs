@@ -52,13 +52,22 @@ impl Drop for TransientRunDirs {
     }
 }
 
+pub struct CompletedRun {
+    pub record: crate::result_record::LocalResultRecord,
+}
+
 pub fn execute(args: &[String]) -> Result<u8> {
     let options = run_input::RunOptions::parse(args)?;
+    execute_options(options, true)?;
+    Ok(0)
+}
+
+pub fn execute_options(options: run_input::RunOptions, emit_result: bool) -> Result<CompletedRun> {
     let state_root = workspace::state_root()?;
     let mut journal =
         crate::run_journal::RunJournal::begin(&state_root, &options.task, &options.agent)?;
-    match execute_inner(&options, &state_root, &mut journal) {
-        Ok(code) => Ok(code),
+    match execute_inner(&options, &state_root, &mut journal, emit_result) {
+        Ok(completed) => Ok(completed),
         Err(error) => match journal.fail(&error) {
             Ok(()) => Err(error.context(format!("run {} failed", journal.run_id))),
             Err(journal_error) => Err(error.context(format!(
@@ -72,21 +81,11 @@ fn execute_inner(
     options: &run_input::RunOptions,
     state_root: &Path,
     journal: &mut crate::run_journal::RunJournal,
-) -> Result<u8> {
+    emit_result: bool,
+) -> Result<CompletedRun> {
     use crate::run_journal::RunStage;
 
-    let mut config = config::discover(&std::env::current_dir()?)?;
-    // When the operator has not explicitly configured a runtime provider,
-    // auto-select based on the candidate's declared isolation requirement:
-    // a "host" candidate (e.g. codex) runs on the host runtime; everything
-    // else defaults to Docker.
-    if config.runtime.source == crate::runtime_selection::RuntimeSelectionSource::BenchDefault {
-        if let Ok(candidate) = asset::resolve(&options.agent, state_root) {
-            if candidate.isolation.as_deref() == Some(crate::runtime_selection::HOST_PROVIDER) {
-                config.runtime = crate::runtime_selection::RuntimeSelection::host()?;
-            }
-        }
-    }
+    let config = config::discover(&std::env::current_dir()?)?;
     if let (Some(path), Some(model)) = (config.path.as_deref(), config.judge_model.as_deref()) {
         config::resolve_model_route(path, model)?;
     }
@@ -103,7 +102,7 @@ fn execute_inner(
     match status.provider.as_str() {
         "docker" => resolve_task_images(&mut loaded.task, &loaded.resolved_images)?,
         crate::os_runtime::PROVIDER => {
-            validate_os_runtime_task(&loaded.task, loaded.model.as_deref())?
+            validate_os_runtime_task(&loaded.task, &loaded.candidate, loaded.model.as_deref())?
         }
         provider => anyhow::bail!(
             "execution through configured Runtime {provider:?} is not implemented yet"
@@ -169,15 +168,17 @@ fn execute_inner(
         },
     )?;
     journal.complete(&path, &record.result_digest)?;
-    print_result(
-        options,
-        &loaded.task.id,
-        score,
-        &record.run_id,
-        &path,
-        &candidate_run.execution,
-    )?;
-    Ok(0)
+    if emit_result {
+        print_result(
+            options,
+            &loaded.task.id,
+            score,
+            &record.run_id,
+            &path,
+            &candidate_run.execution,
+        )?;
+    }
+    Ok(CompletedRun { record })
 }
 
 fn resolve_judge_model(
@@ -233,6 +234,35 @@ fn execute_candidate(
     run_id: &str,
     state_root: &Path,
 ) -> Result<CandidateRun> {
+    if candidate.protocol == asset::CandidateProtocol::CodexExec {
+        anyhow::ensure!(
+            game.is_none(),
+            "Codex Candidate does not support game Tasks"
+        );
+        let prompt = std::fs::read_to_string(task.root.join("public/prompt.md"))?;
+        let instructions = std::fs::read_to_string(candidate.model_instructions_path()?)?;
+        return Ok(
+            match crate::codex_candidate::execute(
+                candidate_workspace,
+                &instructions,
+                &prompt,
+                model,
+                task.work_network_need == "public_internet",
+                task.candidate_timeout_sec,
+            )? {
+                crate::codex_candidate::CodexOutcome::Completed(model_usage) => CandidateRun {
+                    execution: crate::result_record::CandidateExecution::completed(),
+                    model_usage,
+                },
+                crate::codex_candidate::CodexOutcome::TimedOut => CandidateRun {
+                    execution: crate::result_record::CandidateExecution::timed_out(
+                        task.candidate_timeout_sec,
+                    ),
+                    model_usage: None,
+                },
+            },
+        );
+    }
     let Some(model) = model else {
         anyhow::ensure!(
             game.is_none(),
@@ -345,9 +375,13 @@ fn execute_judge(
     }
 }
 
-fn validate_os_runtime_task(task: &task::TaskInfo, model: Option<&str>) -> Result<()> {
+fn validate_os_runtime_task(
+    task: &task::TaskInfo,
+    candidate: &asset::LocalAssetPackage,
+    model: Option<&str>,
+) -> Result<()> {
     anyhow::ensure!(
-        model.is_none(),
+        model.is_none() || candidate.protocol == asset::CandidateProtocol::CodexExec,
         "os-runtime does not support model-backed Candidates yet"
     );
     anyhow::ensure!(
