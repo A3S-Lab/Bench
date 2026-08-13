@@ -259,6 +259,38 @@ mod tests {
     use super::*;
     use std::io::{Read, Write};
     use std::net::TcpListener;
+    use std::sync::{Mutex, OnceLock};
+
+    fn proxy_env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    struct ProxyEnvGuard(Vec<(&'static str, Option<std::ffi::OsString>)>);
+
+    impl ProxyEnvGuard {
+        fn cleared() -> Self {
+            let values = ["http_proxy", "HTTP_PROXY", "https_proxy", "HTTPS_PROXY"]
+                .into_iter()
+                .map(|name| (name, std::env::var_os(name)))
+                .collect();
+            for name in ["http_proxy", "HTTP_PROXY", "https_proxy", "HTTPS_PROXY"] {
+                unsafe { std::env::remove_var(name) };
+            }
+            Self(values)
+        }
+    }
+
+    impl Drop for ProxyEnvGuard {
+        fn drop(&mut self) {
+            for (name, value) in self.0.drain(..) {
+                match value {
+                    Some(value) => unsafe { std::env::set_var(name, value) },
+                    None => unsafe { std::env::remove_var(name) },
+                }
+            }
+        }
+    }
 
     #[test]
     fn sandbox_commands_translate_the_host_workspace_to_the_guest_mount() {
@@ -334,6 +366,8 @@ mod tests {
 
     #[test]
     fn custom_openai_provider_edits_workspace_without_os_login() {
+        let _lock = proxy_env_lock().lock().unwrap();
+        let _proxy_env = ProxyEnvGuard::cleared();
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();
         let server = std::thread::spawn(move || {
@@ -372,14 +406,10 @@ mod tests {
                     + 4;
                 let request_body: serde_json::Value =
                     serde_json::from_slice(&request[body_start..]).unwrap();
-                if request_body.get("stream").and_then(|value| value.as_bool()) == Some(true) {
-                    stream
-                        .write_all(
-                            b"HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
-                        )
-                        .unwrap();
-                    continue;
-                }
+                let streaming = request_body
+                    .get("stream")
+                    .and_then(serde_json::Value::as_bool)
+                    == Some(true);
                 let is_pre_analysis = request_body
                     .get("messages")
                     .and_then(serde_json::Value::as_array)
@@ -422,6 +452,7 @@ mod tests {
                         "role":"assistant",
                         "content":null,
                         "tool_calls":[{
+                            "index":0,
                             "id":"call_1",
                             "type":"function",
                             "function":{
@@ -433,22 +464,53 @@ mod tests {
                 } else {
                     serde_json::json!({"role":"assistant","content":"Completed and verified."})
                 };
-                let body = serde_json::to_vec(&serde_json::json!({
-                    "id":"chatcmpl-test",
-                    "object":"chat.completion",
-                    "created":0,
-                    "model":"fake",
-                    "choices":[{"index":0,"message":message,"finish_reason":if response_index == 0 {"tool_calls"} else {"stop"}}],
-                    "usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}
-                }))
-                .unwrap();
-                write!(
-                    stream,
-                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-                    body.len()
-                )
-                .unwrap();
-                stream.write_all(&body).unwrap();
+                let finish_reason = if !is_pre_analysis && response_index == 0 {
+                    "tool_calls"
+                } else {
+                    "stop"
+                };
+                if streaming {
+                    let delta = serde_json::json!({
+                        "id":"chatcmpl-test",
+                        "object":"chat.completion.chunk",
+                        "created":0,
+                        "model":"fake",
+                        "choices":[{"index":0,"delta":message,"finish_reason":null}]
+                    });
+                    let done = serde_json::json!({
+                        "id":"chatcmpl-test",
+                        "object":"chat.completion.chunk",
+                        "created":0,
+                        "model":"fake",
+                        "choices":[{"index":0,"delta":{},"finish_reason":finish_reason}],
+                        "usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}
+                    });
+                    let body = format!("data: {delta}\n\ndata: {done}\n\ndata: [DONE]\n\n");
+                    write!(
+                        stream,
+                        "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        body.len()
+                    )
+                    .unwrap();
+                    stream.write_all(body.as_bytes()).unwrap();
+                } else {
+                    let body = serde_json::to_vec(&serde_json::json!({
+                        "id":"chatcmpl-test",
+                        "object":"chat.completion",
+                        "created":0,
+                        "model":"fake",
+                        "choices":[{"index":0,"message":message,"finish_reason":finish_reason}],
+                        "usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}
+                    }))
+                    .unwrap();
+                    write!(
+                        stream,
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        body.len()
+                    )
+                    .unwrap();
+                    stream.write_all(&body).unwrap();
+                }
                 if !is_pre_analysis {
                     response_index += 1;
                 }

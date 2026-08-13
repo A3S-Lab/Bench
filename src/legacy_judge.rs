@@ -86,9 +86,28 @@ pub fn execute(
         diagnostics: serde_json::json!({
             "adapter": "edgebench-v1",
             "exit_code": exit_code,
-            "parser": source.parser
+            "parser": source.parser,
+            "output_head": output_head(&raw, 4096),
+            "output_tail": output_tail(&raw, 4096)
         }),
     })
+}
+
+fn output_head(value: &str, max_chars: usize) -> String {
+    let end = value
+        .char_indices()
+        .nth(max_chars)
+        .map_or(value.len(), |(index, _)| index);
+    value[..end].to_owned()
+}
+
+fn output_tail(value: &str, max_chars: usize) -> String {
+    let start = value
+        .char_indices()
+        .rev()
+        .nth(max_chars.saturating_sub(1))
+        .map_or(0, |(index, _)| index);
+    value[start..].to_owned()
 }
 
 fn configure_judge_container(command: &mut Command) {
@@ -480,6 +499,18 @@ mod tests {
             requires_model_gateway: false,
             timeout_sec: 60,
         }
+    }
+
+    #[test]
+    fn output_excerpt_is_bounded_and_utf8_safe() {
+        assert_eq!(output_head("abcdef", 3), "abc");
+        assert_eq!(output_tail("abcdef", 3), "def");
+        assert_eq!(
+            output_tail("\u{7532}\u{4e59}\u{4e19}\u{4e01}", 2),
+            "\u{4e19}\u{4e01}"
+        );
+        assert_eq!(output_head("short", 10), "short");
+        assert_eq!(output_tail("short", 10), "short");
     }
 
     #[test]
