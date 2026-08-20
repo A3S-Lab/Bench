@@ -341,6 +341,7 @@ print(json.dumps(getattr(mod,{})({{'submission_root':'/submission','hidden_bundl
         "no-new-privileges",
     ]);
     command.args(crate::runtime_profile::JUDGE_DOCKER_LIMITS);
+    command.args(crate::runtime_profile::READ_ONLY_JUDGE_TMPFS);
     configure_mounted_tree_owner(&mut command, &judge.root)?;
     let output = command
         .arg("--mount")

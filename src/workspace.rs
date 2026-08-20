@@ -1,6 +1,9 @@
-use crate::state_fs::{seal_role_input_tree, secure_directory, set_owner_only_file};
+use crate::state_fs::{
+    seal_role_input_tree, secure_atomic_write, secure_directory, set_owner_only_file,
+};
 use crate::task::{TaskInfo, WorkspaceSeed};
 use anyhow::{Context, Result};
+use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -14,13 +17,14 @@ pub fn state_root() -> Result<PathBuf> {
 }
 
 pub fn create(task: &TaskInfo) -> Result<PathBuf> {
+    let state_root = state_root()?;
     let source = task.root.join("public/workspace");
-    let destination = run_directory("workspaces", &task.id)?;
+    let destination = run_directory(&state_root, "workspaces", &task.id)?;
     replace_directory(&destination)?;
     if source.is_dir() {
         copy_tree(&source, &destination)?;
     } else if let Some(seed) = &task.workspace_seed {
-        materialize_seed(seed, &destination)?;
+        materialize_seed(seed, &state_root, &destination)?;
     } else {
         anyhow::bail!("Task has neither public/workspace nor workspace OCI seed");
     }
@@ -28,15 +32,16 @@ pub fn create(task: &TaskInfo) -> Result<PathBuf> {
 }
 
 pub fn create_submission(task: &TaskInfo, workspace: &Path) -> Result<PathBuf> {
-    let destination = run_directory("submissions", &task.id)?;
+    let state_root = state_root()?;
+    let destination = run_directory(&state_root, "submissions", &task.id)?;
     replace_directory(&destination)?;
     crate::submission::project(workspace, &destination, &task.submission)?;
     seal_role_input_tree(&destination)?;
     Ok(destination.canonicalize()?)
 }
 
-fn run_directory(kind: &str, task_id: &str) -> Result<PathBuf> {
-    let root = std::env::current_dir()?.join(".a3s/bench").join(kind);
+fn run_directory(state_root: &Path, kind: &str, task_id: &str) -> Result<PathBuf> {
+    let root = state_root.join(kind);
     secure_directory(&root)?;
     Ok(unique_run_directory(&root, task_id))
 }
@@ -53,7 +58,8 @@ fn replace_directory(path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn materialize_seed(seed: &WorkspaceSeed, destination: &Path) -> Result<()> {
+fn materialize_seed(seed: &WorkspaceSeed, state_root: &Path, destination: &Path) -> Result<()> {
+    // Ensure the image is present locally before computing its content id.
     let inspect = Command::new("docker")
         .args(["image", "inspect", &seed.image])
         .output()?;
@@ -61,6 +67,92 @@ fn materialize_seed(seed: &WorkspaceSeed, destination: &Path) -> Result<()> {
         crate::runtime::pull_image_with_retry(&seed.image, seed.platform.as_deref())
             .context("could not pull workspace OCI image")?;
     }
+    let image_id = docker_image_id(&seed.image)?;
+
+    let cache = seed_cache_path(state_root, &seed_cache_key(&image_id, seed))?;
+    if let Some(clean) = valid_seed_cache(&cache, &image_id, seed)? {
+        // The cache tree already has owner-only permissions (set during
+        // populate_seed_staging), and `cp -a` preserves them, so we can
+        // skip the expensive set_tree_owner_only traversal here.
+        clone_tree(&clean, destination)?;
+        return Ok(());
+    }
+    if is_real_directory(&cache)? {
+        std::fs::remove_dir_all(&cache)?;
+    }
+    // Extract the seed into a staging directory and publish it as the cache so
+    // that subsequent runs can skip the Docker extraction entirely.
+    let staging = crate::state_fs::create_unique_staging_directory(
+        &state_root.join("workspace-seeds"),
+        "seed-image",
+    )?;
+    // From this point on, any failure must remove the staging directory so it
+    // does not leak.  The extraction logic lives in a helper so that the `?`
+    // operator can be used freely without forgetting cleanup.
+    if let Err(error) = populate_seed_staging(seed, &staging, &image_id) {
+        let _ = crate::state_fs::remove_tree(&staging);
+        return Err(error);
+    }
+    match std::fs::rename(&staging, &cache) {
+        Ok(()) => {}
+        Err(_) if valid_seed_cache(&cache, &image_id, seed)?.is_some() => {
+            let _ = crate::state_fs::remove_tree(&staging);
+        }
+        Err(error) => {
+            let _ = crate::state_fs::remove_tree(&staging);
+            return Err(anyhow::anyhow!(
+                "could not publish workspace seed cache: {error}"
+            ));
+        }
+    }
+    clone_tree(&cache.join("tree"), destination)?;
+    // Cache tree already has owner-only permissions; cp -a preserves them.
+    Ok(())
+}
+
+/// Extract the workspace seed contents into the staging directory, write the
+/// completeness marker, and fsync the tree.  On error the caller is
+/// responsible for removing the staging directory.
+fn populate_seed_staging(seed: &WorkspaceSeed, staging: &Path, image_id: &str) -> Result<()> {
+    let tree = staging.join("tree");
+    secure_directory(&tree)?;
+    let container = create_seed_container(seed)?;
+    let copy = extract_seed_tree(&container, &seed.source_path, &tree);
+    let _ = Command::new("docker")
+        .args(["rm", "-f", &container])
+        .output();
+    copy?;
+    set_tree_owner_only(&tree)?;
+    secure_atomic_write(
+        &staging.join(".complete"),
+        seed_cache_marker(image_id, seed).as_bytes(),
+    )?;
+    // Previously we fsynced every file in the tree here (sync_seed_tree),
+    // but that caused multi-minute stalls on large seeds (248k files /
+    // 14GB) because each fsync forces an ext4 journal commit.  The cache
+    // is validated by the .complete marker and can be regenerated if lost
+    // to a crash, so per-file fsync is not worth the cost.  A single
+    // directory sync after the rename is sufficient.
+    Ok(())
+}
+
+fn docker_image_id(reference: &str) -> Result<String> {
+    let output = Command::new("docker")
+        .args(["image", "inspect", "--format", "{{.Id}}", reference])
+        .output()?;
+    anyhow::ensure!(
+        output.status.success(),
+        "could not inspect workspace OCI image {reference:?}"
+    );
+    let id = String::from_utf8(output.stdout)?.trim().to_owned();
+    anyhow::ensure!(
+        id.starts_with("sha256:"),
+        "Docker returned an invalid workspace image ID"
+    );
+    Ok(id)
+}
+
+fn create_seed_container(seed: &WorkspaceSeed) -> Result<String> {
     let mut create = Command::new("docker");
     create.arg("create");
     if let Some(platform) = seed.platform.as_deref() {
@@ -69,16 +161,94 @@ fn materialize_seed(seed: &WorkspaceSeed, destination: &Path) -> Result<()> {
     let output = create.args([&seed.image, "/bin/true"]).output()?;
     anyhow::ensure!(
         output.status.success(),
-        "could not create workspace seed container"
+        "could not create workspace seed container: {}",
+        String::from_utf8_lossy(&output.stderr).trim()
     );
-    let container = String::from_utf8(output.stdout)?.trim().to_owned();
+    Ok(String::from_utf8(output.stdout)?.trim().to_owned())
+}
+
+fn seed_cache_key(image_id: &str, seed: &WorkspaceSeed) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(image_id.as_bytes());
+    hasher.update([0]);
+    hasher.update(seed.source_path.as_bytes());
+    hasher.update([0]);
+    hasher.update(seed.platform.as_deref().unwrap_or("").as_bytes());
+    format!("{:x}", hasher.finalize())
+}
+
+fn seed_cache_marker(image_id: &str, seed: &WorkspaceSeed) -> String {
+    format!(
+        "{}\n{}\n{}\n",
+        image_id,
+        seed.source_path,
+        seed.platform.as_deref().unwrap_or("")
+    )
+}
+
+fn seed_cache_path(state_root: &Path, key: &str) -> Result<PathBuf> {
+    anyhow::ensure!(
+        key.len() == 64 && key.bytes().all(|byte| byte.is_ascii_hexdigit()),
+        "invalid workspace seed cache key"
+    );
+    Ok(state_root.join("workspace-seeds").join(key))
+}
+
+fn valid_seed_cache(path: &Path, image_id: &str, seed: &WorkspaceSeed) -> Result<Option<PathBuf>> {
+    let tree = path.join("tree");
+    if !is_real_directory(&tree)? {
+        return Ok(None);
+    }
+    let marker = path.join(".complete");
+    let Some(bytes) =
+        crate::state_fs::read_optional_regular_file(&marker, "workspace seed cache marker")?
+    else {
+        return Ok(None);
+    };
+    if bytes != seed_cache_marker(image_id, seed).into_bytes() {
+        return Ok(None);
+    }
+    Ok(Some(tree))
+}
+
+fn is_real_directory(path: &Path) -> Result<bool> {
+    match std::fs::symlink_metadata(path) {
+        Ok(metadata) => {
+            anyhow::ensure!(
+                metadata.is_dir() && !metadata.file_type().is_symlink(),
+                "workspace seed cache path is not a real directory: {}",
+                path.display()
+            );
+            Ok(true)
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error.into()),
+    }
+}
+
+/// Clone a cached seed tree into a fresh writable destination, preserving
+/// relative symlinks (which were already validated when the cache was
+/// published) and ensuring the destination root is owner-only.
+fn clone_tree(source: &Path, destination: &Path) -> Result<()> {
+    // Use `cp -a` which preserves symlinks, permissions, and is significantly
+    // faster than per-file std::fs::copy for large trees (14GB / 250k files).
+    // `source/.` copies the *contents* of source into destination rather
+    // than nesting source as a subdirectory of destination.
     secure_directory(destination)?;
-    let copy = extract_seed_tree(&container, &seed.source_path, destination);
-    let _ = Command::new("docker")
-        .args(["rm", "-f", &container])
-        .output();
-    copy?;
-    set_tree_owner_only(destination)
+    let output = Command::new("cp")
+        .arg("-a")
+        .arg(format!("{}/.", source.display()))
+        .arg(format!("{}/", destination.display()))
+        .output()?;
+    // GNU cp reapplies the source root's mode to an existing destination when
+    // copying `source/.`, so restore the private state-directory contract.
+    secure_directory(destination)?;
+    anyhow::ensure!(
+        output.status.success(),
+        "cp -a failed: {}",
+        String::from_utf8_lossy(&output.stderr).trim()
+    );
+    Ok(())
 }
 
 fn extract_seed_tree(container: &str, source_path: &str, destination: &Path) -> Result<()> {
@@ -285,5 +455,77 @@ mod tests {
         symlink("cycle-b", workspace.join("cycle-a")).unwrap();
         symlink("cycle-a", workspace.join("cycle-b")).unwrap();
         assert!(set_tree_owner_only(&workspace).is_err());
+    }
+
+    #[test]
+    fn seed_cache_key_is_stable_and_distinguishes_inputs() {
+        let seed = WorkspaceSeed {
+            image: "sha256:abc".into(),
+            source_path: "/home/workspace".into(),
+            platform: Some("linux/amd64".into()),
+        };
+        let key = seed_cache_key("sha256:abc", &seed);
+        assert_eq!(key.len(), 64);
+        assert!(key.bytes().all(|byte| byte.is_ascii_hexdigit()));
+        // Same inputs -> same key.
+        assert_eq!(key, seed_cache_key("sha256:abc", &seed));
+        // Different image id -> different key.
+        assert_ne!(key, seed_cache_key("sha256:xyz", &seed));
+        // Different source path -> different key.
+        let other = WorkspaceSeed {
+            image: "sha256:abc".into(),
+            source_path: "/other".into(),
+            platform: Some("linux/amd64".into()),
+        };
+        assert_ne!(key, seed_cache_key("sha256:abc", &other));
+    }
+
+    #[test]
+    fn seed_cache_marker_round_trips() {
+        let seed = WorkspaceSeed {
+            image: "sha256:deadbeef".into(),
+            source_path: "/home/ws".into(),
+            platform: None,
+        };
+        let marker = seed_cache_marker("sha256:deadbeef", &seed);
+        assert_eq!(marker, "sha256:deadbeef\n/home/ws\n\n");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn clone_tree_preserves_relative_symlinks() {
+        use std::os::unix::fs::{symlink, PermissionsExt};
+
+        let source = tempfile::tempdir().unwrap();
+        std::fs::create_dir(source.path().join("packages")).unwrap();
+        std::fs::write(source.path().join("packages/mathlib"), "package").unwrap();
+        symlink("packages/mathlib", source.path().join("mathlib")).unwrap();
+        std::fs::write(source.path().join("README"), "hello").unwrap();
+
+        let destination = tempfile::tempdir().unwrap();
+        std::fs::set_permissions(destination.path(), std::fs::Permissions::from_mode(0o755))
+            .unwrap();
+        clone_tree(source.path(), destination.path()).unwrap();
+
+        assert_eq!(
+            std::fs::metadata(destination.path())
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o700
+        );
+        assert_eq!(
+            std::fs::read_link(destination.path().join("mathlib")).unwrap(),
+            Path::new("packages/mathlib")
+        );
+        assert_eq!(
+            std::fs::read_to_string(destination.path().join("packages/mathlib")).unwrap(),
+            "package"
+        );
+        assert_eq!(
+            std::fs::read_to_string(destination.path().join("README")).unwrap(),
+            "hello"
+        );
     }
 }

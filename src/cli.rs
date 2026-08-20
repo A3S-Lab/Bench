@@ -51,7 +51,7 @@ fn compare(args: &[String]) -> Result<u8> {
     );
     let state_root = std::env::current_dir()?.join(".a3s/bench");
     let mut pairs = Vec::with_capacity(run_ids.len() / 2);
-    for pair in run_ids.chunks_exact(2) {
+    for pair in run_ids.as_chunks::<2>().0 {
         crate::run_journal::validate_run_id(pair[0])?;
         crate::run_journal::validate_run_id(pair[1])?;
         let baseline = crate::result_record::LocalResultRecord::load(&state_root, pair[0])?

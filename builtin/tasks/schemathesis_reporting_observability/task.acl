@@ -39,7 +39,7 @@ bench "schemathesis_reporting_observability" {
 
   judge {
     asset                = "private/judge"
-    solution_timeout_sec = 1800
+    solution_timeout_sec = 43200
   }
 
   metric "score" {

@@ -38,7 +38,7 @@ bench "vehicle_routing_time_windows" {
 
   judge {
     asset                = "private/judge"
-    solution_timeout_sec = 1200
+    solution_timeout_sec = 43200
   }
 
   metric "score" {

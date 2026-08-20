@@ -4,7 +4,7 @@ use crate::{
 };
 use anyhow::{Context, Result};
 use serde_json::json;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 struct JudgeModel {
     reference: String,
@@ -19,6 +19,37 @@ struct RuntimeExecution<'a> {
 struct CandidateRun {
     execution: crate::result_record::CandidateExecution,
     model_usage: Option<model_candidate::ModelExecution>,
+}
+
+struct TransientRunDirs {
+    workspace: Option<PathBuf>,
+    submission: Option<PathBuf>,
+}
+
+impl TransientRunDirs {
+    fn new() -> Self {
+        Self {
+            workspace: None,
+            submission: None,
+        }
+    }
+}
+
+impl Drop for TransientRunDirs {
+    fn drop(&mut self) {
+        // Recycle the per-run workspace and submission directories once the
+        // result has been persisted. They are transient intermediates and
+        // would otherwise accumulate indefinitely under .a3s/bench/. The
+        // submission tree is sealed read-only, so a plain `remove_dir_all`
+        // would silently fail to reclaim it; `remove_tree` restores
+        // writability first.
+        if let Some(path) = self.workspace.take() {
+            let _ = crate::state_fs::remove_tree(&path);
+        }
+        if let Some(path) = self.submission.take() {
+            let _ = crate::state_fs::remove_tree(&path);
+        }
+    }
 }
 
 pub struct CompletedRun {
@@ -79,7 +110,9 @@ fn execute_inner(
     }
     journal.advance(RunStage::InputsResolved)?;
     let game = start_game(&loaded.task, state_root)?;
+    let mut transient = TransientRunDirs::new();
     let candidate_workspace = workspace::create(&loaded.task)?;
+    transient.workspace = Some(candidate_workspace.clone());
     journal.advance(RunStage::CandidateRunning)?;
     let runtime_execution = RuntimeExecution {
         provider: &status.provider,
@@ -93,9 +126,12 @@ fn execute_inner(
         &candidate_workspace,
         game.as_ref(),
         &runtime_execution,
+        &journal.run_id,
+        state_root,
     )?;
     journal.advance(RunStage::CandidateCompleted)?;
     let submission = workspace::create_submission(&loaded.task, &candidate_workspace)?;
+    transient.submission = Some(submission.clone());
     journal.advance(RunStage::Judging)?;
     let judge_result = execute_judge(
         &loaded.task,
@@ -186,6 +222,7 @@ fn start_game(task: &task::TaskInfo, state_root: &Path) -> Result<Option<game_ju
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn execute_candidate(
     task: &task::TaskInfo,
     candidate: &asset::LocalAssetPackage,
@@ -194,6 +231,8 @@ fn execute_candidate(
     candidate_workspace: &Path,
     game: Option<&game_judge::GameSession>,
     runtime_execution: &RuntimeExecution<'_>,
+    run_id: &str,
+    state_root: &Path,
 ) -> Result<CandidateRun> {
     if candidate.protocol == asset::CandidateProtocol::CodexExec {
         anyhow::ensure!(
@@ -273,6 +312,10 @@ fn execute_candidate(
         )
     })?;
     let game_url = game.map(game_judge::GameSession::url);
+    // Persist the full candidate conversation under the bench state root
+    // so it can be inspected post-hoc (mirrors EdgeBench agent_output.txt).
+    let log_dir = state_root.join("runs").join(run_id);
+    std::fs::create_dir_all(&log_dir)?;
     let outcome = model_candidate::execute(model_candidate::ModelCandidateRequest {
         config_path,
         model,
@@ -294,6 +337,7 @@ fn execute_candidate(
         public_internet: task.work_network_need == "public_internet",
         timeout_sec: task.candidate_timeout_sec,
         max_tool_rounds: candidate.model_max_steps()?,
+        log_dir: Some(&log_dir),
     })?;
     Ok(match outcome {
         model_candidate::ModelCandidateOutcome::Completed(model_usage) => CandidateRun {

@@ -87,6 +87,8 @@ fn model_candidate_game_and_task_owned_judge_run_end_to_end() {
         &candidate_workspace,
         Some(&game),
         &runtime_execution,
+        "test-run",
+        state.path(),
     )
     .unwrap()
     .model_usage

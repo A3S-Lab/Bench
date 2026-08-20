@@ -225,6 +225,49 @@ pub fn seal_role_input_tree(path: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Remove a tree that may have been sealed read-only (e.g. a role input tree).
+/// Unlike [`std::fs::remove_dir_all`], this restores write permission on each
+/// directory before removing its entries so that sealed (`0o555`) directories
+/// are reclaimed correctly on Unix.
+pub fn remove_tree(path: &Path) -> Result<()> {
+    fn inner(path: &Path) -> std::io::Result<()> {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700))?;
+        }
+        #[cfg(not(unix))]
+        {
+            let mut permissions = std::fs::metadata(path)?.permissions();
+            permissions.set_readonly(false);
+            std::fs::set_permissions(path, permissions)?;
+        }
+        for entry in std::fs::read_dir(path)? {
+            let entry = entry?;
+            let kind = entry.file_type()?;
+            if kind.is_dir() {
+                inner(&entry.path())?;
+            } else {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    let _ = std::fs::set_permissions(
+                        entry.path(),
+                        std::fs::Permissions::from_mode(0o600),
+                    );
+                }
+                std::fs::remove_file(entry.path())?;
+            }
+        }
+        std::fs::remove_dir(path)
+    }
+    match inner(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error.into()),
+    }
+}
+
 #[cfg(test)]
 pub fn remove_sealed_tree(path: &Path) -> Result<()> {
     set_directory_owner_writable(path)?;

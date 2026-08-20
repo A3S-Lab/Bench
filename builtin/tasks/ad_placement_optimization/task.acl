@@ -33,7 +33,7 @@ bench "ad_placement_optimization" {
 
   judge {
     asset                = "private/judge"
-    solution_timeout_sec = 600
+    solution_timeout_sec = 43200
   }
 
   metric "score" {

@@ -407,7 +407,7 @@ mod tests {
         let root =
             Path::new(env!("CARGO_MANIFEST_DIR")).join("builtin/tasks/ad_placement_optimization");
         let task = load_local(&root).unwrap();
-        assert_eq!(task.candidate_timeout_sec, 600);
+        assert_eq!(task.candidate_timeout_sec, 43200);
         let seed = task.workspace_seed.unwrap();
         assert!(seed.image.starts_with("docker.io/seededge/"));
         assert_eq!(seed.source_path, "/home/workspace/ad-placement");

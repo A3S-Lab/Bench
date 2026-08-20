@@ -23,12 +23,12 @@ pub fn execute(
     if let Some(platform) = source.platform.as_deref() {
         command.args(["--platform", platform]);
     }
-    command
-        .args(["--env", "A3S_BENCH_JUDGE_COMMAND"])
-        .env("A3S_BENCH_JUDGE_COMMAND", &source.command);
+    // Judge command runs under `timeout` inside the container; no
+    // environment variable passthrough is needed.
     let timeout_runner = format!(
-        "import os,subprocess,sys\ntry:\n p=subprocess.run(['/bin/bash','-lc',os.environ['A3S_BENCH_JUDGE_COMMAND']],timeout={})\n sys.exit(p.returncode)\nexcept subprocess.TimeoutExpired:\n print('Judge exceeded descriptor timeout',file=sys.stderr)\n sys.exit(124)",
-        source.timeout_sec
+        "timeout --kill-after=10 {} /bin/bash -lc {}",
+        source.timeout_sec,
+        shell_quote(&source.command),
     );
     let judge_command = legacy_judge_command(
         "/a3s/submission",
@@ -51,9 +51,10 @@ pub fn execute(
 
     let exit_code = output.status.code();
 
-    // Docker reports timeout and signal termination through conventional exit
-    // codes. These indicate an infrastructure/resource failure, unlike an
-    // ordinary non-zero judge exit caused by an unbuildable submission.
+    // Signal kills (OOM, SIGTERM) are infrastructure failures.  A timeout
+    // (exit_code 124) is NOT: the judge ran for the full descriptor timeout
+    // without crashing, meaning the candidate's code was too slow.  In that
+    // case we fall through to the normal scoring path.
     if abnormal_judge_exit(exit_code) {
         let snippet: String = raw.chars().take(4096).collect();
         anyhow::bail!(
@@ -61,6 +62,10 @@ pub fn execute(
             exit_code,
             snippet
         );
+    }
+
+    if exit_code == Some(124) {
+        eprintln!("Judge exceeded descriptor timeout; scoring 0.0");
     }
 
     // An ordinary exit without a structured result means the candidate's
@@ -81,9 +86,28 @@ pub fn execute(
         diagnostics: serde_json::json!({
             "adapter": "edgebench-v1",
             "exit_code": exit_code,
-            "parser": source.parser
+            "parser": source.parser,
+            "output_head": output_head(&raw, 4096),
+            "output_tail": output_tail(&raw, 4096)
         }),
     })
+}
+
+fn output_head(value: &str, max_chars: usize) -> String {
+    let end = value
+        .char_indices()
+        .nth(max_chars)
+        .map_or(value.len(), |(index, _)| index);
+    value[..end].to_owned()
+}
+
+fn output_tail(value: &str, max_chars: usize) -> String {
+    let start = value
+        .char_indices()
+        .rev()
+        .nth(max_chars.saturating_sub(1))
+        .map_or(0, |(index, _)| index);
+    value[start..].to_owned()
 }
 
 fn configure_judge_container(command: &mut Command) {
@@ -102,7 +126,7 @@ fn configure_judge_container(command: &mut Command) {
 }
 
 fn abnormal_judge_exit(exit_code: Option<i32>) -> bool {
-    matches!(exit_code, None | Some(124 | 137 | 143))
+    matches!(exit_code, None | Some(137 | 143))
 }
 
 fn configure_model_gateway(
@@ -156,9 +180,9 @@ fn legacy_judge_command(source: &str, destination: &str, timeout_runner: &str) -
     // files from the judge image), stalling for over an hour before the
     // judge script could start.
     format!(
-        "cp -R {} {destination}/ && python3 -c {}",
+        "cp -R {} {destination}/ && {}",
         shell_quote(&source),
-        shell_quote(timeout_runner),
+        timeout_runner,
     )
 }
 
@@ -276,7 +300,7 @@ pub(crate) fn normalize_raw(spec: Option<&Value>, raw: f64) -> Result<f64> {
         return Ok(0.0);
     }
     let Some(spec) = spec else {
-        return Ok(raw.clamp(0.0, 1.0));
+        return Ok(raw.clamp(0.0, 100.0) / 100.0);
     };
     let get = |name: &str| -> Result<f64> {
         let value = spec
@@ -478,6 +502,18 @@ mod tests {
     }
 
     #[test]
+    fn output_excerpt_is_bounded_and_utf8_safe() {
+        assert_eq!(output_head("abcdef", 3), "abc");
+        assert_eq!(output_tail("abcdef", 3), "def");
+        assert_eq!(
+            output_tail("\u{7532}\u{4e59}\u{4e19}\u{4e01}", 2),
+            "\u{4e19}\u{4e01}"
+        );
+        assert_eq!(output_head("short", 10), "short");
+        assert_eq!(output_tail("short", 10), "short");
+    }
+
+    #[test]
     fn candidate_quality_failures_score_zero() {
         let source = structured_source();
         assert_eq!(parse_score(&source, "compiler error").unwrap(), 0.0);
@@ -523,9 +559,11 @@ mod tests {
 
     #[test]
     fn judge_exit_classification_separates_candidate_and_infrastructure_failures() {
-        for exit_code in [None, Some(124), Some(137), Some(143)] {
+        for exit_code in [None, Some(137), Some(143)] {
             assert!(abnormal_judge_exit(exit_code));
         }
+        // Timeout (124) is not abnormal — it means the candidate was too slow.
+        assert!(!abnormal_judge_exit(Some(124)));
         for exit_code in [Some(0), Some(1), Some(2)] {
             assert!(!abnormal_judge_exit(exit_code));
         }
@@ -648,6 +686,21 @@ mod tests {
     }
 
     #[test]
+    fn normalize_raw_without_rescale_maps_0_100_to_0_1() {
+        // Tasks without a rescale_hint output raw scores already in the
+        // 0–100 range (e.g. structured_json judges).  normalize_raw(None, _)
+        // must clamp to 0–100 and divide by 100 so that e.g. a raw 15.1
+        // becomes 0.151 — not a clamped 1.0 perfect score.
+        assert_eq!(normalize_raw(None, 0.0).unwrap(), 0.0);
+        assert_eq!(normalize_raw(None, 50.0).unwrap(), 0.5);
+        assert_eq!(normalize_raw(None, 100.0).unwrap(), 1.0);
+        assert_eq!(normalize_raw(None, 15.1).unwrap(), 0.151);
+        // out-of-range values are clamped to the 0–100 band before scaling
+        assert_eq!(normalize_raw(None, 150.0).unwrap(), 1.0);
+        assert_eq!(normalize_raw(None, -10.0).unwrap(), 0.0);
+    }
+
+    #[test]
     fn piecewise_segments_are_clipped_to_their_score_bands() {
         let max = serde_json::json!({
             "kind":"piecewise_max",
@@ -686,16 +739,21 @@ mod tests {
         std::fs::create_dir(&destination).unwrap();
         std::fs::create_dir(&bin).unwrap();
         std::fs::write(source.join("answer"), "42").unwrap();
-        std::fs::write(bin.join("python3"), "#!/bin/sh\n: > \"$MARKER\"\n").unwrap();
-        std::fs::set_permissions(bin.join("python3"), std::fs::Permissions::from_mode(0o700))
-            .unwrap();
+        // The timeout_runner is now a plain shell command (no python3);
+        // use a script that touches the marker file.
+        std::fs::write(bin.join("judge-mock"), "#!/bin/sh\n: > \"$MARKER\"\n").unwrap();
+        std::fs::set_permissions(
+            bin.join("judge-mock"),
+            std::fs::Permissions::from_mode(0o700),
+        )
+        .unwrap();
         let path = format!("{}:/usr/bin:/bin", bin.display());
 
         // Successful copy → judge runs
         let command = legacy_judge_command(
             source.to_str().unwrap(),
             destination.to_str().unwrap(),
-            "ignored",
+            "judge-mock",
         );
         let output = Command::new("/bin/bash")
             .args(["-c", &command])
@@ -719,7 +777,7 @@ mod tests {
         let command = legacy_judge_command(
             root.path().join("missing").to_str().unwrap(),
             destination.to_str().unwrap(),
-            "ignored",
+            "judge-mock",
         );
         let output = Command::new("/bin/bash")
             .args(["-c", &command])
