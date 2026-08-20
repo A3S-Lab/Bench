@@ -80,9 +80,6 @@ fn materialize_seed(seed: &WorkspaceSeed, state_root: &Path, destination: &Path)
     if is_real_directory(&cache)? {
         std::fs::remove_dir_all(&cache)?;
     }
-    // Remove staging directories left behind by previous runs that were
-    // killed (e.g. by a timeout) before they could publish or clean up.
-    sweep_stale_staging(&state_root.join("workspace-seeds"))?;
     // Extract the seed into a staging directory and publish it as the cache so
     // that subsequent runs can skip the Docker extraction entirely.
     let staging = crate::state_fs::create_unique_staging_directory(
@@ -136,35 +133,6 @@ fn populate_seed_staging(seed: &WorkspaceSeed, staging: &Path, image_id: &str) -
     // is validated by the .complete marker and can be regenerated if lost
     // to a crash, so per-file fsync is not worth the cost.  A single
     // directory sync after the rename is sufficient.
-    Ok(())
-}
-
-/// Remove staging directories left behind by other processes (e.g. runs that
-/// were killed by a timeout before they could clean up).  Directories created
-/// by the current process are left untouched.
-fn sweep_stale_staging(parent: &Path) -> Result<()> {
-    let read_dir = match std::fs::read_dir(parent) {
-        Ok(rd) => rd,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(error.into()),
-    };
-    let prefix = ".tmp-seed-image-";
-    let current_pid = std::process::id().to_string();
-    for entry in read_dir {
-        let Ok(entry) = entry else { continue };
-        let name = entry.file_name();
-        let Some(name) = name.to_str() else { continue };
-        let name = name.to_owned();
-        if !name.starts_with(prefix) {
-            continue;
-        }
-        // Staging dirs are named ".tmp-seed-image-{pid}-{seq}".
-        let suffix = &name[prefix.len()..];
-        let staging_pid = suffix.split('-').next().unwrap_or("");
-        if staging_pid != current_pid {
-            let _ = crate::state_fs::remove_tree(&entry.path());
-        }
-    }
     Ok(())
 }
 
@@ -260,14 +228,13 @@ fn is_real_directory(path: &Path) -> Result<bool> {
 
 /// Clone a cached seed tree into a fresh writable destination, preserving
 /// relative symlinks (which were already validated when the cache was
-/// published). The caller is expected to run [`set_tree_owner_only`] on the
-/// destination afterwards.
+/// published) and ensuring the destination root is owner-only.
 fn clone_tree(source: &Path, destination: &Path) -> Result<()> {
     // Use `cp -a` which preserves symlinks, permissions, and is significantly
     // faster than per-file std::fs::copy for large trees (14GB / 250k files).
     // `source/.` copies the *contents* of source into destination rather
     // than nesting source as a subdirectory of destination.
-    std::fs::create_dir_all(destination)?;
+    secure_directory(destination)?;
     let output = Command::new("cp")
         .arg("-a")
         .arg(format!("{}/.", source.display()))
@@ -524,7 +491,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn clone_tree_preserves_relative_symlinks() {
-        use std::os::unix::fs::symlink;
+        use std::os::unix::fs::{symlink, PermissionsExt};
 
         let source = tempfile::tempdir().unwrap();
         std::fs::create_dir(source.path().join("packages")).unwrap();
@@ -533,8 +500,18 @@ mod tests {
         std::fs::write(source.path().join("README"), "hello").unwrap();
 
         let destination = tempfile::tempdir().unwrap();
+        std::fs::set_permissions(destination.path(), std::fs::Permissions::from_mode(0o755))
+            .unwrap();
         clone_tree(source.path(), destination.path()).unwrap();
 
+        assert_eq!(
+            std::fs::metadata(destination.path())
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o700
+        );
         assert_eq!(
             std::fs::read_link(destination.path().join("mathlib")).unwrap(),
             Path::new("packages/mathlib")
