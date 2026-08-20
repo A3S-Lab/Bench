@@ -433,8 +433,8 @@ mod tests {
             r#"bench_suite "core" {
           schema = "a3s-bench/suite/v1"
           tasks = ["quick_file_edit", "./tasks/local"]
-          candidate "baseline" { agent = "a3s-code" model = "openai/base" }
-          candidate "candidate" { agent = "a3s-code" model = "openai/new" }
+          candidate "baseline" { agent = "a3s-code-core" model = "openai/base" }
+          candidate "candidate" { agent = "a3s-code-core" model = "openai/new" }
         }"#,
         );
         let spec = load_spec(file.path()).unwrap();

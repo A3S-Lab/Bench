@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import platform
 import re
 import shutil
@@ -78,7 +79,53 @@ def main() -> None:
             capture_output=True,
             text=True,
         )
-        candidate_lock = Path(working_directory) / "a3s-code.candidate.lock.json"
+        core_candidate_lock = (
+            Path(working_directory) / "a3s-code-core.candidate.lock.json"
+        )
+        subprocess.run(
+            [
+                package_root / "bin" / "a3s-bench",
+                "advanced",
+                "candidate",
+                "lock",
+                "a3s-code-core",
+                "--model",
+                "test/model",
+                "--out",
+                core_candidate_lock,
+            ],
+            cwd=working_directory,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        locked_core_candidate = json.loads(
+            core_candidate_lock.read_text(encoding="utf-8")
+        )
+        if (
+            locked_core_candidate["schema"] != "a3s.bench.candidate-lock.v1"
+            or locked_core_candidate["model"] != "test/model"
+        ):
+            raise SystemExit("packaged A3S Code Core Candidate binding is invalid")
+
+        fake_bin = Path(working_directory) / "fake-bin"
+        fake_bin.mkdir()
+        fake_a3s = fake_bin / "a3s"
+        fake_a3s.write_text(
+            "#!/bin/sh\n"
+            "if [ \"$1\" = \"--version\" ]; then\n"
+            "  echo 'a3s 0.12.5'\n"
+            "else\n"
+            "  echo '  --tool-policy <standard|local-workspace>'\n"
+            "fi\n",
+            encoding="utf-8",
+        )
+        fake_a3s.chmod(0o700)
+        product_candidate_lock = (
+            Path(working_directory) / "a3s-code.candidate.lock.json"
+        )
+        product_env = os.environ.copy()
+        product_env["PATH"] = f"{fake_bin}{os.pathsep}{product_env['PATH']}"
         subprocess.run(
             [
                 package_root / "bin" / "a3s-bench",
@@ -89,16 +136,24 @@ def main() -> None:
                 "--model",
                 "test/model",
                 "--out",
-                candidate_lock,
+                product_candidate_lock,
             ],
             cwd=working_directory,
+            env=product_env,
             check=True,
             capture_output=True,
             text=True,
         )
-        locked_candidate = json.loads(candidate_lock.read_text(encoding="utf-8"))
-        if locked_candidate["model"] != "test/model":
-            raise SystemExit("packaged A3S Code Candidate model binding is invalid")
+        locked_product_candidate = json.loads(
+            product_candidate_lock.read_text(encoding="utf-8")
+        )
+        if (
+            locked_product_candidate["schema"] != "a3s.bench.candidate-lock.v2"
+            or locked_product_candidate["model"] != "test/model"
+            or locked_product_candidate["product"]
+            != {"name": "a3s-cli", "version": "a3s 0.12.5"}
+        ):
+            raise SystemExit("packaged A3S Code product Candidate binding is invalid")
     packaged_catalog = json.loads(listing.stdout)
     source_catalog = json.loads((ROOT / "builtin" / "catalog.json").read_text())
     if len(packaged_catalog["data"]["tasks"]) != len(source_catalog["tasks"]):

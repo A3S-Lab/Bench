@@ -234,6 +234,45 @@ fn execute_candidate(
     run_id: &str,
     state_root: &Path,
 ) -> Result<CandidateRun> {
+    if candidate.protocol == asset::CandidateProtocol::A3sCodeExec {
+        anyhow::ensure!(
+            game.is_none(),
+            "A3S Code Candidate does not support game Tasks"
+        );
+        let config_path = config.path.as_deref().ok_or_else(|| {
+            anyhow::anyhow!(
+                "A3S Code Candidate requires project-local or user-local .a3s/config.acl"
+            )
+        })?;
+        let prompt = std::fs::read_to_string(task.root.join("public/prompt.md"))?;
+        let instructions = std::fs::read_to_string(candidate.model_instructions_path()?)?;
+        return Ok(
+            match crate::a3s_code_candidate::execute(crate::a3s_code_candidate::A3sCodeRequest {
+                workspace: candidate_workspace,
+                config_path,
+                instructions: &instructions,
+                task_prompt: &prompt,
+                model,
+                workspace_source_path: task
+                    .workspace_seed
+                    .as_ref()
+                    .map(|seed| seed.source_path.as_str()),
+                public_internet: task.work_network_need == "public_internet",
+                timeout_sec: task.candidate_timeout_sec,
+            })? {
+                crate::a3s_code_candidate::A3sCodeOutcome::Completed(model_usage) => CandidateRun {
+                    execution: crate::result_record::CandidateExecution::completed(),
+                    model_usage: Some(model_usage),
+                },
+                crate::a3s_code_candidate::A3sCodeOutcome::TimedOut => CandidateRun {
+                    execution: crate::result_record::CandidateExecution::timed_out(
+                        task.candidate_timeout_sec,
+                    ),
+                    model_usage: None,
+                },
+            },
+        );
+    }
     if candidate.protocol == asset::CandidateProtocol::CodexExec {
         anyhow::ensure!(
             game.is_none(),
@@ -381,7 +420,11 @@ fn validate_os_runtime_task(
     model: Option<&str>,
 ) -> Result<()> {
     anyhow::ensure!(
-        model.is_none() || candidate.protocol == asset::CandidateProtocol::CodexExec,
+        model.is_none()
+            || matches!(
+                candidate.protocol,
+                asset::CandidateProtocol::A3sCodeExec | asset::CandidateProtocol::CodexExec
+            ),
         "os-runtime does not support model-backed Candidates yet"
     );
     anyhow::ensure!(

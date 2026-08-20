@@ -3,12 +3,12 @@ bench_suite "coding-core" {
   tasks  = ["quick_file_edit"]
 
   candidate "baseline" {
-    agent = "a3s-code"
+    agent = "a3s-code-core"
     model = "openai/baseline-model"
   }
 
   candidate "candidate" {
-    agent = "a3s-code"
+    agent = "a3s-code-core"
     model = "openai/candidate-model"
   }
 }

@@ -149,6 +149,10 @@ pub fn create_candidate(
     }
     let product = match locked_asset.protocol {
         crate::asset::CandidateProtocol::AgentTool => None,
+        crate::asset::CandidateProtocol::A3sCodeExec => Some(CandidateProductLock {
+            name: "a3s-cli".into(),
+            version: crate::a3s_code_candidate::version()?,
+        }),
         crate::asset::CandidateProtocol::CodexExec => Some(CandidateProductLock {
             name: "codex-cli".into(),
             version: crate::codex_candidate::version()?,
@@ -252,6 +256,17 @@ pub fn load_candidate(path: &Path, state_root: &Path) -> Result<(CandidateLock, 
     );
     match (candidate.protocol, value.product.as_ref()) {
         (crate::asset::CandidateProtocol::AgentTool, None) => {}
+        (crate::asset::CandidateProtocol::A3sCodeExec, Some(product)) => {
+            anyhow::ensure!(
+                value.schema == "a3s.bench.candidate-lock.v2" && product.name == "a3s-cli",
+                "A3S Code Candidate has an invalid product lock"
+            );
+            anyhow::ensure!(
+                crate::a3s_code_candidate::version()? == product.version,
+                "installed A3S CLI does not match locked version {:?}",
+                product.version
+            );
+        }
         (crate::asset::CandidateProtocol::CodexExec, Some(product)) => {
             anyhow::ensure!(
                 value.schema == "a3s.bench.candidate-lock.v2" && product.name == "codex-cli",
