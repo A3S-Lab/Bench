@@ -82,6 +82,9 @@ OCI-seeded Tasks, Bench also tells the controller that `workspace.oci.source_pat
 has already been extracted as the editable workspace root. Task-provided public
 fixtures elsewhere in the work image remain readable through the Bash sandbox,
 while every deliverable write remains confined to `/workspace`.
+Each Task uses a fresh session without long-term memory extraction; optional
+session and trajectory logs preserve diagnostic evidence without adding a
+post-turn model call to the measured run.
 
 The model-backed implementation above is a versioned A3S Code Core controller,
 not the interactive CLI or TUI host. A controller prompt named after Codex or

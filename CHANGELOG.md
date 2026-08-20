@@ -19,6 +19,10 @@ All notable changes to a3s-bench are documented in this file.
   `a3s-code` selector now means the complete CLI product; use
   `a3s-code-core` when the embedded controller is the intended experimental
   constant.
+- Removed disposable per-Task long-term memory from the embedded controller.
+  Isolated benchmark sessions still persist their conversation and trajectory
+  evidence, but no longer add a hidden post-turn extraction model call or
+  workspace-local memory artifacts.
 
 ## [0.1.2] - 2026-08-05
 

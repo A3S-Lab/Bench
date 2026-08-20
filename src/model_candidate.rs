@@ -164,7 +164,6 @@ fn candidate_session_options(
         .with_workspace_backend(WorkspaceServices::local(workspace))
         .with_sandbox_handle(sandbox)
         .with_confirmation_policy(a3s_code_core::hitl::ConfirmationPolicy::default())
-        .with_file_memory(workspace.join(".a3s/memory"))
         .with_max_tool_rounds(max_tool_rounds)
         .with_planning_mode(PlanningMode::Auto)
         .with_continuation(true)
@@ -555,6 +554,10 @@ mod tests {
         );
         assert_eq!(execution.total_tokens, 4);
         assert_eq!(execution.tool_calls_count, 1);
+        assert!(
+            !workspace.join(".a3s/memory").exists(),
+            "isolated benchmark sessions must not create long-term memory state"
+        );
     }
 
     #[test]
