@@ -240,6 +240,9 @@ fn clone_tree(source: &Path, destination: &Path) -> Result<()> {
         .arg(format!("{}/.", source.display()))
         .arg(format!("{}/", destination.display()))
         .output()?;
+    // GNU cp reapplies the source root's mode to an existing destination when
+    // copying `source/.`, so restore the private state-directory contract.
+    secure_directory(destination)?;
     anyhow::ensure!(
         output.status.success(),
         "cp -a failed: {}",
