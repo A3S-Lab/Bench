@@ -59,6 +59,7 @@ The common path is:
 ~~~bash
 a3s bench list
 a3s bench run ./examples/smoke --agent a3s-code --model openai/example
+a3s bench run ./examples/smoke --agent a3s-code-core --model openai/example
 a3s bench run ./examples/smoke --agent codex --model <codex-model-id>
 ~~~
 
@@ -466,6 +467,7 @@ Candidate adapter reference family:
 
 ~~~bash
 a3s bench run ./examples/smoke --agent a3s-code --model openai/example
+a3s bench run ./examples/smoke --agent a3s-code-core --model openai/example
 a3s bench run ./examples/smoke --agent ./agents/reviewer
 a3s bench run ./examples/smoke --agent asset:acme/reviewer
 a3s bench run ./examples/smoke --agent asset://<asset-id>/<immutable-ref>
@@ -473,26 +475,30 @@ a3s bench run ./examples/smoke --agent oci://registry.example/agents/reviewer@sh
 a3s bench run ./task.lock.json --agent ./reviewer.candidate.lock.json --locked
 ~~~
 
-`a3s-code` is an embedded selector that the installed component maps to one
-exact immutable Candidate snapshot. The word itself is not identity and a
-component update may map a new unlocked run to a new CandidateRevision; every
-run records the resolved revision, and `--locked` rejects the alias. Local, OCI, and A3S OS
+`a3s-code` is a native-product selector that the installed component maps to
+one exact immutable adapter snapshot. Its `a3s-code-exec` protocol binds the
+installed A3S CLI version in CandidateLock v2 and requires the closed
+`local-workspace` execution policy. `a3s-code-core` is the separate embedded
+controller selector used to hold one Core revision constant during model
+comparisons. The selector words are not identity and a component update may
+map a new unlocked run to a new CandidateRevision; every run records the
+resolved revision, and `--locked` rejects aliases. Local, OCI, and A3S OS
 packages pass through the same shared Asset resolver and produce the same
 AssetSnapshot identity when their canonical package trees and semantic
 configuration are identical. The adapter currently uses the `a3s.asset.v1`,
 `category = "agent"` wire format; this is a packaging and execution contract,
 not a restriction on the Candidate implementation.
 
-The installed component provides `codex` through the same embedded selector
-contract. Its locked adapter declares the `codex-exec` product protocol, and
-CandidateLock v2 binds the installed Codex CLI version. The selector remains a
-convenience name: Bench resolves it to a normal immutable Candidate adapter and
-uses the same Task, locking, result, and comparison pipeline. Future products
-such as Claude Code can add distinct protocols without adding product branches
-to task or result logic.
+The installed component provides `codex` through the same selector contract.
+Its locked adapter declares the `codex-exec` product protocol, and CandidateLock
+v2 binds the installed Codex CLI version. Both product selectors remain
+convenience names: Bench resolves each to a normal immutable Candidate adapter
+and uses the same Task, locking, result, and comparison pipeline. Future
+products such as Claude Code can add distinct protocols without changing task
+or result logic.
 
-A Codex-versus-Claude Code comparison is two ordinary runs over the same
-TaskLock, with one CandidateLock for each exact adapter and model combination.
+A3S Code versus Codex, or Codex versus Claude Code, is two ordinary runs over
+the same TaskLock, with one CandidateLock for each exact adapter and model combination.
 Distinct adapters compare the complete coding-agent systems. To isolate model
 behavior, use the same adapter revision and create CandidateLocks that differ
 only in their configured model route. Reports compare the resulting locked run
@@ -715,7 +721,7 @@ installation, update, registry authentication, credential refresh, or network
 recovery. Artifact availability requires both matching bytes and authorization
 for the current tenant/privacy class; digest equality alone is insufficient.
 
-A bare built-in ID, embedded alias such as `a3s-code`, local TaskBundle directory,
+A bare built-in ID, Candidate selector such as `a3s-code`, local TaskBundle directory,
 OCI reference, `asset:name`, branch, tag, pasteable Asset URL, revision selector,
 or cached "only match" is rejected under `--locked`. Missing content is an
 offline-unavailable error; Bench never resolves, refreshes, or falls back. An

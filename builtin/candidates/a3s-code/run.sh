@@ -1,5 +1,5 @@
 #!/bin/sh
 set -eu
 
-echo "a3s-code is a model-backed Candidate; run it with --model or a CandidateLock" >&2
+echo "The a3s-code Candidate is executed through the a3s-code-exec Runtime protocol." >&2
 exit 2

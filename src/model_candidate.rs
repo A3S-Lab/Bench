@@ -75,6 +75,10 @@ async fn execute_async(request: ModelCandidateRequest<'_>) -> Result<ModelCandid
         )
     })?;
     config.default_model = Some(request.model.to_owned());
+    config
+        .memory
+        .get_or_insert_with(Default::default)
+        .llm_extraction = false;
     let agent = Agent::from_config(config)
         .await
         .context("could not initialize selected model Candidate from config.acl")?;
@@ -163,8 +167,8 @@ fn candidate_session_options(
         .with_model(model)
         .with_workspace_backend(WorkspaceServices::local(workspace))
         .with_sandbox_handle(sandbox)
+        .with_memory(Arc::new(a3s_memory::InMemoryStore::new()))
         .with_confirmation_policy(a3s_code_core::hitl::ConfirmationPolicy::default())
-        .with_file_memory(workspace.join(".a3s/memory"))
         .with_max_tool_rounds(max_tool_rounds)
         .with_planning_mode(PlanningMode::Auto)
         .with_continuation(true)
@@ -555,6 +559,10 @@ mod tests {
         );
         assert_eq!(execution.total_tokens, 4);
         assert_eq!(execution.tool_calls_count, 1);
+        assert!(
+            !workspace.join(".a3s/memory").exists(),
+            "isolated benchmark sessions must not create long-term memory state"
+        );
     }
 
     #[test]

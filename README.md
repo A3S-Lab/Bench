@@ -100,12 +100,12 @@ bench_suite "coding-core" {
   tasks  = ["quick_file_edit"]
 
   candidate "baseline" {
-    agent = "a3s-code"
+    agent = "a3s-code-core"
     model = "openai/baseline-model"
   }
 
   candidate "candidate" {
-    agent = "a3s-code"
+    agent = "a3s-code-core"
     model = "openai/candidate-model"
   }
 }
@@ -147,7 +147,7 @@ Task-owned Judge would change the evaluation identity.
 | Area | Current capability |
 | --- | --- |
 | Tasks | 52 locally runnable built-ins: one admitted conformance Task and 51 provisional long-horizon Tasks |
-| Candidates | Bundled `a3s-code`, local adapters, Docker-compatible OCI images, generic ORAS artifacts, and CandidateLocks |
+| Candidates | Native `a3s-code` and `codex` products, embedded `a3s-code-core`, local adapters, OCI packages, and CandidateLocks |
 | Judges | Task-owned local or OCI Asset Judges plus packaged legacy, game, and model-backed adapters |
 | Results | Digest-bound local result, run journal, primary score, public projection, and typed Candidate timeout status |
 | Automation | Stable `a3s.bench.output.v1` JSON envelopes for commands that support `--json` |
@@ -168,7 +168,8 @@ run an arbitrary directory, host executable, or container image.
 
 | Source | Reference |
 | --- | --- |
-| Bundled model controller | `a3s-code` |
+| Native A3S Code product | `a3s-code` (A3S CLI 0.12.5 or newer required) |
+| Embedded model controller | `a3s-code-core` |
 | Native Codex product | `codex` (authenticated Codex CLI required) |
 | Local adapter | `./agents/my-agent` |
 | Docker-compatible OCI package | `oci://ghcr.io/acme/my-agent@sha256:<digest>` |
@@ -201,7 +202,7 @@ Local packages reject escaping paths, unsafe links, and special files during
 snapshotting. See [Candidate adapter authoring](docs/candidate-adapters.md) for
 the executable, model-backed, local, and OCI contracts.
 
-### Model-backed comparisons
+### Product and model-backed comparisons
 
 `--model` binds an exact configured `provider/model` route into the
 CandidateLock. Credentials remain in `.a3s/config.acl`; locks and results record
@@ -213,11 +214,18 @@ a3s bench run quick_file_edit \
   --model openai/gpt-5.2-codex
 ```
 
-The `a3s-code` adapter uses A3S Code Core 5.3.4 as a versioned controller.
-Varying the model compares models under that same controller. The separate
-`codex` adapter runs the native Codex CLI and binds its reported version into
-the CandidateLock, enabling complete-product comparisons without presenting a
-prompt template as the Codex product.
+The `a3s-code` adapter runs the installed A3S CLI through its closed
+`local-workspace` automation policy. CandidateLock v2 binds the exact CLI
+version, and execution verifies that the product reports the same policy before
+accepting its usage. The selected A3S `provider/model` route comes from the
+explicitly discovered `.a3s/config.acl`; task-owned workspace configuration
+cannot replace it.
+
+Use `a3s-code-core` when the experiment should hold the embedded controller
+constant and vary only configured model routes. It currently pins A3S Code Core
+7.0.2. The separate `codex` adapter runs the native Codex CLI and likewise
+binds its reported version, so `a3s-code` versus `codex` compares complete
+products rather than two prompt templates.
 
 ## Runtime providers
 

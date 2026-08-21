@@ -4,6 +4,26 @@ All notable changes to a3s-bench are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Added a native `a3s-code` product Candidate that runs the installed A3S CLI
+  through `code exec --mode auto --tool-policy local-workspace`, binds the
+  reported CLI version into CandidateLock v2, verifies the retained policy,
+  and records structured token and tool usage.
+- Added `a3s-code-core` as the explicit embedded-controller Candidate for
+  controlled provider/model comparisons.
+
+### Changed
+
+- Updated the embedded A3S Code Core controller from 5.3.4 to 7.0.2. The
+  `a3s-code` selector now means the complete CLI product; use
+  `a3s-code-core` when the embedded controller is the intended experimental
+  constant.
+- Removed disposable per-Task long-term memory from the embedded controller.
+  Isolated benchmark sessions still persist their conversation and trajectory
+  evidence, but no longer add a hidden post-turn extraction model call or
+  workspace-local memory artifacts.
+
 ## [0.1.2] - 2026-08-05
 
 ### Changed

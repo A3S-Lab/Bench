@@ -1,0 +1,6 @@
+schema = "a3s.bench.code-candidate-runtime.v1"
+implementation = "a3s-code-core"
+implementation_version = "7.0.2"
+planning = "auto"
+continuation = true
+manual_delegation = true

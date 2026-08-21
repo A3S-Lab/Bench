@@ -1,8 +1,8 @@
 version = "a3s.asset.v1"
 category = "agent"
 kind = "tool"
-name = "a3s-code"
-description = "Native A3S Code CLI Candidate adapter."
+name = "a3s-code-core"
+description = "Versioned A3S Code Core 7.0.2 controller for model comparisons."
 service = "Coding Agent"
 created_by = "a3s-bench"
 
@@ -19,7 +19,7 @@ metadata {
 runtime {
   kind = "tool"
   isolation = "serving"
-  runtime_kind = "a3s-cli"
-  protocol = "a3s-code-exec"
+  runtime_kind = "a3s-code-core"
+  protocol = "agent-tool"
   agent_kind = "coding-agent"
 }

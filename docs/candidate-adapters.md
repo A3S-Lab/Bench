@@ -70,22 +70,42 @@ the benchmark model identity.
 
 ```bash
 a3s bench run ./task \
-  --agent a3s-code \
+  --agent a3s-code-core \
   --model openai/my-model
 ```
 
-`a3s-code` is the model-backed controller bundled with the installed Bench
-component. Its package includes `runtime.acl`, which binds the A3S Code Core
-version and the planning, continuation, and delegation capability switches into
-the Candidate revision. Local and OCI adapters use the same locking path. For
+`a3s-code-core` is the model-backed controller bundled with the installed Bench
+component. Its package includes `runtime.acl`, which binds A3S Code Core 7.0.2
+and the planning, continuation, and delegation capability switches into the
+Candidate revision. Local and OCI adapters use the same locking path. For
 OCI-seeded Tasks, Bench also tells the controller that `workspace.oci.source_path`
 has already been extracted as the editable workspace root. Task-provided public
 fixtures elsewhere in the work image remain readable through the Bash sandbox,
 while every deliverable write remains confined to `/workspace`.
+Each Task uses a fresh session without long-term memory extraction; optional
+session and trajectory logs preserve diagnostic evidence without adding a
+post-turn model call to the measured run.
 
 The model-backed implementation above is a versioned A3S Code Core controller,
 not the interactive CLI or TUI host. A controller prompt named after Codex or
 Claude does not make it the Codex or Claude Code product.
+
+The bundled `a3s-code` adapter is the native A3S product protocol. It invokes
+an installed A3S CLI 0.12.5 or newer through `a3s code exec --mode auto
+--tool-policy local-workspace`, passes the exact discovered ACL configuration,
+and binds the reported CLI version into CandidateLock v2. The closed policy
+retains local coding tools while denying Web, download, Runtime, Knowledge,
+managed Tool, MCP, host escalation, and unknown dynamic tools. Bench rejects a
+successful process if its structured result does not report that same policy.
+
+```bash
+a3s bench run ./task --agent a3s-code --model deepseek/deepseek-chat
+```
+
+The native A3S adapter intentionally rejects interactive game Tasks and Tasks
+that require public tool-network access. Its model route may still reach the
+configured provider; the restriction applies to agent tools inside the
+benchmark workspace.
 
 The bundled `codex` adapter is a separate native product protocol. It invokes a
 host-installed, already authenticated Codex CLI through `codex exec`, binds the

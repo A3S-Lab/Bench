@@ -1,6 +1,5 @@
 schema = "a3s.bench.code-candidate-runtime.v1"
-implementation = "a3s-code-core"
-implementation_version = "5.3.4"
-planning = "auto"
-continuation = true
-manual_delegation = true
+implementation = "a3s-cli"
+minimum_version = "0.12.5"
+mode = "auto"
+tool_policy = "local-workspace"

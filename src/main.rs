@@ -1,3 +1,4 @@
+mod a3s_code_candidate;
 mod acl_schema;
 mod asset;
 mod bench_run;

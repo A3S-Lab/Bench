@@ -15,6 +15,7 @@ pub struct LocalAssetPackage {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CandidateProtocol {
     AgentTool,
+    A3sCodeExec,
     CodexExec,
 }
 
@@ -29,7 +30,7 @@ pub fn load_local(reference: &Path) -> Result<LocalAssetPackage> {
 }
 
 pub fn resolve(reference: &str, state_root: &Path) -> Result<LocalAssetPackage> {
-    if matches!(reference, "a3s-code" | "codex") {
+    if matches!(reference, "a3s-code" | "a3s-code-core" | "codex") {
         return load_local(
             &crate::catalog::builtin_root()
                 .join("candidates")
@@ -84,6 +85,7 @@ pub(crate) fn load_directory(reference: &Path, identity: String) -> Result<Local
         .unwrap_or("agent-tool");
     let protocol = match protocol {
         "agent-tool" => CandidateProtocol::AgentTool,
+        "a3s-code-exec" => CandidateProtocol::A3sCodeExec,
         "codex-exec" => CandidateProtocol::CodexExec,
         value => anyhow::bail!("unsupported Candidate runtime protocol {value:?}"),
     };
@@ -94,6 +96,10 @@ pub(crate) fn load_directory(reference: &Path, identity: String) -> Result<Local
             "Asset package definition is missing: {path}"
         );
     }
+    anyhow::ensure!(
+        protocol == CandidateProtocol::AgentTool || definition_path.is_some(),
+        "native product Candidate adapter must define source.definition_path"
+    );
     Ok(LocalAssetPackage {
         root: reference.canonicalize()?,
         entrypoint: entrypoint.to_owned(),
@@ -323,9 +329,25 @@ mod tests {
     }
 
     #[test]
-    fn resolves_bundled_a3s_code_candidate() {
+    fn resolves_bundled_a3s_code_product_candidate() {
         let state = tempfile::tempdir().unwrap();
         let asset = resolve("a3s-code", state.path()).unwrap();
+        assert_eq!(asset.protocol, CandidateProtocol::A3sCodeExec);
+        assert_eq!(
+            asset.definition_path.as_deref(),
+            Some("prompts/controller.md")
+        );
+        assert!(asset.identity.starts_with("sha256:"));
+        let runtime = std::fs::read_to_string(asset.root.join("runtime.acl")).unwrap();
+        assert!(runtime.contains("implementation = \"a3s-cli\""));
+        assert!(runtime.contains("minimum_version = \"0.12.5\""));
+    }
+
+    #[test]
+    fn resolves_bundled_a3s_code_core_candidate() {
+        let state = tempfile::tempdir().unwrap();
+        let asset = resolve("a3s-code-core", state.path()).unwrap();
+        assert_eq!(asset.protocol, CandidateProtocol::AgentTool);
         assert_eq!(
             asset.definition_path.as_deref(),
             Some("prompts/controller.md")
@@ -333,8 +355,8 @@ mod tests {
         assert_eq!(asset.model_max_steps().unwrap(), 256);
         assert!(asset.identity.starts_with("sha256:"));
         let runtime = std::fs::read_to_string(asset.root.join("runtime.acl")).unwrap();
-        assert!(runtime.contains("implementation_version = \"5.3.4\""));
-        assert!(include_str!("../Cargo.toml").contains("a3s-code-core = \"=5.3.4\""));
+        assert!(runtime.contains("implementation_version = \"7.0.2\""));
+        assert!(include_str!("../Cargo.toml").contains("a3s-code-core = \"=7.0.2\""));
     }
 
     #[test]
@@ -347,6 +369,27 @@ mod tests {
             Some("prompts/controller.md")
         );
         assert!(asset.identity.starts_with("sha256:"));
+    }
+
+    #[test]
+    fn native_product_candidates_require_locked_instructions() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir(root.path().join(".a3s")).unwrap();
+        std::fs::write(root.path().join("run.sh"), "exit 2\n").unwrap();
+        std::fs::write(
+            root.path().join(".a3s/asset.acl"),
+            r#"
+version = "a3s.asset.v1"
+category = "agent"
+kind = "tool"
+name = "product"
+source { package_path = "." entrypoint = "run.sh" }
+runtime { protocol = "a3s-code-exec" }
+"#,
+        )
+        .unwrap();
+        let error = load_local(root.path()).unwrap_err();
+        assert!(format!("{error:#}").contains("source.definition_path"));
     }
 
     #[test]
