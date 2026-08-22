@@ -4,6 +4,8 @@ All notable changes to a3s-bench are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-08-22
+
 ### Added
 
 - Added a native `a3s-code` product Candidate that runs the installed A3S CLI
@@ -144,8 +146,9 @@ Initial development preview.
   execution, and native Codex/Claude Code adapters remain incomplete.
 - Preview artifacts produce only `local_unofficial` results.
 
+[0.1.3]: https://github.com/A3S-Lab/Bench/releases/tag/v0.1.3
 [0.1.2]: https://github.com/A3S-Lab/Bench/releases/tag/v0.1.2
 [0.1.1]: https://github.com/A3S-Lab/Bench/releases/tag/v0.1.1
 [0.1.0]: https://github.com/A3S-Lab/Bench/releases/tag/v0.1.0
 [0.1.0-preview.1]: https://github.com/A3S-Lab/Bench/releases/tag/v0.1.0-preview.1
-[Unreleased]: https://github.com/A3S-Lab/Bench/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/A3S-Lab/Bench/compare/v0.1.3...HEAD
