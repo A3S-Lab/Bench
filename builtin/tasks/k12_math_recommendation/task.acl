@@ -1,6 +1,6 @@
 # Third-party source details: ../../provenance/edgebench.json
 bench "k12_math_recommendation" {
-  schema  = "a3s-bench/task/v1"
+  schema  = "a3s-bench/task/v2"
   version = "0.1.0"
 
   name        = "K12 Math Recommendation"
@@ -16,10 +16,17 @@ bench "k12_math_recommendation" {
   }
 
   work {
+    cpu_limit    = 4
+    memory_bytes = 17179869184
+    https_allow_hosts = [
+      "files.pythonhosted.org",
+      "pypi.org",
+    ]
+
     image {
       ref = "docker.io/seededge/edgebench.work.k12_math_recommendation:fecdcfb17904"
     }
-    network_need = "none"
+    network_need = "restricted_https"
   }
 
   submission {
@@ -44,6 +51,8 @@ bench "k12_math_recommendation" {
   judge {
     asset                = "private/judge"
     solution_timeout_sec = 43200
+    cpu_limit            = 4
+    memory_bytes          = 8589934592
   }
 
   metric "score" {

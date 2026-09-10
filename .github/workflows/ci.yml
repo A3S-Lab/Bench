@@ -39,6 +39,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: Preload pinned Codex proxy helper image
+        run: docker pull python@sha256:6d43704baacd1bfbe7c295d7f13079d5d8104ed33568873133f8fc69980419df
       - name: Run Docker-backed integration tests
         run: cargo test --locked -- --ignored --nocapture --test-threads=1
       - name: Run local Runtime smoke tests

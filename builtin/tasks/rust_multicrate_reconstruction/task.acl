@@ -1,6 +1,6 @@
 # Third-party source details: ../../provenance/edgebench.json
 bench "rust_multicrate_reconstruction" {
-  schema  = "a3s-bench/task/v1"
+  schema  = "a3s-bench/task/v2"
   version = "0.1.0"
 
   name        = "Rust Multicrate Reconstruction"
@@ -16,6 +16,9 @@ bench "rust_multicrate_reconstruction" {
   }
 
   work {
+    cpu_limit    = 4
+    memory_bytes = 17179869184
+
     image {
       ref = "docker.io/seededge/edgebench.work.rust_multicrate_reconstruction:7f639fc9d090"
     }
@@ -41,6 +44,8 @@ bench "rust_multicrate_reconstruction" {
   judge {
     asset                = "private/judge"
     solution_timeout_sec = 43200
+    cpu_limit            = 4
+    memory_bytes          = 8589934592
   }
 
   metric "score" {

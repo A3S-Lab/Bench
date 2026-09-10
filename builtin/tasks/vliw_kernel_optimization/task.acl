@@ -1,6 +1,6 @@
 # Third-party source details: ../../provenance/edgebench.json
 bench "vliw_kernel_optimization" {
-  schema  = "a3s-bench/task/v1"
+  schema  = "a3s-bench/task/v2"
   version = "0.1.0"
 
   name        = "Vliw Kernel Optimization"
@@ -16,6 +16,9 @@ bench "vliw_kernel_optimization" {
   }
 
   work {
+    cpu_limit    = 4
+    memory_bytes = 17179869184
+
     image {
       ref = "docker.io/seededge/edgebench.work.vliw_kernel_optimization:9fa380a0ebef"
     }
@@ -40,6 +43,8 @@ bench "vliw_kernel_optimization" {
   judge {
     asset                = "private/judge"
     solution_timeout_sec = 43200
+    cpu_limit            = 4
+    memory_bytes          = 8589934592
   }
 
   metric "score" {

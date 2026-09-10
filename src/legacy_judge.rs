@@ -18,18 +18,20 @@ pub fn execute(
     );
     let mut command = Command::new("docker");
     configure_judge_container(&mut command);
-    command.args(crate::runtime_profile::JUDGE_DOCKER_LIMITS);
+    command.args(crate::runtime_profile::judge_docker_args(
+        task.resources.judge,
+    ));
     configure_model_gateway(&mut command, source.requires_model_gateway, model)?;
     if let Some(platform) = source.platform.as_deref() {
         command.args(["--platform", platform]);
     }
     // Judge command runs under `timeout` inside the container; no
     // environment variable passthrough is needed.
-    let timeout_runner = format!(
-        "timeout --kill-after=10 {} /bin/bash -lc {}",
-        source.timeout_sec,
-        shell_quote(&source.command),
-    );
+    let timeout_sec = source
+        .timeout_sec
+        .checked_add(if source.requires_model_gateway { 30 } else { 0 })
+        .context("Judge timeout plus gateway cleanup grace overflowed")?;
+    let timeout_runner = build_timeout_runner(timeout_sec, &source.command);
     let judge_command = legacy_judge_command(
         "/a3s/submission",
         &source.workspace_source_path,
@@ -42,7 +44,7 @@ pub fn execute(
             submission.display()
         ))
         .arg(&source.image)
-        .args(["/bin/bash", "-lc", &judge_command])
+        .args(non_login_bash(&judge_command))
         .output()
         .context("could not start legacy OCI Judge")?;
     let mut raw = String::from_utf8_lossy(&output.stdout).into_owned();
@@ -51,26 +53,24 @@ pub fn execute(
 
     let exit_code = output.status.code();
 
-    // Signal kills (OOM, SIGTERM) are infrastructure failures.  A timeout
-    // (exit_code 124) is NOT: the judge ran for the full descriptor timeout
-    // without crashing, meaning the candidate's code was too slow.  In that
-    // case we fall through to the normal scoring path.
-    if abnormal_judge_exit(exit_code) {
-        let snippet: String = raw.chars().take(4096).collect();
-        anyhow::bail!(
-            "Judge process terminated abnormally (exit_code: {:?}): {}",
-            exit_code,
-            snippet
-        );
-    }
-
-    if exit_code == Some(124) {
-        eprintln!("Judge exceeded descriptor timeout; scoring 0.0");
-    }
-
-    // An ordinary exit without a structured result means the candidate's
-    // submission could not be scored (for example, it failed to compile).
-    let ratio = parse_score(source, &raw)?;
+    let ratio = match classify_judge_exit(source, exit_code) {
+        JudgeExitClass::Completed => parse_score(source, &raw)?,
+        JudgeExitClass::CandidateTimeout => {
+            eprintln!("Judge exceeded descriptor timeout; scoring 0.0");
+            0.0
+        }
+        JudgeExitClass::ModelGatewayTimeout => {
+            anyhow::bail!("model-backed Judge exceeded descriptor timeout");
+        }
+        JudgeExitClass::Abnormal => {
+            let snippet: String = raw.chars().take(4096).collect();
+            anyhow::bail!(
+                "Judge process terminated abnormally (exit_code: {:?}): {}",
+                exit_code,
+                snippet
+            );
+        }
+    };
 
     let primary = task
         .metrics
@@ -116,17 +116,33 @@ fn configure_judge_container(command: &mut Command) {
         "--rm",
         "--user",
         "0:0",
-        "--cap-drop",
-        "ALL",
-        "--cap-add",
-        "DAC_OVERRIDE",
-        "--security-opt",
-        "no-new-privileges",
+        "--add-host",
+        "host.docker.internal:host-gateway",
     ]);
+    // Inject host DNS servers so Judge containers can resolve domains even
+    // when Docker Desktop's bridge-network DNS forwarding is broken.
+    command.args(crate::runtime_profile::host_dns_args());
 }
 
-fn abnormal_judge_exit(exit_code: Option<i32>) -> bool {
-    matches!(exit_code, None | Some(137 | 143))
+#[derive(Debug, PartialEq, Eq)]
+enum JudgeExitClass {
+    Completed,
+    CandidateTimeout,
+    ModelGatewayTimeout,
+    Abnormal,
+}
+
+fn classify_judge_exit(source: &LegacyJudgeSource, exit_code: Option<i32>) -> JudgeExitClass {
+    match exit_code {
+        // Docker reserves 125 for a failure to run the container and 126/127
+        // for an uninvokable or missing container command. GNU timeout also
+        // propagates 126/127 when its command cannot be invoked. None of
+        // these statuses represents a scoreable candidate result.
+        None | Some(125..=127 | 137 | 143) => JudgeExitClass::Abnormal,
+        Some(124) if source.requires_model_gateway => JudgeExitClass::ModelGatewayTimeout,
+        Some(124) => JudgeExitClass::CandidateTimeout,
+        _ => JudgeExitClass::Completed,
+    }
 }
 
 fn configure_model_gateway(
@@ -136,34 +152,64 @@ fn configure_model_gateway(
 ) -> Result<()> {
     if required {
         let model = model.ok_or_else(|| anyhow::anyhow!("Judge requires a model gateway route"))?;
-        let base_url = container_base_url(&model.base_url);
+        let base_url = container_base_url(&model.base_url)?;
         command
-            .args(["--network", "bridge"])
-            .args(["--add-host", "host.docker.internal:host-gateway"])
             .args(["--env", "SFORGE_JUDGE_API_KEY"])
             .args(["--env", "SFORGE_JUDGE_API_BASE_URL"])
             .args(["--env", "SFORGE_JUDGE_MODEL"])
             .env("SFORGE_JUDGE_API_KEY", &model.api_key)
             .env("SFORGE_JUDGE_API_BASE_URL", base_url)
             .env("SFORGE_JUDGE_MODEL", &model.model);
-    } else {
-        command.args(["--network", "none"]);
     }
     Ok(())
 }
 
-fn container_base_url(value: &str) -> String {
-    for local in ["localhost", "127.0.0.1", "[::1]"] {
-        for scheme in ["http", "https"] {
-            let prefix = format!("{scheme}://{local}");
-            if let Some(suffix) = value.strip_prefix(&prefix) {
-                if suffix.is_empty() || suffix.starts_with(':') || suffix.starts_with('/') {
-                    return format!("{scheme}://host.docker.internal{suffix}");
-                }
-            }
-        }
+fn container_base_url(value: &str) -> Result<String> {
+    let mut url = reqwest::Url::parse(value)
+        .map_err(|_| anyhow::anyhow!("Judge model base_url must be an absolute HTTP(S) URL"))?;
+    anyhow::ensure!(
+        matches!(url.scheme(), "http" | "https"),
+        "Judge model base_url must use HTTP or HTTPS"
+    );
+    anyhow::ensure!(
+        url.username().is_empty() && url.password().is_none(),
+        "Judge model base_url must not contain user information"
+    );
+    anyhow::ensure!(
+        url.query().is_none() && url.fragment().is_none(),
+        "Judge model base_url must not contain a query or fragment"
+    );
+
+    let root_path = url.path() == "/";
+    if root_path {
+        url.set_path("/v1");
     }
-    value.to_owned()
+    let local = matches!(
+        url.host_str(),
+        Some("localhost" | "127.0.0.1" | "::1" | "[::1]")
+    );
+    if local {
+        url.set_host(Some("host.docker.internal"))
+            .map_err(|_| anyhow::anyhow!("could not map local Judge model base_url to Docker"))?;
+        return Ok(url.into());
+    }
+    if root_path {
+        Ok(url.into())
+    } else {
+        Ok(value.to_owned())
+    }
+}
+
+fn non_login_bash(command: &str) -> [&str; 3] {
+    ["/bin/bash", "-c", command]
+}
+
+fn build_timeout_runner(timeout_sec: u64, command: &str) -> String {
+    format!(
+        "timeout --kill-after=10 {} /bin/bash -c {}",
+        timeout_sec,
+        shell_quote(command),
+    )
 }
 
 fn shell_quote(value: &str) -> String {
@@ -173,8 +219,8 @@ fn shell_quote(value: &str) -> String {
 fn legacy_judge_command(source: &str, destination: &str, timeout_runner: &str) -> String {
     let source = format!("{}/.", source.trim_end_matches('/'));
     let destination = shell_quote(destination);
-    // The judge container runs as root with DAC_OVERRIDE, so no permission
-    // fixup is needed for the destination tree.
+    // The trusted judge container runs as root with Docker's default
+    // capabilities, matching the imported EdgeBench harness.
     // A previous `chmod -R u+rwX {destination}` was removed because it
     // recursed over the entire judge workspace (which can contain 130K+
     // files from the judge image), stalling for over an hour before the
@@ -193,13 +239,17 @@ fn parse_score(source: &LegacyJudgeSource, output: &str) -> Result<f64> {
             // candidate's code was too broken for the judge script to
             // complete), score 0.0 instead of failing the entire run.
             let Some(value) = extract_structured(output)? else {
+                anyhow::ensure!(
+                    !source.requires_model_gateway,
+                    "model-backed structured Judge produced no structured result"
+                );
                 eprintln!("Judge produced no structured result; scoring 0.0");
                 return Ok(0.0);
             };
-            if !value.get("valid").and_then(Value::as_bool).unwrap_or(true) {
-                eprintln!("Judge marked result invalid; scoring 0.0");
-                return Ok(0.0);
-            }
+            anyhow::ensure!(
+                value.get("valid").and_then(Value::as_bool).unwrap_or(true),
+                "structured Judge marked result invalid"
+            );
             if let Some(score) = value.get("score").and_then(Value::as_f64) {
                 normalize_raw(source.rescale.as_ref(), score)
             } else {
@@ -211,18 +261,30 @@ fn parse_score(source: &LegacyJudgeSource, output: &str) -> Result<f64> {
             }
         }
         "score_sum" => {
-            let expression =
-                Regex::new(r"TOTAL_SCORE\s+(?:inf|([0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?))")?;
-            let raw = expression
-                .captures(output)
-                .and_then(|captures| captures.get(1))
-                .and_then(|value| value.as_str().parse::<f64>().ok())
-                .unwrap_or(0.0);
+            let raw = extract_total_score(output)?.unwrap_or(0.0);
             normalize_raw(source.rescale.as_ref(), raw)
         }
-        "pytest_v" => pytest_ratio(output),
+        "pytest_v" => {
+            let missing_score = match source.selection_hint.as_str() {
+                "pass_rate_first" => pytest_ratio(output)?,
+                "score_first" | "valid_then_score" => 0.0,
+                value => anyhow::bail!("unsupported Judge selection policy {value:?}"),
+            };
+            match extract_total_score(output)? {
+                Some(raw) => normalize_raw(source.rescale.as_ref(), raw),
+                None => Ok(missing_score),
+            }
+        }
         value => anyhow::bail!("unsupported legacy Judge parser {value:?}"),
     }
+}
+
+fn extract_total_score(output: &str) -> Result<Option<f64>> {
+    let expression = Regex::new(r"TOTAL_SCORE\s+(inf|[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)")?;
+    Ok(expression
+        .captures(output)
+        .and_then(|captures| captures.get(1))
+        .and_then(|value| value.as_str().parse::<f64>().ok()))
 }
 
 fn extract_structured(output: &str) -> Result<Option<Value>> {
@@ -455,13 +517,7 @@ fn piecewise(raw: f64, spec: &Value, minimize: bool, logarithmic: bool) -> Resul
 
 pub(crate) fn canonical_ratio(value: f64) -> String {
     let value = value.clamp(0.0, 1.0);
-    let formatted = format!("{value:.10}");
-    let trimmed = formatted.trim_end_matches('0').trim_end_matches('.');
-    if trimmed.is_empty() {
-        "0".into()
-    } else {
-        trimmed.into()
-    }
+    value.to_string()
 }
 
 #[cfg(test)]
@@ -486,6 +542,13 @@ mod tests {
         assert_eq!(structured["score"], 0.75);
     }
 
+    #[test]
+    fn canonical_ratio_preserves_small_nonzero_edgebench_scores() {
+        assert_eq!(canonical_ratio(0.1), "0.1");
+        assert_eq!(canonical_ratio(0.000000000033), "0.000000000033");
+        assert_eq!(canonical_ratio(0.0), "0");
+    }
+
     fn structured_source() -> LegacyJudgeSource {
         LegacyJudgeSource {
             image: "judge:latest".into(),
@@ -494,11 +557,161 @@ mod tests {
             parser: "structured_json".into(),
             workspace_source_path: "/workspace".into(),
             rescale: None,
+            selection_hint: "score_first".into(),
             platform: None,
             game_server_command: None,
             requires_model_gateway: false,
             timeout_sec: 60,
         }
+    }
+
+    fn pytest_v_source(rescale: Option<Value>) -> LegacyJudgeSource {
+        LegacyJudgeSource {
+            parser: "pytest_v".into(),
+            rescale,
+            selection_hint: "pass_rate_first".into(),
+            ..structured_source()
+        }
+    }
+
+    fn score_sum_source(rescale: Option<Value>) -> LegacyJudgeSource {
+        LegacyJudgeSource {
+            parser: "score_sum".into(),
+            rescale,
+            ..structured_source()
+        }
+    }
+
+    #[test]
+    fn total_score_extraction_distinguishes_missing_zero_scientific_and_infinite() {
+        assert_eq!(extract_total_score("no score here").unwrap(), None);
+        assert_eq!(extract_total_score("TOTAL_SCORE 0").unwrap(), Some(0.0));
+        assert_eq!(
+            extract_total_score("TOTAL_SCORE 3.3e-9").unwrap(),
+            Some(3.3e-9)
+        );
+        assert_eq!(
+            extract_total_score("TOTAL_SCORE 1E+2").unwrap(),
+            Some(100.0)
+        );
+        assert_eq!(
+            extract_total_score("TOTAL_SCORE inf").unwrap(),
+            Some(f64::INFINITY)
+        );
+    }
+
+    #[test]
+    fn pytest_v_selection_hint_does_not_affect_rescaled_total_score() {
+        let output = "=== 4 passed, 1 failed in 0.28s ===\nTOTAL_SCORE 50.0\n";
+        for selection_hint in ["score_first", "pass_rate_first", "valid_then_score"] {
+            let mut source = pytest_v_source(Some(
+                serde_json::json!({"kind":"linear","lower":0.0,"upper":100.0}),
+            ));
+            source.selection_hint = selection_hint.into();
+            assert_eq!(
+                parse_score(&source, output).unwrap(),
+                0.5,
+                "selection_hint={selection_hint}"
+            );
+        }
+    }
+
+    #[test]
+    fn pytest_v_applies_non_linear_rescale_to_total_score() {
+        let source = pytest_v_source(Some(serde_json::json!({
+            "kind":"log_anchor",
+            "anchor_raw":14.155,
+            "anchor_score":43.0
+        })));
+        let output = "=== 1 passed in 0.01s ===\nTOTAL_SCORE 14.155\n";
+        assert!((parse_score(&source, output).unwrap() - 0.43).abs() < 0.001);
+    }
+
+    #[test]
+    fn pytest_v_distinguishes_explicit_zero_from_missing_total_score() {
+        let source = pytest_v_source(Some(
+            serde_json::json!({"kind":"linear","lower":0.0,"upper":100.0}),
+        ));
+        let summary = "=== 4 passed, 1 failed in 0.28s ===";
+        assert_eq!(parse_score(&source, summary).unwrap(), 0.8);
+        assert_eq!(
+            parse_score(&source, &format!("{summary}\nTOTAL_SCORE 0\n")).unwrap(),
+            0.0
+        );
+    }
+
+    #[test]
+    fn pytest_v_keeps_total_score_when_an_unrelated_test_fails() {
+        let source = pytest_v_source(Some(
+            serde_json::json!({"kind":"linear","lower":0.0,"upper":100.0}),
+        ));
+        let output = concat!(
+            "tests/test_final_result.py::test_private_judge_files_are_available FAILED\n",
+            "tests/test_final_result.py::test_final_result_is_valid_permutation_and_cost ",
+            "TOTAL_SCORE 0.0000000033\nPASSED\n",
+            "========================= 1 failed, 4 passed =========================\n",
+        );
+        assert_eq!(parse_score(&source, output).unwrap(), 0.000000000033);
+    }
+
+    #[test]
+    fn pytest_v_missing_total_score_falls_back_at_full_pass_rate() {
+        let source = pytest_v_source(Some(
+            serde_json::json!({"kind":"linear","lower":0.0,"upper":100.0}),
+        ));
+        assert_eq!(
+            parse_score(&source, "=== 2 passed in 0.01s ===").unwrap(),
+            1.0
+        );
+    }
+
+    #[test]
+    fn pytest_v_missing_total_score_follows_selection_hint() {
+        let output = "=== 4 passed, 1 failed in 0.28s ===";
+        for (selection_hint, expected) in [
+            ("score_first", 0.0),
+            ("pass_rate_first", 0.8),
+            ("valid_then_score", 0.0),
+        ] {
+            let mut source = pytest_v_source(None);
+            source.selection_hint = selection_hint.into();
+            assert_eq!(
+                parse_score(&source, output).unwrap(),
+                expected,
+                "selection_hint={selection_hint}"
+            );
+        }
+        let mut unknown = pytest_v_source(None);
+        unknown.selection_hint = "unknown".into();
+        assert!(parse_score(&unknown, output).is_err());
+    }
+
+    #[test]
+    fn infinite_total_score_normalizes_to_zero_for_both_legacy_parsers() {
+        let pytest = pytest_v_source(None);
+        let score_sum = score_sum_source(None);
+        let output = "=== 1 passed in 0.01s ===\nTOTAL_SCORE inf\n";
+        assert_eq!(parse_score(&pytest, output).unwrap(), 0.0);
+        assert_eq!(parse_score(&score_sum, output).unwrap(), 0.0);
+    }
+
+    #[test]
+    fn score_sum_reuses_total_score_extraction() {
+        let source = score_sum_source(Some(
+            serde_json::json!({"kind":"linear","lower":0.0,"upper":1.0}),
+        ));
+        assert_eq!(parse_score(&source, "TOTAL_SCORE 2.5e-1").unwrap(), 0.25);
+        assert_eq!(parse_score(&source, "no score").unwrap(), 0.0);
+    }
+
+    #[test]
+    fn exchange_score_sum_exact_regression_normalizes_below_baseline_to_zero() {
+        let source = score_sum_source(Some(serde_json::json!({
+            "kind": "log_max",
+            "baseline": 2090.634594076933,
+            "expert": 6000.0
+        })));
+        assert_eq!(parse_score(&source, "TOTAL_SCORE 1078").unwrap(), 0.0);
     }
 
     #[test]
@@ -514,17 +727,35 @@ mod tests {
     }
 
     #[test]
-    fn candidate_quality_failures_score_zero() {
+    fn missing_structured_result_scores_zero() {
         let source = structured_source();
         assert_eq!(parse_score(&source, "compiler error").unwrap(), 0.0);
-        assert_eq!(
-            parse_score(
-                &source,
-                ">>>>> Start Structured Result\n{\"valid\":false}\n>>>>> End Structured Result",
-            )
-            .unwrap(),
-            0.0
+    }
+
+    #[test]
+    fn model_backed_structured_result_requires_a_result_marker() {
+        let mut source = structured_source();
+        source.requires_model_gateway = true;
+        let output = concat!(
+            "[codex-judge] model=glm-5.2, timeout=900s\n",
+            "[codex-judge] Running codex attempt 1/3...\nTerminated\n"
         );
+        let error = parse_score(&source, output).unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("model-backed structured Judge produced no structured result"));
+    }
+
+    #[test]
+    fn invalid_structured_result_is_not_promoted_to_a_scoreable_result() {
+        let error = parse_score(
+            &structured_source(),
+            ">>>>> Start Structured Result\n{\"valid\":false,\"score\":0,\"metrics\":{\"grader_status\":\"codex_failed\"}}\n>>>>> End Structured Result",
+        )
+        .unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("structured Judge marked result invalid"));
     }
 
     #[test]
@@ -538,7 +769,7 @@ mod tests {
     }
 
     #[test]
-    fn judge_container_uses_only_the_required_override_capability() {
+    fn judge_container_matches_edgebench_trusted_judge_baseline() {
         let mut command = Command::new("docker");
         configure_judge_container(&mut command);
         let arguments = command
@@ -546,27 +777,58 @@ mod tests {
             .map(|value| value.to_string_lossy().into_owned())
             .collect::<Vec<_>>();
 
+        assert!(arguments.windows(2).any(|pair| pair == ["--user", "0:0"]));
         assert!(arguments
             .windows(2)
-            .any(|pair| pair == ["--cap-drop", "ALL"]));
-        assert!(arguments
-            .windows(2)
-            .any(|pair| pair == ["--cap-add", "DAC_OVERRIDE"]));
-        assert!(arguments
-            .windows(2)
-            .any(|pair| pair == ["--security-opt", "no-new-privileges"]));
+            .any(|pair| { pair == ["--add-host", "host.docker.internal:host-gateway"] }));
+        assert!(!arguments.iter().any(|argument| argument == "--cap-drop"));
+        assert!(!arguments.iter().any(|argument| argument == "--cap-add"));
+        assert!(!arguments
+            .iter()
+            .any(|argument| argument == "--security-opt"));
+    }
+
+    #[test]
+    fn judge_commands_use_non_login_bash_and_default_network() {
+        assert_eq!(non_login_bash("judge"), ["/bin/bash", "-c", "judge"]);
+        assert_eq!(
+            build_timeout_runner(15, "judge"),
+            "timeout --kill-after=10 15 /bin/bash -c 'judge'"
+        );
+        let mut command = Command::new("docker");
+        configure_model_gateway(&mut command, false, None).unwrap();
+        assert!(!command.get_args().any(|argument| argument == "--network"));
     }
 
     #[test]
     fn judge_exit_classification_separates_candidate_and_infrastructure_failures() {
-        for exit_code in [None, Some(137), Some(143)] {
-            assert!(abnormal_judge_exit(exit_code));
+        let source = structured_source();
+        for exit_code in [None, Some(125), Some(126), Some(127), Some(137), Some(143)] {
+            assert_eq!(
+                classify_judge_exit(&source, exit_code),
+                JudgeExitClass::Abnormal
+            );
         }
         // Timeout (124) is not abnormal — it means the candidate was too slow.
-        assert!(!abnormal_judge_exit(Some(124)));
+        assert_eq!(
+            classify_judge_exit(&source, Some(124)),
+            JudgeExitClass::CandidateTimeout
+        );
+        // Ordinary non-zero Judge exits remain scoreable: pytest uses 1 for
+        // test failures and 2 for interrupted/collection failures, and both
+        // can be caused by the candidate submission.
         for exit_code in [Some(0), Some(1), Some(2)] {
-            assert!(!abnormal_judge_exit(exit_code));
+            assert_eq!(
+                classify_judge_exit(&source, exit_code),
+                JudgeExitClass::Completed
+            );
         }
+        let mut model_source = source;
+        model_source.requires_model_gateway = true;
+        assert_eq!(
+            classify_judge_exit(&model_source, Some(124)),
+            JudgeExitClass::ModelGatewayTimeout
+        );
     }
 
     #[test]
@@ -794,7 +1056,7 @@ mod tests {
         let route = crate::config::ModelRoute {
             model: "grader".into(),
             api_key: "top-secret".into(),
-            base_url: "https://example.test/v1".into(),
+            base_url: "https://example.test".into(),
         };
         let mut command = Command::new("docker");
         configure_model_gateway(&mut command, true, Some(&route)).unwrap();
@@ -820,13 +1082,71 @@ mod tests {
         );
         assert_eq!(environment["SFORGE_JUDGE_MODEL"].as_deref(), Some("grader"));
         assert_eq!(
-            container_base_url("http://127.0.0.1:8080/v1"),
+            environment["SFORGE_JUDGE_API_BASE_URL"].as_deref(),
+            Some("https://example.test/v1")
+        );
+        assert_eq!(
+            container_base_url("http://127.0.0.1:8080/v1").unwrap(),
             "http://host.docker.internal:8080/v1"
         );
         assert_eq!(
-            container_base_url("https://api.example.test/v1"),
+            container_base_url("https://api.example.test/v1").unwrap(),
             "https://api.example.test/v1"
         );
+    }
+
+    #[test]
+    fn container_base_url_normalization_is_conservative() {
+        let cases = [
+            (
+                "https://token.pjlab.org.cn",
+                "https://token.pjlab.org.cn/v1",
+            ),
+            (
+                "https://token.pjlab.org.cn/",
+                "https://token.pjlab.org.cn/v1",
+            ),
+            ("https://api.example.test/v1", "https://api.example.test/v1"),
+            (
+                "https://api.example.test/api/v1",
+                "https://api.example.test/api/v1",
+            ),
+            (
+                "https://api.example.test/custom/",
+                "https://api.example.test/custom/",
+            ),
+            (
+                "http://localhost:8080",
+                "http://host.docker.internal:8080/v1",
+            ),
+            (
+                "http://127.0.0.1:8080/",
+                "http://host.docker.internal:8080/v1",
+            ),
+            (
+                "http://[::1]:8080/api/v1",
+                "http://host.docker.internal:8080/api/v1",
+            ),
+            (
+                "http://localhost.example:8080/",
+                "http://localhost.example:8080/v1",
+            ),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(container_base_url(input).unwrap(), expected, "{input}");
+        }
+
+        for input in [
+            "not a URL",
+            "https://",
+            "ftp://api.example.test/",
+            "https://api.example.test/?api-version=2026",
+            "https://api.example.test/v1?api-version=2026",
+            "https://api.example.test/v1#fragment",
+            "https://user:secret@api.example.test/",
+        ] {
+            assert!(container_base_url(input).is_err(), "{input}");
+        }
     }
 
     #[test]

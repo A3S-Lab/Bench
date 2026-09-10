@@ -42,6 +42,27 @@ struct LocalResultIdentityV5<'a> {
     judge_result: &'a crate::runtime::JudgeResult,
 }
 
+#[derive(Serialize)]
+struct LocalResultIdentityV6<'a> {
+    schema: &'a str,
+    governance_status: &'a str,
+    run_id: &'a str,
+    task_id: &'a str,
+    task_lock_digest: &'a str,
+    agent: &'a str,
+    candidate_lock_digest: &'a str,
+    agent_identity: &'a str,
+    judge_identity: &'a str,
+    runtime_provider: &'a str,
+    model: &'a Option<String>,
+    candidate_execution: &'a Option<crate::result_record::CandidateExecution>,
+    model_usage: &'a Option<crate::model_candidate::ModelExecution>,
+    candidate_event_log_digest: &'a Option<String>,
+    primary_metric: &'a str,
+    score: &'a str,
+    judge_result: &'a crate::runtime::JudgeResult,
+}
+
 fn identity_v4(value: &LocalResultRecord) -> LocalResultIdentityV4<'_> {
     LocalResultIdentityV4 {
         schema: &value.schema,
@@ -83,13 +104,40 @@ fn identity_v5(value: &LocalResultRecord) -> LocalResultIdentityV5<'_> {
     }
 }
 
+fn identity_v6(value: &LocalResultRecord) -> LocalResultIdentityV6<'_> {
+    LocalResultIdentityV6 {
+        schema: &value.schema,
+        governance_status: &value.governance_status,
+        run_id: &value.run_id,
+        task_id: &value.task_id,
+        task_lock_digest: &value.task_lock_digest,
+        agent: &value.agent,
+        candidate_lock_digest: &value.candidate_lock_digest,
+        agent_identity: &value.agent_identity,
+        judge_identity: &value.judge_identity,
+        runtime_provider: &value.runtime_provider,
+        model: &value.model,
+        candidate_execution: &value.candidate_execution,
+        model_usage: &value.model_usage,
+        candidate_event_log_digest: &value.candidate_event_log_digest,
+        primary_metric: &value.primary_metric,
+        score: &value.score,
+        judge_result: &value.judge_result,
+    }
+}
+
 pub fn calculate(value: &LocalResultRecord) -> Result<String> {
     let encoded = match value.schema.as_str() {
         "a3s.bench.local-result.v4" => serde_json::to_vec(&identity_v4(value))?,
         "a3s.bench.local-result.v5" => serde_json::to_vec(&identity_v5(value))?,
+        "a3s.bench.local-result.v6" => serde_json::to_vec(&identity_v6(value))?,
         _ => anyhow::bail!("unsupported local result schema"),
     };
     Ok(format!("sha256:{:x}", Sha256::digest(encoded)))
+}
+
+pub fn digest_bytes(bytes: &[u8]) -> String {
+    format!("sha256:{:x}", Sha256::digest(bytes))
 }
 
 #[cfg(test)]
@@ -114,6 +162,7 @@ mod tests {
             candidate_execution: None,
             model_usage: None,
             primary_metric: "score".into(),
+            candidate_event_log_digest: None,
             score: "1".into(),
             judge_result: crate::runtime::JudgeResult {
                 schema: "bench.judge.result.v1".into(),

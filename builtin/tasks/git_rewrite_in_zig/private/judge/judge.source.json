@@ -2,7 +2,7 @@
   "admission": "quarantined",
   "evaluation": {
     "mode": "batch",
-    "source_command": "mkdir -p /logs/verifier /tmp/verifier && ln -sfn /home/workspace /app && ln -sfn /opt/tests /tests && ln -sfn /tmp/verifier /logs/verifier 2>/dev/null; export APP_DIR=/home/workspace VERIFIER_DIR=/logs/verifier && bash /opt/tests/test.sh >/tmp/verifier.log 2>&1 || true; cat /tmp/verifier.log >&2; bash /opt/tests/pytest_shim.sh \"/logs/verifier/reward.json\"",
+    "source_command": "mkdir -p /logs/verifier && ln -sfn /home/workspace /app && ln -sfn /opt/tests /tests; export APP_DIR=/home/workspace VERIFIER_DIR=/logs/verifier && bash /opt/tests/test.sh || true; cat /logs/verifier/verifier.log >&2 2>/dev/null || true; bash /opt/tests/pytest_shim.sh \"/logs/verifier/reward.json\"",
     "source_game_server_command": null,
     "timeout_sec": 7200
   },

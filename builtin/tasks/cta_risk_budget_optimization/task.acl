@@ -1,6 +1,6 @@
 # Third-party source details: ../../provenance/edgebench.json
 bench "cta_risk_budget_optimization" {
-  schema  = "a3s-bench/task/v1"
+  schema  = "a3s-bench/task/v2"
   version = "0.1.0"
 
   name        = "Cta Risk Budget Optimization"
@@ -16,10 +16,17 @@ bench "cta_risk_budget_optimization" {
   }
 
   work {
+    cpu_limit    = 4
+    memory_bytes = 17179869184
+    https_allow_hosts = [
+      "files.pythonhosted.org",
+      "pypi.org",
+    ]
+
     image {
       ref = "docker.io/seededge/edgebench.work.cta_risk_budget_optimization:d799d7f632c3"
     }
-    network_need = "none"
+    network_need = "restricted_https"
   }
 
   submission {
@@ -63,6 +70,8 @@ bench "cta_risk_budget_optimization" {
   judge {
     asset                = "private/judge"
     solution_timeout_sec = 43200
+    cpu_limit            = 4
+    memory_bytes          = 8589934592
   }
 
   metric "score" {

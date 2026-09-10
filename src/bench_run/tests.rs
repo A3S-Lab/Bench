@@ -1,6 +1,96 @@
 use super::*;
 use std::io::{Read, Write};
 use std::net::TcpListener;
+#[test]
+fn native_codex_materializes_only_non_native_workspace_sources() {
+    let root = tempfile::tempdir().unwrap();
+    let mut task = task::TaskInfo {
+        schema: "a3s-bench/task/v1".into(),
+        id: "test".into(),
+        name: "test".into(),
+        category: "test".into(),
+        judge_asset: "judge".into(),
+        work_image: "example/work@sha256:same".into(),
+        work_platform: None,
+        work_network_need: "none".into(),
+        work_network_allow_hosts: vec![],
+        candidate_timeout_sec: 1,
+        metrics: vec![],
+        workspace_seed: Some(task::WorkspaceSeed {
+            image: "example/work@sha256:same".into(),
+            source_path: "/app".into(),
+            platform: None,
+        }),
+        submission: task::SubmissionPolicy {
+            include: vec!["**".into()],
+            exclude: vec![],
+            max_files: 1,
+            max_total_bytes: 1,
+            max_file_bytes: 1,
+        },
+        resources: Default::default(),
+        work_workspace_imports: vec![],
+        legacy_judge: None,
+        root: root.path().to_path_buf(),
+    };
+
+    assert!(!requires_host_workspace(&task));
+
+    task.workspace_seed.as_mut().unwrap().image = "example/seed@sha256:other".into();
+    assert!(requires_host_workspace(&task));
+
+    task.workspace_seed = None;
+    std::fs::create_dir_all(root.path().join("public/workspace")).unwrap();
+    assert!(requires_host_workspace(&task));
+
+    task.workspace_seed = Some(task::WorkspaceSeed {
+        image: task.work_image.clone(),
+        source_path: "/app".into(),
+        platform: None,
+    });
+    assert!(requires_host_workspace(&task));
+}
+
+#[test]
+fn os_runtime_dispatch_rejects_explicit_task_v2_resources() {
+    let mut task =
+        task::load_local(&Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/smoke")).unwrap();
+    task.schema = "a3s-bench/task/v2".into();
+    let candidate =
+        asset::load_local(&Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/smoke-candidate"))
+            .unwrap();
+    let error = validate_os_runtime_task(
+        &task,
+        &candidate,
+        None,
+        "a3s.bench.task-lock.v2",
+        Some(task.resources),
+    )
+    .err()
+    .unwrap();
+    assert!(error
+        .to_string()
+        .contains("cannot enforce explicit a3s-bench/task/v2 resources"));
+}
+
+#[test]
+fn os_runtime_dispatch_rejects_forged_task_lock_contracts() {
+    let task =
+        task::load_local(&Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/smoke")).unwrap();
+    let candidate =
+        asset::load_local(&Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/smoke-candidate"))
+            .unwrap();
+    for (schema, resources) in [
+        ("a3s.bench.task-lock.v2", Some(task.resources)),
+        ("a3s.bench.task-lock.v1", Some(task.resources)),
+    ] {
+        let error =
+            validate_os_runtime_task(&task, &candidate, None, schema, resources).unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("TaskLock v1 without explicit resources"));
+    }
+}
 
 #[test]
 fn model_judge_requires_an_explicit_local_route() {
@@ -10,8 +100,12 @@ fn model_judge_requires_an_explicit_local_route() {
     .unwrap();
     let config = config::LocalConfig {
         path: None,
+        bench_path: None,
         runtime: crate::runtime_selection::RuntimeSelection::bench_default().unwrap(),
         judge_model: None,
+        codex_reasoning_effort: None,
+        disable_auto_resume: false,
+        parallel_game_sessions: true,
     };
     let error = resolve_judge_model(&task, None, &config).err().unwrap();
     assert!(error.to_string().contains("requires bench.judge_model"));
@@ -58,7 +152,7 @@ fn model_candidate_game_and_task_owned_judge_run_end_to_end() {
     let locked = lock::load_task(&task_lock_path, state.path()).unwrap();
     let mut task = task::load_local(&locked.task_artifact).unwrap();
     resolve_task_images(&mut task, &locked.lock.resolved_images).unwrap();
-    let game = start_game(&task, state.path()).unwrap().unwrap();
+    let game = start_game(&task, state.path(), true).unwrap().unwrap();
     let candidate_root = state.path().join("candidate");
     std::fs::create_dir(&candidate_root).unwrap();
     std::fs::write(
@@ -83,8 +177,12 @@ fn model_candidate_game_and_task_owned_judge_run_end_to_end() {
         &task,
         &candidate,
         Some("openai/fake"),
+        None,
+        None,
         &config,
         &candidate_workspace,
+        None,
+        &runtime::PreparedWorkspaceImports::default(),
         Some(&game),
         &runtime_execution,
         "test-run",
@@ -119,7 +217,7 @@ fn serve_game_model(listener: TcpListener) {
             "tool_calls":[{"id":"call_1","type":"function","function":{
                 "name":"bash",
                 "arguments":serde_json::to_string(&serde_json::json!({
-                    "cmd":"python -c \"import json,os,urllib.request; u=os.environ['GAME_SERVER_URL']+'/new'; r=urllib.request.Request(u,data=b'{}',headers={'Content-Type':'application/json'}); print(urllib.request.urlopen(r).read().decode())\""
+                    "cmd":"python -c \"import json,os,urllib.request; base=os.environ['GAME_SERVER_URL']; r=urllib.request.Request(base+'/new',data=b'{}',headers={'Content-Type':'application/json'}); game=json.loads(urllib.request.urlopen(r).read()); r=urllib.request.Request(base+'/'+game['session_id']+'/step',data=json.dumps({'action':'look'}).encode(),headers={'Content-Type':'application/json'}); print(urllib.request.urlopen(r).read().decode())\""
                 })).unwrap()
             }}]
         }),

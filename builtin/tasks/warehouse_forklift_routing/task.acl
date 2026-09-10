@@ -1,6 +1,6 @@
 # Third-party source details: ../../provenance/edgebench.json
 bench "warehouse_forklift_routing" {
-  schema  = "a3s-bench/task/v1"
+  schema  = "a3s-bench/task/v2"
   version = "0.1.0"
 
   name        = "Warehouse Forklift Routing"
@@ -16,6 +16,9 @@ bench "warehouse_forklift_routing" {
   }
 
   work {
+    cpu_limit    = 4
+    memory_bytes = 17179869184
+
     image {
       ref = "docker.io/seededge/edgebench.work.warehouse_forklift_routing:7a86216250d8"
     }
@@ -34,6 +37,8 @@ bench "warehouse_forklift_routing" {
   judge {
     asset                = "private/judge"
     solution_timeout_sec = 43200
+    cpu_limit            = 4
+    memory_bytes          = 8589934592
   }
 
   metric "score" {

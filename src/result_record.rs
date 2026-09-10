@@ -71,6 +71,8 @@ pub struct LocalResultRecord {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub candidate_execution: Option<CandidateExecution>,
     pub model_usage: Option<ModelExecution>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub candidate_event_log_digest: Option<String>,
     pub primary_metric: String,
     pub score: String,
     pub judge_result: JudgeResult,
@@ -88,6 +90,7 @@ pub struct NewLocalResult<'a> {
     pub model: Option<&'a str>,
     pub candidate_execution: &'a CandidateExecution,
     pub model_usage: Option<&'a ModelExecution>,
+    pub candidate_event_log_digest: Option<&'a str>,
     pub primary_metric: &'a str,
     pub score: &'a str,
     pub judge_result: &'a JudgeResult,
@@ -96,7 +99,7 @@ pub struct NewLocalResult<'a> {
 impl LocalResultRecord {
     pub fn save(state_root: &Path, input: NewLocalResult<'_>) -> Result<(Self, PathBuf)> {
         let mut record = Self {
-            schema: "a3s.bench.local-result.v5".into(),
+            schema: "a3s.bench.local-result.v6".into(),
             result_digest: String::new(),
             governance_status: "local_unofficial".into(),
             run_id: input.run_id.into(),
@@ -110,6 +113,7 @@ impl LocalResultRecord {
             model: input.model.map(str::to_owned),
             candidate_execution: Some(input.candidate_execution.clone()),
             model_usage: input.model_usage.cloned(),
+            candidate_event_log_digest: input.candidate_event_log_digest.map(str::to_owned),
             primary_metric: input.primary_metric.into(),
             score: input.score.into(),
             judge_result: input.judge_result.clone(),
@@ -120,10 +124,6 @@ impl LocalResultRecord {
         state_fs::secure_directory(&root)?;
         let path = root.join(format!("{}.json", record.run_id));
         state_fs::secure_atomic_write(&path, &serde_json::to_vec_pretty(&record)?)?;
-        state_fs::secure_atomic_write(
-            &root.join("latest"),
-            format!("{}\n", record.run_id).as_bytes(),
-        )?;
         Ok((record, path))
     }
 
@@ -154,16 +154,52 @@ impl LocalResultRecord {
             journal.result_path.as_deref() == Some(path.as_path()),
             "local result path does not match its run journal"
         );
+        validate_event_log(&record, state_root)?;
         Ok(Some(record))
     }
 
-    pub fn latest_run_id(state_root: &Path) -> Result<String> {
-        let bytes = state_fs::read_regular_file(
+    pub fn publish_latest(state_root: &Path, run_id: &str) -> Result<()> {
+        run_journal::validate_run_id(run_id)?;
+        Self::load(state_root, run_id)?
+            .ok_or_else(|| anyhow::anyhow!("cannot publish missing local result {run_id}"))?;
+        state_fs::secure_atomic_write(
             &state_root.join("results/latest"),
-            "latest result pointer",
-        )?;
-        let run_id = std::str::from_utf8(&bytes)?.trim().to_owned();
-        run_journal::validate_run_id(&run_id)?;
+            format!("{run_id}\n").as_bytes(),
+        )
+    }
+
+    pub fn latest_run_id(state_root: &Path) -> Result<String> {
+        let runs = state_root.join("runs");
+        let mut latest: Option<(u128, String)> = None;
+        for entry in std::fs::read_dir(&runs)? {
+            let entry = entry?;
+            if !entry.file_type()?.is_file() {
+                continue;
+            }
+            let name = entry.file_name();
+            let Some(name) = name.to_str() else {
+                continue;
+            };
+            let Some(run_id) = name.strip_suffix(".json") else {
+                continue;
+            };
+            if run_journal::validate_run_id(run_id).is_err() {
+                continue;
+            }
+            let journal = run_journal::RunJournal::load(state_root, run_id)?;
+            if journal.stage != run_journal::RunStage::Completed {
+                continue;
+            }
+            Self::load(state_root, run_id)?.ok_or_else(|| {
+                anyhow::anyhow!("completed run {run_id} is missing its local result")
+            })?;
+            let candidate = (journal.updated_at_ms, run_id.to_owned());
+            if latest.as_ref().is_none_or(|current| candidate > *current) {
+                latest = Some(candidate);
+            }
+        }
+        let (_, run_id) = latest.ok_or_else(|| anyhow::anyhow!("no completed local result"))?;
+        Self::publish_latest(state_root, &run_id)?;
         Ok(run_id)
     }
 
@@ -194,15 +230,28 @@ impl LocalResultRecord {
     fn validate(&self, expected_run_id: &str) -> Result<()> {
         run_journal::validate_run_id(&self.run_id)?;
         match self.schema.as_str() {
-            "a3s.bench.local-result.v4" => anyhow::ensure!(
-                self.candidate_execution.is_none(),
-                "v4 local result contains Candidate execution metadata"
-            ),
-            "a3s.bench.local-result.v5" => self
-                .candidate_execution
-                .as_ref()
-                .ok_or_else(|| anyhow::anyhow!("v5 local result has no Candidate execution"))?
-                .validate()?,
+            "a3s.bench.local-result.v4" => {
+                anyhow::ensure!(
+                    self.candidate_execution.is_none(),
+                    "v4 local result contains Candidate execution metadata"
+                );
+                anyhow::ensure!(
+                    self.candidate_event_log_digest.is_none(),
+                    "v4 local result contains Candidate event evidence"
+                );
+            }
+            "a3s.bench.local-result.v5" | "a3s.bench.local-result.v6" => {
+                self.candidate_execution
+                    .as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("local result has no Candidate execution"))?
+                    .validate()?;
+                if self.schema == "a3s.bench.local-result.v5" {
+                    anyhow::ensure!(
+                        self.candidate_event_log_digest.is_none(),
+                        "v5 local result contains Candidate event evidence"
+                    );
+                }
+            }
             _ => anyhow::bail!("unsupported local result schema"),
         }
         anyhow::ensure!(
@@ -247,10 +296,10 @@ impl LocalResultRecord {
                     "completed model Candidate has no usage"
                 );
             }
-        } else {
+        } else if candidate_timed_out {
             anyhow::ensure!(
                 self.model_usage.is_none(),
-                "model usage exists without a model"
+                "timed-out Candidate has completed usage"
             );
         }
         if let Some(usage) = &self.model_usage {
@@ -282,6 +331,31 @@ impl LocalResultRecord {
         );
         Ok(())
     }
+}
+
+fn validate_event_log(record: &LocalResultRecord, state_root: &Path) -> Result<()> {
+    if record.schema != "a3s.bench.local-result.v6" {
+        return Ok(());
+    }
+    let path = state_root
+        .join("runs")
+        .join(&record.run_id)
+        .join("codex-events.jsonl");
+    match &record.candidate_event_log_digest {
+        Some(expected) => {
+            crate::lock_identity::validate_digest(expected)?;
+            let bytes = state_fs::read_regular_file(&path, "Codex event log")?;
+            anyhow::ensure!(
+                crate::result_identity::digest_bytes(&bytes) == *expected,
+                "Codex event log digest does not match local result"
+            );
+        }
+        None => anyhow::ensure!(
+            state_fs::read_optional_regular_file(&path, "Codex event log")?.is_none(),
+            "Codex event log is not bound into the local result"
+        ),
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -319,6 +393,13 @@ mod tests {
             .unwrap();
         journal.advance(run_journal::RunStage::Judging).unwrap();
         let candidate_execution = CandidateExecution::completed();
+        let event_bytes = b"{\"type\":\"thread.started\"}\n{\"type\":\"turn.completed\"}\n";
+        let event_path = state
+            .path()
+            .join("runs")
+            .join(&journal.run_id)
+            .join("codex-events.jsonl");
+        state_fs::secure_atomic_write(&event_path, event_bytes).unwrap();
         let (saved, path) = LocalResultRecord::save(
             state.path(),
             NewLocalResult {
@@ -333,13 +414,19 @@ mod tests {
                 model: None,
                 candidate_execution: &candidate_execution,
                 model_usage: None,
+                candidate_event_log_digest: Some(&crate::result_identity::digest_bytes(
+                    event_bytes,
+                )),
                 primary_metric: "score",
                 score: "1",
                 judge_result: &judge,
             },
         )
         .unwrap();
+        assert!(LocalResultRecord::publish_latest(state.path(), &saved.run_id).is_err());
+        assert!(!state.path().join("results/latest").exists());
         journal.complete(&path, &saved.result_digest).unwrap();
+        assert!(!state.path().join("results/latest").exists());
         let loaded = LocalResultRecord::load(state.path(), &saved.run_id)
             .unwrap()
             .unwrap();
@@ -348,6 +435,11 @@ mod tests {
             LocalResultRecord::latest_run_id(state.path()).unwrap(),
             saved.run_id
         );
+        assert!(state.path().join("results/latest").is_file());
+        state_fs::secure_atomic_write(&event_path, b"tampered\n").unwrap();
+        assert!(LocalResultRecord::load(state.path(), &journal.run_id).is_err());
+        state_fs::secure_atomic_write(&event_path, event_bytes).unwrap();
+
         let mut substituted = saved;
         substituted.task_lock_digest = format!("sha256:{}", "c".repeat(64));
         state_fs::secure_atomic_write(&path, &serde_json::to_vec(&substituted).unwrap()).unwrap();
@@ -371,6 +463,7 @@ mod tests {
             model: Some("openai/model".into()),
             candidate_execution: Some(CandidateExecution::timed_out(300)),
             model_usage: None,
+            candidate_event_log_digest: None,
             primary_metric: "score".into(),
             score: "1".into(),
             judge_result: judge(),
@@ -391,6 +484,42 @@ mod tests {
         );
 
         record.candidate_execution = Some(CandidateExecution::timed_out(0));
+        record.result_digest = crate::result_identity::calculate(&record).unwrap();
+        assert!(record.validate("local-1").is_err());
+    }
+
+    #[test]
+    fn completed_product_candidate_accepts_usage_without_explicit_model() {
+        let mut record = LocalResultRecord {
+            schema: "a3s.bench.local-result.v5".into(),
+            result_digest: String::new(),
+            governance_status: "local_unofficial".into(),
+            run_id: "local-1".into(),
+            task_id: "task".into(),
+            task_lock_digest: format!("sha256:{}", "a".repeat(64)),
+            agent: "codex".into(),
+            candidate_lock_digest: format!("sha256:{}", "b".repeat(64)),
+            agent_identity: "codex-cli 0.147.0".into(),
+            judge_identity: "judge-id".into(),
+            runtime_provider: "docker".into(),
+            model: None,
+            candidate_execution: Some(CandidateExecution::completed()),
+            model_usage: Some(ModelExecution {
+                prompt_tokens: 12,
+                completion_tokens: 5,
+                total_tokens: 17,
+                cache_read_tokens: Some(3),
+                cache_write_tokens: None,
+                tool_calls_count: 1,
+            }),
+            candidate_event_log_digest: None,
+            primary_metric: "score".into(),
+            score: "1".into(),
+            judge_result: judge(),
+        };
+        record.result_digest = crate::result_identity::calculate(&record).unwrap();
+        record.validate("local-1").unwrap();
+        record.candidate_execution = Some(CandidateExecution::timed_out(300));
         record.result_digest = crate::result_identity::calculate(&record).unwrap();
         assert!(record.validate("local-1").is_err());
     }

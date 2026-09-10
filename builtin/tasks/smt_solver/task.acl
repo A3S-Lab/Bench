@@ -1,6 +1,6 @@
 # Third-party source details: ../../provenance/edgebench.json
 bench "smt_solver" {
-  schema  = "a3s-bench/task/v1"
+  schema  = "a3s-bench/task/v2"
   version = "0.1.0"
 
   name        = "Smt Solver"
@@ -16,6 +16,9 @@ bench "smt_solver" {
   }
 
   work {
+    cpu_limit    = 16
+    memory_bytes = 17179869184
+
     image {
       ref = "docker.io/seededge/edgebench.work.smt_solver:ce487a98870f"
     }
@@ -45,6 +48,8 @@ bench "smt_solver" {
   judge {
     asset                = "private/judge"
     solution_timeout_sec = 43200
+    cpu_limit            = 16
+    memory_bytes          = 17179869184
   }
 
   metric "score" {

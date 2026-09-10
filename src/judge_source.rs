@@ -10,6 +10,7 @@ pub struct LegacyJudgeSource {
     pub parser: String,
     pub workspace_source_path: String,
     pub rescale: Option<serde_json::Value>,
+    pub selection_hint: String,
     pub platform: Option<String>,
     pub game_server_command: Option<String>,
     pub requires_model_gateway: bool,
@@ -128,6 +129,7 @@ pub fn load(path: &Path) -> Result<Option<LegacyJudgeSource>> {
             .rescale_hint
             .map(serde_json::to_value)
             .transpose()?,
+        selection_hint: descriptor.source_result.selection_hint,
         platform: descriptor.image.platform,
         game_server_command: descriptor
             .evaluation
@@ -235,7 +237,14 @@ mod tests {
             if !path.is_file() {
                 continue;
             }
-            assert!(load(&path).unwrap().is_some(), "{}", path.display());
+            let expected: serde_json::Value =
+                serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+            let expected = expected
+                .pointer("/source_result/selection_hint")
+                .and_then(serde_json::Value::as_str)
+                .unwrap();
+            let source = load(&path).unwrap().unwrap();
+            assert_eq!(source.selection_hint, expected, "{}", path.display());
             count += 1;
         }
         assert_eq!(count, 51);

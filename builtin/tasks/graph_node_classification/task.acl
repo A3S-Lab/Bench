@@ -1,6 +1,6 @@
 # Third-party source details: ../../provenance/edgebench.json
 bench "graph_node_classification" {
-  schema  = "a3s-bench/task/v1"
+  schema  = "a3s-bench/task/v2"
   version = "0.1.0"
 
   name        = "Graph Node Classification"
@@ -16,6 +16,9 @@ bench "graph_node_classification" {
   }
 
   work {
+    cpu_limit    = 4
+    memory_bytes = 17179869184
+
     image {
       ref = "docker.io/seededge/edgebench.work.graph_node_classification:4d2c1f502d14"
     }
@@ -36,6 +39,8 @@ bench "graph_node_classification" {
   judge {
     asset                = "private/judge"
     solution_timeout_sec = 43200
+    cpu_limit            = 4
+    memory_bytes          = 17179869184
   }
 
   metric "score" {

@@ -1,6 +1,6 @@
 # Third-party source details: ../../provenance/edgebench.json
 bench "bipedalwalker_locomotion_rl" {
-  schema  = "a3s-bench/task/v1"
+  schema  = "a3s-bench/task/v2"
   version = "0.1.0"
 
   name        = "Bipedalwalker Locomotion Rl"
@@ -16,6 +16,9 @@ bench "bipedalwalker_locomotion_rl" {
   }
 
   work {
+    cpu_limit    = 4
+    memory_bytes = 17179869184
+
     image {
       ref = "docker.io/seededge/edgebench.work.bipedalwalker_locomotion_rl:f9a2f8394c09"
     }
@@ -41,6 +44,8 @@ bench "bipedalwalker_locomotion_rl" {
   judge {
     asset                = "private/judge"
     solution_timeout_sec = 43200
+    cpu_limit            = 4
+    memory_bytes          = 8589934592
   }
 
   metric "score" {

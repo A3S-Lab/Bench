@@ -4,9 +4,8 @@ use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
 use std::path::{Path, PathBuf};
 
 pub fn project(source: &Path, destination: &Path, policy: &SubmissionPolicy) -> Result<()> {
-    let include = compile_patterns(&policy.include)?;
-    let exclude = compile_patterns(&policy.exclude)?;
-    let files = collect_terminal_files(source, policy, &include, &exclude)?;
+    let matcher = terminal_matcher(policy)?;
+    let files = collect_terminal_files(source, policy, &matcher)?;
     crate::state_fs::secure_directory(destination)?;
     for (relative, _) in files {
         let target = destination.join(&relative);
@@ -33,19 +32,80 @@ pub fn validate_policy(policy: &SubmissionPolicy) -> Result<()> {
     );
     Ok(())
 }
+pub(crate) struct TerminalMatcher {
+    include: GlobSet,
+    exclude: GlobSet,
+}
+
+impl TerminalMatcher {
+    pub(crate) fn matches(&self, normalized: &str) -> bool {
+        self.include.is_match(normalized)
+            && !self.exclude.is_match(normalized)
+            && !reserved(normalized)
+    }
+}
+
+pub(crate) fn terminal_matcher(policy: &SubmissionPolicy) -> Result<TerminalMatcher> {
+    Ok(TerminalMatcher {
+        include: compile_patterns(&policy.include)?,
+        exclude: compile_patterns(&policy.exclude)?,
+    })
+}
+
+pub(crate) fn normalize_terminal_path(path: &Path) -> Result<String> {
+    let normalized = normalize(path)?;
+    anyhow::ensure!(
+        normalized.split('/').count() <= 65,
+        "terminal path is too deep"
+    );
+    Ok(normalized)
+}
+
+pub(crate) struct TerminalLimits<'a> {
+    policy: &'a SubmissionPolicy,
+    selected: usize,
+    total: u64,
+}
+
+impl<'a> TerminalLimits<'a> {
+    pub(crate) fn new(policy: &'a SubmissionPolicy) -> Self {
+        Self {
+            policy,
+            selected: 0,
+            total: 0,
+        }
+    }
+
+    pub(crate) fn is_full(&self) -> bool {
+        self.selected >= self.policy.max_files
+    }
+
+    pub(crate) fn select(&mut self, size: u64) -> bool {
+        if self.is_full() || size > self.policy.max_file_bytes {
+            return false;
+        }
+        let Some(new_total) = self.total.checked_add(size) else {
+            return false;
+        };
+        if new_total > self.policy.max_total_bytes {
+            return false;
+        }
+        self.total = new_total;
+        self.selected += 1;
+        true
+    }
+}
 
 fn collect_terminal_files(
     root: &Path,
     policy: &SubmissionPolicy,
-    include: &GlobSet,
-    exclude: &GlobSet,
+    matcher: &TerminalMatcher,
 ) -> Result<Vec<(PathBuf, u64)>> {
     fn visit(
         root: &Path,
         directory: &Path,
         policy: &SubmissionPolicy,
-        include: &GlobSet,
-        exclude: &GlobSet,
+        matcher: &TerminalMatcher,
         files: &mut Vec<(PathBuf, u64)>,
     ) -> Result<()> {
         for entry in std::fs::read_dir(directory)? {
@@ -61,15 +121,12 @@ fn collect_terminal_files(
                     normalized.split('/').count() <= 64,
                     "terminal path is too deep"
                 );
-                visit(root, &entry.path(), policy, include, exclude, files)?;
+                visit(root, &entry.path(), policy, matcher, files)?;
             } else if kind.is_file() {
                 // Only count files that match the submission include/exclude policy,
                 // so build artifacts and caches outside the submission scope don't
                 // inflate the total.
-                if !include.is_match(&normalized)
-                    || exclude.is_match(&normalized)
-                    || reserved(&normalized)
-                {
+                if !matcher.matches(&normalized) {
                     continue;
                 }
                 let metadata = entry.metadata()?;
@@ -90,23 +147,18 @@ fn collect_terminal_files(
         Ok(())
     }
     let mut candidates = Vec::new();
-    visit(root, root, policy, include, exclude, &mut candidates)?;
+    visit(root, root, policy, matcher, &mut candidates)?;
     candidates.sort_by(|left, right| left.0.cmp(&right.0));
 
     let mut selected = Vec::with_capacity(candidates.len().min(policy.max_files));
-    let mut total = 0_u64;
+    let mut limits = TerminalLimits::new(policy);
     for (relative, size) in candidates {
-        if selected.len() == policy.max_files {
+        if limits.is_full() {
             break;
         }
-        let Some(new_total) = total.checked_add(size) else {
-            continue;
-        };
-        if new_total > policy.max_total_bytes {
-            continue;
+        if limits.select(size) {
+            selected.push((relative, size));
         }
-        total = new_total;
-        selected.push((relative, size));
     }
     Ok(selected)
 }
@@ -178,7 +230,7 @@ fn normalize(path: &Path) -> Result<String> {
 }
 
 fn reserved(path: &str) -> bool {
-    path == ".a3s/bench" || path.starts_with(".a3s/bench/")
+    path == ".a3s" || path.starts_with(".a3s/")
 }
 
 #[cfg(test)]
@@ -196,17 +248,53 @@ mod tests {
     }
 
     #[test]
+    fn shared_matcher_and_limits_preserve_terminal_selection_semantics() {
+        let mut selection_policy = policy(&["src/"], &["*.log"]);
+        selection_policy.max_files = 2;
+        selection_policy.max_total_bytes = 1_024;
+        selection_policy.max_file_bytes = 700;
+        let matcher = terminal_matcher(&selection_policy).unwrap();
+        assert!(matcher.matches("src/main.rs"));
+        assert!(!matcher.matches("src/debug.log"));
+        assert!(!matcher.matches("target/main.rs"));
+        assert!(!matcher.matches(".a3s/bench/secret"));
+
+        let mut limits = TerminalLimits::new(&selection_policy);
+        assert!(limits.select(600));
+        assert!(!limits.select(800));
+        assert!(!limits.select(600));
+        assert!(limits.select(400));
+        assert!(limits.is_full());
+    }
+    #[test]
     fn projects_includes_then_excludes_and_reserved_state() {
         let source = tempfile::tempdir().unwrap();
         let output = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(source.path().join("src")).unwrap();
         std::fs::create_dir_all(source.path().join(".a3s/bench")).unwrap();
+        std::fs::create_dir_all(source.path().join(".a3s/memory")).unwrap();
         std::fs::write(source.path().join("src/main.rs"), "main").unwrap();
         std::fs::write(source.path().join("src/debug.log"), "log").unwrap();
         std::fs::write(source.path().join(".a3s/bench/secret"), "secret").unwrap();
+        std::fs::write(source.path().join(".a3s/memory/index.json"), "{}").unwrap();
         project(source.path(), output.path(), &policy(&["src/"], &["*.log"])).unwrap();
         assert!(output.path().join("src/main.rs").is_file());
         assert!(!output.path().join("src/debug.log").exists());
+        assert!(!output.path().join(".a3s").exists());
+    }
+
+    #[test]
+    fn reserved_excludes_all_a3s_subdirectories() {
+        let source = tempfile::tempdir().unwrap();
+        let output = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(source.path().join(".a3s/memory")).unwrap();
+        std::fs::create_dir_all(source.path().join(".a3s/bench")).unwrap();
+        std::fs::write(source.path().join(".a3s/memory/items.json"), "{}").unwrap();
+        std::fs::write(source.path().join(".a3s/bench/run.json"), "{}").unwrap();
+        std::fs::write(source.path().join(".a3s/config.json"), "{}").unwrap();
+        std::fs::write(source.path().join("solution.rs"), "fn main() {}").unwrap();
+        project(source.path(), output.path(), &policy(&["."], &[])).unwrap();
+        assert!(output.path().join("solution.rs").is_file());
         assert!(!output.path().join(".a3s").exists());
     }
 

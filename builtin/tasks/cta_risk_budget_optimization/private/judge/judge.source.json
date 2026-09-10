@@ -2,7 +2,7 @@
   "admission": "quarantined",
   "evaluation": {
     "mode": "batch",
-    "source_command": "cd /home/workspace && python3 scoring/score.py",
+    "source_command": "rm -rf /tmp/a3s-judge-deps-cta && python3 -m pip install --isolated --disable-pip-version-check --no-input --only-binary=:all: --target /tmp/a3s-judge-deps-cta --index-url https://pypi.org/simple pandas==1.5.3 numpy==1.23.5 scipy==1.10.1 scikit-learn==1.2.2 statsmodels==0.13.5 matplotlib==3.7.1 openpyxl==3.1.2 || exit 125; cd /home/workspace && PYTHONPATH=/tmp/a3s-judge-deps-cta python3 scoring/score.py",
     "source_game_server_command": null,
     "timeout_sec": 600
   },

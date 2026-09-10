@@ -28,10 +28,13 @@ pub struct ModelCandidateRequest<'a> {
     pub workspace_source_path: Option<&'a str>,
     pub work_image: &'a str,
     pub work_platform: Option<&'a str>,
+    pub work_resources: crate::task::RoleResources,
+    pub workspace_imports: &'a crate::runtime::PreparedWorkspaceImports,
     pub game_network: Option<(&'a str, &'a str)>,
     pub public_internet: bool,
     pub timeout_sec: u64,
     pub max_tool_rounds: usize,
+    pub parallel_game_sessions: bool,
     /// Optional directory for persisting the candidate's full conversation
     /// history (session snapshot JSON + JSONL trajectory).  When set, a
     /// sub-directory is created for this run so that every task's dialogue
@@ -87,6 +90,9 @@ async fn execute_async(request: ModelCandidateRequest<'_>) -> Result<ModelCandid
         image: request.work_image.to_owned(),
         platform: request.work_platform.map(str::to_owned),
         workspace: workspace.clone(),
+        resources: request.work_resources,
+        workspace_import_mounts: request.workspace_imports.mount_specs("/workspace"),
+        workspace_import_environment: request.workspace_imports.environment("/workspace"),
         game_network: request
             .game_network
             .map(|(network, url)| (network.to_owned(), url.to_owned())),
@@ -133,6 +139,14 @@ async fn execute_async(request: ModelCandidateRequest<'_>) -> Result<ModelCandid
 }
 
 fn candidate_prompt(request: &ModelCandidateRequest<'_>) -> String {
+    if request.game_network.is_some() {
+        return crate::game_prompt::candidate_prompt(
+            request.candidate_instructions,
+            request.task_prompt,
+            request.public_internet,
+            request.parallel_game_sessions,
+        );
+    }
     format!(
         "{}\n\n# Benchmark task\n\n{}\n\n# Workspace contract\n\n{}\n\nComplete the task and verify the result.",
         request.candidate_instructions,
@@ -189,10 +203,30 @@ fn candidate_session_options(
     options
 }
 
+fn model_game_server_host(url: &str) -> Result<&str> {
+    let host = url
+        .strip_prefix("http://")
+        .and_then(|authority| authority.strip_suffix(":8000"))
+        .context("A3SCode game server URL must use http and port 8000")?;
+    anyhow::ensure!(
+        !host.is_empty()
+            && host.len() <= 253
+            && host.starts_with("a3s-bench-game-")
+            && host
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.')),
+        "A3SCode game server URL contains an invalid container name"
+    );
+    Ok(host)
+}
+
 struct DockerBashSandbox {
     image: String,
     platform: Option<String>,
     workspace: PathBuf,
+    resources: crate::task::RoleResources,
+    workspace_import_mounts: Vec<String>,
+    workspace_import_environment: Vec<(String, String)>,
     game_network: Option<(String, String)>,
     public_internet: bool,
 }
@@ -205,42 +239,41 @@ impl BashSandbox for DockerBashSandbox {
             "unexpected sandbox workspace"
         );
         let mut docker = Command::new("docker");
-        docker.args([
-            "run",
-            "--rm",
-            "--read-only",
-            "--cap-drop",
-            "ALL",
-            "--security-opt",
-            "no-new-privileges",
-        ]);
-        docker.args(crate::runtime_profile::WORK_DOCKER_LIMITS);
+        docker.args(["run", "--rm"]);
+        docker.args(crate::runtime_profile::work_docker_args(self.resources));
         if let Some(platform) = self.platform.as_deref() {
             docker.args(["--platform", platform]);
         }
         if let Some((network, url)) = &self.game_network {
-            docker.args([
-                "--network",
-                network,
-                "--env",
-                &format!("GAME_SERVER_URL={url}"),
-            ]);
+            let host = model_game_server_host(url)?;
+            let no_proxy = format!("localhost,127.0.0.1,::1,{host}");
+            docker.args(["--network", network]);
+            docker.arg("--env").arg(format!("GAME_SERVER_URL={url}"));
+            docker.arg("--env").arg(format!("NO_PROXY={no_proxy}"));
+            docker.arg("--env").arg(format!("no_proxy={no_proxy}"));
+            docker.args(crate::runtime_profile::host_dns_args());
         } else if self.public_internet {
             docker.args(["--network", "bridge"]);
+            docker.args(crate::runtime_profile::host_dns_args());
         } else {
             docker.args(["--network", "none"]);
         }
         let command = command_for_guest(command, &self.workspace, guest_workspace);
+        docker.arg("--mount").arg(format!(
+            "type=bind,src={},dst=/workspace",
+            self.workspace.display()
+        ));
+        for mount in &self.workspace_import_mounts {
+            docker.arg("--mount").arg(mount);
+        }
+        for (name, value) in &self.workspace_import_environment {
+            docker.arg("--env").arg(format!("{name}={value}"));
+        }
         let output = docker
-            .arg("--mount")
-            .arg(format!(
-                "type=bind,src={},dst=/workspace",
-                self.workspace.display()
-            ))
             .arg("--workdir")
             .arg("/workspace")
             .arg(&self.image)
-            .args(["/bin/sh", "-lc", &command])
+            .args(sandbox_shell_argv(&command))
             .output()
             .await
             .context("could not start Docker bash sandbox")?;
@@ -256,6 +289,10 @@ impl BashSandbox for DockerBashSandbox {
 
 fn command_for_guest(command: &str, host_workspace: &Path, guest_workspace: &str) -> String {
     command.replace(host_workspace.to_string_lossy().as_ref(), guest_workspace)
+}
+
+fn sandbox_shell_argv(command: &str) -> [&str; 3] {
+    ["/bin/sh", "-c", command]
 }
 
 #[cfg(test)]
@@ -314,6 +351,14 @@ mod tests {
     }
 
     #[test]
+    fn sandbox_commands_use_a_non_login_shell() {
+        assert_eq!(
+            sandbox_shell_argv("printf ok"),
+            ["/bin/sh", "-c", "printf ok"]
+        );
+    }
+
+    #[test]
     fn workspace_contract_maps_the_extracted_source_directory_to_the_root() {
         let contract =
             workspace_contract(Some("/home/workspace/juliet-static-analyzer/agent-start"));
@@ -321,6 +366,46 @@ mod tests {
         assert!(contract.contains("use `path` with file tools"));
         assert!(contract.contains("public, read-only task fixtures"));
         assert!(contract.contains("all deliverable writes must stay inside `/workspace`"));
+    }
+    #[test]
+    fn game_candidate_uses_the_shared_sessionful_prompt() {
+        let workspace = tempfile::tempdir().unwrap();
+        let workspace_imports = Default::default();
+        let mut request = ModelCandidateRequest {
+            config_path: Path::new("unused.acl"),
+            model: "openai/fake",
+            task_prompt: "play carefully",
+            candidate_instructions: "candidate instructions",
+            workspace: workspace.path(),
+            workspace_source_path: Some("/home/workspace/source"),
+            work_image: "unused:test",
+            work_platform: None,
+            work_resources: crate::task::LEGACY_WORK_RESOURCES,
+            workspace_imports: &workspace_imports,
+            game_network: Some(("game-network", "http://a3s-bench-game-example:8000")),
+            public_internet: false,
+            timeout_sec: 1,
+            max_tool_rounds: 1,
+            parallel_game_sessions: true,
+            log_dir: None,
+        };
+
+        let prompt = candidate_prompt(&request);
+        assert!(prompt.contains("## Game Mode"));
+        assert!(prompt.contains("POST {GAME_SERVER_URL}/{session_id}/step"));
+        assert!(prompt.contains("You can start multiple game sessions"));
+        assert!(prompt.contains("Your **best score** across all game sessions"));
+        assert!(!prompt.contains("up to three sessions active"));
+        assert!(!prompt.contains("# Workspace contract"));
+        request.parallel_game_sessions = false;
+        let serial_prompt = candidate_prompt(&request);
+        assert!(serial_prompt.contains("Only one game session can be active at a time"));
+        assert!(!serial_prompt.contains("You can start multiple game sessions"));
+        assert_eq!(
+            model_game_server_host("http://a3s-bench-game-example:8000").unwrap(),
+            "a3s-bench-game-example"
+        );
+        assert!(model_game_server_host("https://example.invalid").is_err());
     }
 
     #[test]
@@ -330,6 +415,9 @@ mod tests {
             image: "unused:test".into(),
             platform: None,
             workspace: workspace.path().to_path_buf(),
+            resources: crate::task::LEGACY_WORK_RESOURCES,
+            workspace_import_mounts: vec![],
+            workspace_import_environment: vec![],
             game_network: None,
             public_internet: false,
         });
@@ -366,6 +454,36 @@ mod tests {
             std::future::pending::<()>(),
         ));
         assert!(matches!(timed_out, CandidateDeadline::TimedOut));
+    }
+
+    #[test]
+    fn model_candidate_is_not_gated_by_task_schema() {
+        let workspace = tempfile::tempdir().unwrap();
+        let error = execute(ModelCandidateRequest {
+            config_path: Path::new("/does/not/exist/config.acl"),
+            model: "openai/fake",
+            task_prompt: "unused",
+            candidate_instructions: "unused",
+            workspace: workspace.path(),
+            workspace_source_path: None,
+            work_image: "unused:test",
+            work_platform: None,
+            work_resources: crate::task::RoleResources {
+                cpu_limit: 8,
+                memory_bytes: 16 * 1024 * 1024 * 1024,
+            },
+            workspace_imports: &Default::default(),
+            game_network: None,
+            public_internet: false,
+            timeout_sec: 1,
+            max_tool_rounds: 1,
+            parallel_game_sessions: true,
+            log_dir: None,
+        })
+        .unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("could not load model Candidate configuration"));
     }
 
     #[test]
@@ -542,10 +660,13 @@ mod tests {
             workspace_source_path: None,
             work_image: "alpine:3.20",
             work_platform: None,
+            work_resources: crate::task::LEGACY_WORK_RESOURCES,
+            workspace_imports: &Default::default(),
             game_network: None,
             public_internet: false,
             timeout_sec: 30,
             max_tool_rounds: 32,
+            parallel_game_sessions: true,
             log_dir: None,
         })
         .unwrap();
@@ -574,12 +695,17 @@ mod tests {
         .unwrap();
         let source = task.legacy_judge.as_ref().unwrap();
         let state = tempfile::tempdir().unwrap();
-        let game = crate::game_judge::GameSession::start(source, state.path()).unwrap();
+        let game =
+            crate::game_judge::GameSession::start(source, task.resources.judge, state.path())
+                .unwrap();
         let workspace = tempfile::tempdir().unwrap();
         let sandbox = DockerBashSandbox {
             image: "python:3.12-alpine".into(),
             platform: None,
             workspace: workspace.path().to_path_buf(),
+            resources: task.resources.work,
+            workspace_import_mounts: vec![],
+            workspace_import_environment: vec![],
             game_network: Some((game.network().into(), game.url())),
             public_internet: false,
         };

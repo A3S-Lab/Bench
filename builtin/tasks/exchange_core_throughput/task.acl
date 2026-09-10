@@ -1,6 +1,6 @@
 # Third-party source details: ../../provenance/edgebench.json
 bench "exchange_core_throughput" {
-  schema  = "a3s-bench/task/v1"
+  schema  = "a3s-bench/task/v2"
   version = "0.1.0"
 
   name        = "Exchange Core Throughput"
@@ -16,10 +16,21 @@ bench "exchange_core_throughput" {
   }
 
   work {
+    cpu_limit    = 4
+    memory_bytes = 17179869184
+    https_allow_hosts = [
+      "repo.maven.apache.org",
+    ]
+
+    workspace_import "maven_repository" {
+      source_path = "/root/.m2/repository"
+      target_path = "/home/agent/.m2/repository"
+    }
+
     image {
       ref = "docker.io/seededge/edgebench.work.exchange_core_throughput:cc0c0eabbf80"
     }
-    network_need = "none"
+    network_need = "restricted_https"
   }
 
   submission {
@@ -36,6 +47,8 @@ bench "exchange_core_throughput" {
   judge {
     asset                = "private/judge"
     solution_timeout_sec = 43200
+    cpu_limit            = 4
+    memory_bytes          = 8589934592
   }
 
   metric "score" {

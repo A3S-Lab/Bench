@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/etc/codex/stop_hook.sh",
+            "timeout": 30,
+            "statusMessage": "SForge stop hook"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,6 +1,6 @@
 # Third-party source details: ../../provenance/edgebench.json
 bench "combinatorial_games_formalization" {
-  schema  = "a3s-bench/task/v1"
+  schema  = "a3s-bench/task/v2"
   version = "0.1.0"
 
   name        = "Combinatorial Games Formalization"
@@ -16,6 +16,9 @@ bench "combinatorial_games_formalization" {
   }
 
   work {
+    cpu_limit    = 8
+    memory_bytes = 17179869184
+
     image {
       ref = "docker.io/seededge/edgebench.work.combinatorial_games_formalization:b6f1b58f681e"
     }
@@ -34,6 +37,8 @@ bench "combinatorial_games_formalization" {
   judge {
     asset                = "private/judge"
     solution_timeout_sec = 43200
+    cpu_limit            = 8
+    memory_bytes          = 17179869184
   }
 
   metric "score" {

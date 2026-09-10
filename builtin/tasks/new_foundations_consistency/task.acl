@@ -1,6 +1,6 @@
 # Third-party source details: ../../provenance/edgebench.json
 bench "new_foundations_consistency" {
-  schema  = "a3s-bench/task/v1"
+  schema  = "a3s-bench/task/v2"
   version = "0.1.0"
 
   name        = "New Foundations Consistency"
@@ -16,10 +16,16 @@ bench "new_foundations_consistency" {
   }
 
   work {
+    cpu_limit    = 8
+    memory_bytes = 17179869184
+    https_allow_hosts = [
+      "github.com",
+    ]
+
     image {
       ref = "docker.io/seededge/edgebench.work.new_foundations_consistency:9fdeea94c0b5"
     }
-    network_need = "none"
+    network_need = "restricted_https"
   }
 
   submission {
@@ -34,6 +40,8 @@ bench "new_foundations_consistency" {
   judge {
     asset                = "private/judge"
     solution_timeout_sec = 43200
+    cpu_limit            = 8
+    memory_bytes          = 17179869184
   }
 
   metric "score" {

@@ -1,6 +1,6 @@
 # Third-party source details: ../../provenance/edgebench.json
 bench "ordinal_notation_well_foundedness" {
-  schema  = "a3s-bench/task/v1"
+  schema  = "a3s-bench/task/v2"
   version = "0.1.0"
 
   name        = "Ordinal Notation Well Foundedness"
@@ -16,6 +16,9 @@ bench "ordinal_notation_well_foundedness" {
   }
 
   work {
+    cpu_limit    = 4
+    memory_bytes = 17179869184
+
     image {
       ref = "docker.io/seededge/edgebench.work.ordinal_notation_well_foundedness:690c1a245369"
     }
@@ -54,6 +57,8 @@ bench "ordinal_notation_well_foundedness" {
   judge {
     asset                = "private/judge"
     solution_timeout_sec = 43200
+    cpu_limit            = 4
+    memory_bytes          = 8589934592
   }
 
   metric "score" {

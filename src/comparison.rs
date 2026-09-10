@@ -227,6 +227,7 @@ mod tests {
             model: None,
             candidate_execution: Some(CandidateExecution::completed()),
             model_usage: None,
+            candidate_event_log_digest: None,
             primary_metric: "score".into(),
             score: score.into(),
             judge_result: JudgeResult {

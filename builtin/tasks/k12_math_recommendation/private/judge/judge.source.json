@@ -2,7 +2,7 @@
   "admission": "quarantined",
   "evaluation": {
     "mode": "batch",
-    "source_command": "cd /home/workspace && python3 scoring/score.py",
+    "source_command": "rm -rf /tmp/a3s-judge-deps-k12 && python3 -m pip install --isolated --disable-pip-version-check --no-input --only-binary=:all: --no-deps --target /tmp/a3s-judge-deps-k12 --index-url https://pypi.org/simple networkx==3.3 || exit 125; cd /home/workspace && PYTHONPATH=/tmp/a3s-judge-deps-k12 python3 scoring/score.py",
     "source_game_server_command": null,
     "timeout_sec": 900
   },

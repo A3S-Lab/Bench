@@ -7,6 +7,7 @@ pub struct RunOptions {
     pub task: String,
     pub agent: String,
     pub model: Option<String>,
+    pub reasoning_effort: Option<String>,
     pub json: bool,
     locked: bool,
 }
@@ -17,7 +18,11 @@ pub struct LoadedRun {
     pub judge: asset::LocalAssetPackage,
     pub judge_model: Option<String>,
     pub model: Option<String>,
+    pub reasoning_effort: Option<String>,
+    pub codex_package: Option<crate::codex_package::CachedCodexPackage>,
     pub resolved_images: BTreeMap<String, String>,
+    pub task_lock_schema: String,
+    pub task_lock_resources: Option<task::TaskResources>,
     pub task_lock_digest: String,
     pub candidate_lock_digest: String,
 }
@@ -28,6 +33,7 @@ impl RunOptions {
             task: task_lock.to_string_lossy().into_owned(),
             agent: candidate_lock.to_string_lossy().into_owned(),
             model: None,
+            reasoning_effort: None,
             json: false,
             locked: true,
         }
@@ -37,6 +43,7 @@ impl RunOptions {
         anyhow::ensure!(!args.is_empty(), "run requires one Task reference");
         let mut agent = None;
         let mut model = None;
+        let mut reasoning_effort = None;
         let mut json = false;
         let mut locked = false;
         let mut index = 1;
@@ -50,6 +57,10 @@ impl RunOptions {
                     model = Some(args[index + 1].clone());
                     index += 2;
                 }
+                "--reasoning-effort" if reasoning_effort.is_none() && index + 1 < args.len() => {
+                    reasoning_effort = Some(args[index + 1].clone());
+                    index += 2;
+                }
                 "--json" if !json => {
                     json = true;
                     index += 1;
@@ -61,13 +72,18 @@ impl RunOptions {
                 value => anyhow::bail!("invalid or duplicate run option {value:?}"),
             }
         }
-        Ok(Self {
+        let value = Self {
             task: args[0].clone(),
             agent: agent.ok_or_else(|| anyhow::anyhow!("run requires exactly one --agent"))?,
             model,
+            reasoning_effort,
             json,
             locked,
-        })
+        };
+        if let Some(effort) = value.reasoning_effort.as_deref() {
+            lock::validate_reasoning_effort(effort)?;
+        }
+        Ok(value)
     }
 
     pub fn load(
@@ -75,12 +91,13 @@ impl RunOptions {
         state_root: &Path,
         run_id: &str,
         judge_model: Option<String>,
+        codex_default_reasoning_effort: Option<String>,
         runtime_provider: &str,
     ) -> Result<LoadedRun> {
         if self.locked {
             anyhow::ensure!(
-                self.model.is_none(),
-                "--model cannot alter a locked Candidate"
+                self.model.is_none() && self.reasoning_effort.is_none(),
+                "--model and --reasoning-effort cannot alter a locked Candidate"
             );
             return load_locks(Path::new(&self.task), Path::new(&self.agent), state_root);
         }
@@ -96,7 +113,14 @@ impl RunOptions {
             &task_lock,
             runtime_provider,
         )?;
-        lock::create_candidate(&self.agent, self.model.clone(), state_root, &candidate_lock)?;
+        lock::create_candidate_with_codex_default(
+            &self.agent,
+            self.model.clone(),
+            self.reasoning_effort.clone(),
+            codex_default_reasoning_effort,
+            state_root,
+            &candidate_lock,
+        )?;
         load_locks(&task_lock, &candidate_lock, state_root)
     }
 }
@@ -104,13 +128,26 @@ impl RunOptions {
 fn load_locks(task_lock: &Path, candidate_lock: &Path, state_root: &Path) -> Result<LoadedRun> {
     let locked_task = lock::load_task(task_lock, state_root)?;
     let (candidate_lock, candidate_artifact) = lock::load_candidate(candidate_lock, state_root)?;
+    let task = task::load_local(&locked_task.task_artifact)?;
+    let codex_package = match candidate_lock.product.as_ref() {
+        Some(product) => Some(crate::codex_package::load_cached(
+            state_root,
+            product,
+            task.work_platform.as_deref(),
+        )?),
+        None => None,
+    };
     Ok(LoadedRun {
-        task: task::load_local(&locked_task.task_artifact)?,
+        task,
         candidate: asset::load_local(&candidate_artifact)?,
         judge: asset::load_local(&locked_task.judge_artifact)?,
         judge_model: locked_task.lock.judge_model.clone(),
         model: candidate_lock.model,
+        reasoning_effort: candidate_lock.reasoning_effort,
+        codex_package,
         resolved_images: locked_task.lock.resolved_images,
+        task_lock_schema: locked_task.lock.schema,
+        task_lock_resources: locked_task.lock.resources,
         task_lock_digest: locked_task.lock.lock_digest,
         candidate_lock_digest: candidate_lock.lock_digest,
     })

@@ -3,7 +3,7 @@ use anyhow::Result;
 use serde_json::json;
 use std::path::Path;
 
-const USAGE: &str = "a3s bench\n\nUsage:\n  a3s bench list [--all] [--json]\n  a3s bench info <task> [--all] [--json]\n  a3s bench run <task> --agent <candidate> [--model <provider/model>] [--locked] [--json]\n  a3s bench result [run-id] [--json]\n  a3s bench compare <baseline-run> <candidate-run> [<baseline-run> <candidate-run> ...] [--json]\n  a3s bench suite run <suite.acl> [--resume <suite-run-id>] [--json]\n  a3s bench advanced check <./task>\n  a3s bench advanced doctor [--json]\n  a3s bench advanced task lock <source> --out <file>\n  a3s bench advanced candidate lock <candidate> [--model <provider/model>] --out <file>\n";
+const USAGE: &str = "a3s bench\n\nUsage:\n  a3s bench list [--all] [--json]\n  a3s bench info <task> [--all] [--json]\n  a3s bench run <task> --agent <candidate> [--model <model>] [--reasoning-effort <effort>] [--locked] [--json]\n  a3s bench result [run-id] [--json]\n  a3s bench compare <baseline-run> <candidate-run> [<baseline-run> <candidate-run> ...] [--json]\n  a3s bench suite run <suite.acl> [--resume <suite-run-id>] [--json]\n  a3s bench advanced check <./task>\n  a3s bench advanced doctor [--json]\n  a3s bench advanced task lock <source> --out <file>\n  a3s bench advanced candidate lock <candidate> [--model <model>] [--reasoning-effort <effort>] --out <file>\n";
 
 pub fn run(args: Vec<String>) -> Result<u8> {
     if args.as_slice() == ["--component-info", "--json"] {
@@ -220,6 +220,7 @@ fn advanced_candidate_lock(args: &[String]) -> Result<u8> {
     let source = &args[0];
     let mut output = None;
     let mut model = None;
+    let mut reasoning_effort = None;
     let mut index = 1;
     while index < args.len() {
         match args[index].as_str() {
@@ -231,12 +232,24 @@ fn advanced_candidate_lock(args: &[String]) -> Result<u8> {
                 model = Some(args[index + 1].clone());
                 index += 2;
             }
+            "--reasoning-effort" if reasoning_effort.is_none() && index + 1 < args.len() => {
+                reasoning_effort = Some(args[index + 1].clone());
+                index += 2;
+            }
             value => return Err(anyhow::anyhow!("invalid candidate lock option {value:?}")),
         }
     }
     let output = output.ok_or_else(|| anyhow::anyhow!("candidate lock requires --out"))?;
     let state_root = workspace::state_root()?;
-    let value = lock::create_candidate(source, model, &state_root, Path::new(&output))?;
+    let config = config::discover(&std::env::current_dir()?)?;
+    let value = lock::create_candidate_with_codex_default(
+        source,
+        model,
+        reasoning_effort,
+        config.codex_reasoning_effort,
+        &state_root,
+        Path::new(&output),
+    )?;
     println!("locked Candidate {}", value.candidate_revision);
     Ok(0)
 }
@@ -249,13 +262,24 @@ fn doctor(args: &[String]) -> Result<u8> {
     if json_output {
         crate::output::print_success(
             "advanced doctor",
-            json!({"config":config.path,"runtime":status,"judge_model":config.judge_model}),
+            json!({
+                "config":config.path,
+                "bench_config":config.bench_path,
+                "runtime":status,
+                "judge_model":config.judge_model,
+                "codex_reasoning_effort":config.codex_reasoning_effort,
+                "parallel_game_sessions":config.parallel_game_sessions
+            }),
         )?;
     } else {
         println!("Runtime {} is ready ({})", status.provider, status.detail);
         if let Some(model) = config.judge_model {
             println!("Judge model route: {model}");
         }
+        if let Some(effort) = config.codex_reasoning_effort {
+            println!("Codex reasoning effort: {effort}");
+        }
+        println!("Parallel game sessions: {}", config.parallel_game_sessions);
     }
     Ok(0)
 }

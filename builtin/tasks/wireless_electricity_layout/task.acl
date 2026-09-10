@@ -1,6 +1,6 @@
 # Third-party source details: ../../provenance/edgebench.json
 bench "wireless_electricity_layout" {
-  schema  = "a3s-bench/task/v1"
+  schema  = "a3s-bench/task/v2"
   version = "0.1.0"
 
   name        = "Wireless Electricity Layout"
@@ -16,6 +16,9 @@ bench "wireless_electricity_layout" {
   }
 
   work {
+    cpu_limit    = 4
+    memory_bytes = 17179869184
+
     image {
       ref = "docker.io/seededge/edgebench.work.wireless_electricity_layout:c3179795f69f"
     }
@@ -34,6 +37,8 @@ bench "wireless_electricity_layout" {
   judge {
     asset                = "private/judge"
     solution_timeout_sec = 43200
+    cpu_limit            = 4
+    memory_bytes          = 8589934592
   }
 
   metric "score" {

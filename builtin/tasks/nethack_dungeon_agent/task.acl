@@ -1,6 +1,6 @@
 # Third-party source details: ../../provenance/edgebench.json
 bench "nethack_dungeon_agent" {
-  schema  = "a3s-bench/task/v1"
+  schema  = "a3s-bench/task/v2"
   version = "0.1.0"
 
   name        = "Nethack Dungeon Agent"
@@ -16,6 +16,9 @@ bench "nethack_dungeon_agent" {
   }
 
   work {
+    cpu_limit    = 4
+    memory_bytes = 17179869184
+
     image {
       ref = "docker.io/seededge/edgebench.work.nethack_dungeon_agent:eda9da70e2cc"
     }
@@ -34,6 +37,8 @@ bench "nethack_dungeon_agent" {
   judge {
     asset                = "private/judge"
     solution_timeout_sec = 43200
+    cpu_limit            = 4
+    memory_bytes          = 8589934592
   }
 
   metric "score" {

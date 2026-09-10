@@ -1,6 +1,6 @@
 # Third-party source details: ../../provenance/edgebench.json
 bench "molecular_self_assembly" {
-  schema  = "a3s-bench/task/v1"
+  schema  = "a3s-bench/task/v2"
   version = "0.1.0"
 
   name        = "Molecular Self Assembly"
@@ -16,6 +16,9 @@ bench "molecular_self_assembly" {
   }
 
   work {
+    cpu_limit    = 4
+    memory_bytes = 17179869184
+
     image {
       ref = "docker.io/seededge/edgebench.work.molecular_self_assembly:6459dea01a82"
     }
@@ -34,6 +37,8 @@ bench "molecular_self_assembly" {
   judge {
     asset                = "private/judge"
     solution_timeout_sec = 43200
+    cpu_limit            = 4
+    memory_bytes          = 8589934592
   }
 
   metric "score" {

@@ -128,14 +128,16 @@ pub fn sync_tree(path: &Path) -> Result<()> {
         if kind.is_dir() {
             sync_tree(&entry.path())?;
         } else if kind.is_file() {
-            // Windows requires a write-capable handle for FlushFileBuffers.
-            // Staging trees are still owner-writable here and are sealed only
-            // after publication, so use one explicit cross-platform handle.
+            #[cfg(unix)]
+            std::fs::File::open(entry.path())?.sync_all()?;
+            #[cfg(windows)]
             std::fs::OpenOptions::new()
                 .read(true)
                 .write(true)
                 .open(entry.path())?
                 .sync_all()?;
+            #[cfg(not(any(unix, windows)))]
+            std::fs::File::open(entry.path())?.sync_all()?;
         } else {
             anyhow::bail!("durable tree contains a special file");
         }

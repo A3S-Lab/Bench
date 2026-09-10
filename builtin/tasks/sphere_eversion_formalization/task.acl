@@ -1,6 +1,6 @@
 # Third-party source details: ../../provenance/edgebench.json
 bench "sphere_eversion_formalization" {
-  schema  = "a3s-bench/task/v1"
+  schema  = "a3s-bench/task/v2"
   version = "0.1.0"
 
   name        = "Sphere Eversion Formalization"
@@ -16,6 +16,9 @@ bench "sphere_eversion_formalization" {
   }
 
   work {
+    cpu_limit    = 8
+    memory_bytes = 17179869184
+
     image {
       ref = "docker.io/seededge/edgebench.work.sphere_eversion_formalization:96f62982feaa"
     }
@@ -34,6 +37,8 @@ bench "sphere_eversion_formalization" {
   judge {
     asset                = "private/judge"
     solution_timeout_sec = 43200
+    cpu_limit            = 8
+    memory_bytes          = 17179869184
   }
 
   metric "score" {

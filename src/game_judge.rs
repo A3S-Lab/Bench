@@ -9,6 +9,82 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 static GAME_SESSION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+const PARALLEL_GAME_SESSION_LIMIT: usize = 3;
+
+#[derive(Debug)]
+struct GameHistoryScore {
+    raw: f64,
+    best_moves: Value,
+    best_peak_score: Value,
+}
+
+fn required_finite_number(value: &Value, field: &str) -> Result<f64> {
+    let number = value
+        .get(field)
+        .and_then(Value::as_f64)
+        .with_context(|| format!("game history field `{field}` is missing or not numeric"))?;
+    anyhow::ensure!(
+        number.is_finite(),
+        "game history field `{field}` is not finite"
+    );
+    Ok(number)
+}
+
+fn parse_game_history(value: &Value) -> Result<GameHistoryScore> {
+    let reported_best = required_finite_number(value, "best_score")?;
+    let entries = value
+        .get("entries")
+        .and_then(Value::as_array)
+        .context("game history `entries` is missing or not an array")?;
+    if entries.is_empty() {
+        anyhow::ensure!(
+            reported_best == 0.0,
+            "empty game history reported a non-zero best score"
+        );
+        return Ok(GameHistoryScore {
+            raw: 0.0,
+            best_moves: Value::from(0),
+            best_peak_score: Value::from(0),
+        });
+    }
+
+    let mut best_score = None;
+    let mut best_entry = None;
+    for entry in entries {
+        let score = required_finite_number(entry, "score")?;
+        let final_score = required_finite_number(entry, "final_score")?;
+        anyhow::ensure!(
+            score == final_score,
+            "game history score does not match final_score"
+        );
+        let replace = match best_score {
+            Some(current_score) => score > current_score,
+            None => true,
+        };
+        if replace {
+            best_score = Some(score);
+            best_entry = Some(entry);
+        }
+    }
+
+    let raw = best_score.expect("non-empty history has a best score");
+    anyhow::ensure!(
+        reported_best == raw,
+        "game history best_score does not match archived entries"
+    );
+    let best_entry = best_entry.expect("non-empty history has a best entry");
+    Ok(GameHistoryScore {
+        raw,
+        best_moves: best_entry
+            .get("moves")
+            .cloned()
+            .unwrap_or_else(|| Value::from(0)),
+        best_peak_score: best_entry
+            .get("peak_score")
+            .cloned()
+            .unwrap_or_else(|| Value::from(0)),
+    })
+}
 
 pub struct GameSession {
     network: String,
@@ -16,7 +92,21 @@ pub struct GameSession {
 }
 
 impl GameSession {
-    pub fn start(source: &LegacyJudgeSource, state_root: &Path) -> Result<Self> {
+    #[cfg(test)]
+    pub fn start(
+        source: &LegacyJudgeSource,
+        resources: crate::task::RoleResources,
+        state_root: &Path,
+    ) -> Result<Self> {
+        Self::start_with_parallel_sessions(source, resources, state_root, true)
+    }
+
+    pub fn start_with_parallel_sessions(
+        source: &LegacyJudgeSource,
+        resources: crate::task::RoleResources,
+        state_root: &Path,
+        parallel_game_sessions: bool,
+    ) -> Result<Self> {
         anyhow::ensure!(source.mode == "game_server", "Judge is not a game server");
         let source_command = source
             .game_server_command
@@ -37,26 +127,22 @@ impl GameSession {
             include_bytes!("../runtime_assets/game_server_app.py"),
         )?;
         make_runtime_asset_readable(&script)?;
-        let command =
-            source_command.replace("/tmp/game_server_app.py", "/opt/a3s/game_server_app.py");
+        let command = game_server_command(source_command, parallel_game_sessions)
+            .replace("/tmp/game_server_app.py", "/opt/a3s/game_server_app.py");
         let mut process = Command::new("docker");
         process.args(["run", "-d"]);
         if let Some(platform) = source.platform.as_deref() {
             process.args(["--platform", platform]);
         }
         let output = process
-            .args(crate::runtime_profile::JUDGE_DOCKER_LIMITS)
+            .args(crate::runtime_profile::judge_docker_args(resources))
+            .args(crate::runtime_profile::host_dns_args())
             .args(crate::runtime_profile::READ_ONLY_JUDGE_TMPFS)
             .args([
                 "--name",
                 &session.container,
                 "--network",
                 &session.network,
-                "--read-only",
-                "--cap-drop",
-                "ALL",
-                "--security-opt",
-                "no-new-privileges",
                 "--workdir",
                 "/tmp",
                 "--mount",
@@ -66,7 +152,7 @@ impl GameSession {
                 script.display()
             ))
             .arg(&source.image)
-            .args(["/bin/bash", "-lc", &command])
+            .args(["/bin/bash", "-c", &command])
             .output()?;
         if !output.status.success() {
             anyhow::bail!(
@@ -92,13 +178,12 @@ impl GameSession {
             &self.container,
             "python",
             "-c",
-            "import json,urllib.request;print(urllib.request.urlopen('http://127.0.0.1:8000/status').read().decode())",
+            "import urllib.request;r=urllib.request.Request('http://127.0.0.1:8000/close-all',data=b'',method='POST');urllib.request.urlopen(r).read();print(urllib.request.urlopen('http://127.0.0.1:8000/history').read().decode())",
         ])?;
-        let value: Value = serde_json::from_str(&output)?;
-        let raw = value
-            .get("peak_score")
-            .and_then(Value::as_f64)
-            .unwrap_or(0.0);
+        let value: Value =
+            serde_json::from_str(&output).context("could not parse game Judge history")?;
+        let history = parse_game_history(&value)?;
+        let raw = history.raw;
         let ratio = normalize_raw(source.rescale.as_ref(), raw)?;
         let primary = task
             .metrics
@@ -112,9 +197,9 @@ impl GameSession {
             solution_verdict: "valid".into(),
             metrics,
             diagnostics: serde_json::json!({
-                "adapter":"edgebench-game-v1",
-                "peak_score":raw,
-                "moves":value.get("moves")
+                "adapter": "edgebench-game-v1",
+                "moves": history.best_moves,
+                "peak_score": history.best_peak_score,
             }),
         })
     }
@@ -128,6 +213,14 @@ impl GameSession {
             "-c",
             "import urllib.request,urllib.error;r=urllib.request.Request('http://127.0.0.1:8000/new',data=b'{}',headers={'Content-Type':'application/json'});\ntry: print(urllib.request.urlopen(r).read().decode())\nexcept urllib.error.HTTPError as e: print(e.read().decode()); raise",
         ])
+    }
+
+    #[cfg(test)]
+    fn game_status(&self, session_id: &str) -> Result<String> {
+        let script = format!(
+            "import urllib.request;print(urllib.request.urlopen('http://127.0.0.1:8000/{session_id}/status').read().decode())"
+        );
+        docker(&["exec", &self.container, "python", "-c", &script])
     }
 
     fn wait_ready(&self) -> Result<()> {
@@ -162,6 +255,15 @@ impl Drop for GameSession {
         let _ = docker(&["rm", "-f", &self.container]);
         let _ = docker(&["network", "rm", &self.network]);
     }
+}
+
+fn game_server_command(source_command: &str, parallel_game_sessions: bool) -> String {
+    let max_active_sessions = if parallel_game_sessions {
+        PARALLEL_GAME_SESSION_LIMIT
+    } else {
+        1
+    };
+    format!("{source_command} --max-active-sessions {max_active_sessions}")
 }
 
 fn docker(args: &[&str]) -> Result<String> {
@@ -217,16 +319,103 @@ mod tests {
     use super::*;
 
     #[test]
+    fn game_server_command_configures_parallel_session_capacity() {
+        let source = "python /tmp/game_server_app.py --rom game.z5";
+        assert_eq!(
+            game_server_command(source, true),
+            format!("{source} --max-active-sessions 3")
+        );
+        assert_eq!(
+            game_server_command(source, false),
+            format!("{source} --max-active-sessions 1")
+        );
+    }
+
+    #[test]
+    fn history_scoring_uses_best_final_score_instead_of_peak() {
+        let history = serde_json::json!({
+            "best_score": 20,
+            "entries": [
+                {
+                    "session_id": "first",
+                    "score": 10,
+                    "final_score": 10,
+                    "peak_score": 50,
+                    "pass_rate": 0.9
+                },
+                {
+                    "session_id": "second",
+                    "score": 20,
+                    "final_score": 20,
+                    "peak_score": 20,
+                    "pass_rate": 0.2
+                }
+            ]
+        });
+
+        let parsed = parse_game_history(&history).unwrap();
+        assert_eq!(parsed.raw, 20.0);
+        assert_eq!(parsed.best_moves, Value::from(0));
+        assert_eq!(parsed.best_peak_score, Value::from(20));
+    }
+
+    #[test]
+    fn history_scoring_preserves_best_negative_score() {
+        let history = serde_json::json!({
+            "best_score": -2,
+            "entries": [
+                {"score": -5, "final_score": -5, "peak_score": 4, "pass_rate": -0.5},
+                {"score": -2, "final_score": -2, "peak_score": 1, "pass_rate": -0.2}
+            ]
+        });
+        assert_eq!(parse_game_history(&history).unwrap().raw, -2.0);
+    }
+
+    #[test]
+    fn empty_history_scores_zero() {
+        let history = serde_json::json!({"best_score": 0, "entries": []});
+        let parsed = parse_game_history(&history).unwrap();
+        assert_eq!(parsed.raw, 0.0);
+        assert_eq!(parsed.best_moves, Value::from(0));
+        assert_eq!(parsed.best_peak_score, Value::from(0));
+    }
+
+    #[test]
+    fn malformed_or_inconsistent_history_is_rejected() {
+        assert!(parse_game_history(&serde_json::json!({
+            "best_score": "20",
+            "entries": []
+        }))
+        .is_err());
+        assert!(parse_game_history(&serde_json::json!({
+            "best_score": 20,
+            "entries": [{"score": 20, "final_score": 19, "pass_rate": 0.2}]
+        }))
+        .is_err());
+        assert!(parse_game_history(&serde_json::json!({
+            "best_score": 99,
+            "entries": [{"score": 20, "final_score": 20, "pass_rate": 0.2}]
+        }))
+        .is_err());
+    }
+
+    #[test]
     #[ignore = "requires Docker and the linux/amd64 imported Judge image"]
-    fn imported_game_server_starts_and_reports_zero_score() {
+    fn imported_game_server_serial_mode_archives_previous_session() {
         let task = crate::task::load_local(
             &Path::new(env!("CARGO_MANIFEST_DIR")).join("builtin/tasks/anchorhead_text_adventure"),
         )
         .unwrap();
         let source = task.legacy_judge.as_ref().unwrap();
         let state = tempfile::tempdir().unwrap();
-        let session = GameSession::start(source, state.path()).unwrap();
-        let new_game = session.start_game().unwrap_or_else(|error| {
+        let session = GameSession::start_with_parallel_sessions(
+            source,
+            task.resources.judge,
+            state.path(),
+            false,
+        )
+        .unwrap();
+        let first_game = session.start_game().unwrap_or_else(|error| {
             let output = Command::new("docker")
                 .args(["logs", &session.container])
                 .output()
@@ -238,11 +427,31 @@ mod tests {
             );
             panic!("{error:#}\n{logs}")
         });
-        assert!(new_game.contains("observation"));
+        let first_game: Value = serde_json::from_str(&first_game).unwrap();
+        let first_id = first_game
+            .get("session_id")
+            .and_then(Value::as_str)
+            .unwrap();
+        let second_game: Value = serde_json::from_str(&session.start_game().unwrap()).unwrap();
+        let second_id = second_game
+            .get("session_id")
+            .and_then(Value::as_str)
+            .unwrap();
+        assert!(first_game.get("observation").is_some());
+        assert!(session.game_status(first_id).is_err());
+        assert!(session.game_status(second_id).is_ok());
         let result = session.finish(&task, source).unwrap();
         assert_eq!(
             result.metrics.get("score").and_then(Value::as_str),
             Some("0")
+        );
+        assert_eq!(
+            result.diagnostics.get("moves").and_then(Value::as_i64),
+            Some(0)
+        );
+        assert_eq!(
+            result.diagnostics.get("peak_score").and_then(Value::as_i64),
+            Some(0)
         );
     }
 }

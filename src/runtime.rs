@@ -4,12 +4,14 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crate::runtime_selection::{RuntimeSelection, A3S_BOX_PROVIDER, DOCKER_PROVIDER};
 
 const IMAGE_PULL_ATTEMPTS: u32 = 3;
 const IMAGE_PULL_BASE_DELAY: Duration = Duration::from_secs(5);
+const WORKSPACE_IMPORT_STAGING_TIMEOUT: Duration = Duration::from_secs(600);
+const WORKSPACE_IMPORT_STAGING_ROOT: &str = "/run/a3s-workspace-import";
 
 struct ImagePullAttempt {
     succeeded: bool,
@@ -80,6 +82,165 @@ where
 }
 
 static CANDIDATE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+static WORKSPACE_IMPORT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+#[derive(Debug)]
+struct PreparedWorkspaceImport {
+    name: String,
+    target_path: String,
+    volume: String,
+}
+
+/// Per-run resources copied from the locked Work image and mounted into the
+/// Candidate container. The volumes are never shared between runs.
+#[derive(Debug, Default)]
+pub struct PreparedWorkspaceImports {
+    imports: Vec<PreparedWorkspaceImport>,
+}
+
+impl PreparedWorkspaceImports {
+    pub(crate) fn add_mounts(&self, command: &mut Command, workspace: &str) {
+        for spec in self.mount_specs(workspace) {
+            command.arg("--mount").arg(spec);
+        }
+    }
+
+    pub(crate) fn mount_specs(&self, workspace: &str) -> Vec<String> {
+        self.imports
+            .iter()
+            .map(|import| {
+                format!(
+                    "type=volume,src={},dst={},volume-nocopy",
+                    import.volume,
+                    resolve_workspace_import_target(workspace, &import.target_path)
+                )
+            })
+            .collect()
+    }
+
+    pub(crate) fn add_environment(&self, command: &mut Command, workspace: &str) {
+        for (name, value) in self.environment(workspace) {
+            command.arg("--env").arg(format!("{name}={value}"));
+        }
+    }
+
+    pub(crate) fn environment(&self, workspace: &str) -> Vec<(String, String)> {
+        self.imports
+            .iter()
+            .filter(|import| import.name == "maven_repository")
+            .map(|import| {
+                (
+                    "MAVEN_OPTS".to_owned(),
+                    format!(
+                        "-Dmaven.repo.local={}",
+                        resolve_workspace_import_target(workspace, &import.target_path)
+                    ),
+                )
+            })
+            .collect()
+    }
+}
+
+fn resolve_workspace_import_target(workspace: &str, target_path: &str) -> String {
+    if target_path.starts_with('/') {
+        target_path.to_owned()
+    } else {
+        format!("{}/{}", workspace.trim_end_matches('/'), target_path)
+    }
+}
+
+impl Drop for PreparedWorkspaceImports {
+    fn drop(&mut self) {
+        for import in self.imports.iter().rev() {
+            let _ = Command::new("docker")
+                .args(["volume", "rm", "-f", &import.volume])
+                .output();
+        }
+    }
+}
+
+pub fn prepare_workspace_imports(task: &TaskInfo) -> Result<PreparedWorkspaceImports> {
+    let mut prepared = PreparedWorkspaceImports::default();
+    for import in &task.work_workspace_imports {
+        let sequence = WORKSPACE_IMPORT_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let created_at = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .context("system clock is before the Unix epoch")?
+            .as_nanos();
+        let volume = format!(
+            "a3s-bench-workspace-import-{}-{created_at}-{sequence}",
+            std::process::id(),
+        );
+        let created = Command::new("docker")
+            .args(["volume", "create", &volume])
+            .output()
+            .context("could not create Candidate workspace import volume")?;
+        anyhow::ensure!(
+            created.status.success(),
+            "could not create Candidate workspace import volume: {}",
+            String::from_utf8_lossy(&created.stderr).trim()
+        );
+        prepared.imports.push(PreparedWorkspaceImport {
+            name: import.name.clone(),
+            target_path: import.target_path.clone(),
+            volume: volume.clone(),
+        });
+
+        let container = format!("{volume}-stage");
+        let script = format!(
+            "set -eu; source_path=\u{24}1; [ -d \"\u{24}source_path\" ]; [ -z \"\u{24}(find \"\u{24}source_path\" -mindepth 1 ! -type d ! -type f -print -quit)\" ]; cp -a \"\u{24}source_path\"/. {WORKSPACE_IMPORT_STAGING_ROOT}/; chmod -R a+rwX {WORKSPACE_IMPORT_STAGING_ROOT}"
+        );
+        let mut command = Command::new("docker");
+        command.args([
+            "run",
+            "--rm",
+            "--pull",
+            "never",
+            "--name",
+            &container,
+            "--network",
+            "none",
+            "--pids-limit",
+            "128",
+            "--memory",
+            "1g",
+            "--cpus",
+            "1",
+            "--user",
+            "0:0",
+        ]);
+        if let Some(platform) = task.work_platform.as_deref() {
+            command.args(["--platform", platform]);
+        }
+        command
+            .arg("--mount")
+            .arg(format!(
+                "type=volume,src={volume},dst={WORKSPACE_IMPORT_STAGING_ROOT},volume-nocopy"
+            ))
+            .args(["--entrypoint", "/bin/sh"])
+            .arg(&task.work_image)
+            .args(["-c", &script, "--", &import.source_path]);
+        let (output, timed_out) =
+            output_with_timeout(&mut command, WORKSPACE_IMPORT_STAGING_TIMEOUT)
+                .context("could not stage Candidate workspace import")?;
+        if timed_out {
+            let _ = Command::new("docker")
+                .args(["rm", "-f", &container])
+                .output();
+            anyhow::bail!(
+                "Candidate workspace import {:?} staging timed out",
+                import.name
+            );
+        }
+        anyhow::ensure!(
+            output.status.success(),
+            "could not import {:?} from locked Work image: {}",
+            import.name,
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+    Ok(prepared)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CandidateProcessOutcome {
@@ -191,6 +352,7 @@ pub fn execute_docker_candidate(
     task: &TaskInfo,
     candidate: &LocalAssetPackage,
     workspace: &Path,
+    workspace_imports: &PreparedWorkspaceImports,
 ) -> Result<CandidateProcessOutcome> {
     let entrypoint = candidate
         .entrypoint
@@ -203,36 +365,26 @@ pub fn execute_docker_candidate(
         std::process::id(),
         CANDIDATE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
     );
-    command.args([
-        "run",
-        "--rm",
-        "--name",
-        &container,
-        "--read-only",
-        "--cap-drop",
-        "ALL",
-        "--security-opt",
-        "no-new-privileges",
-    ]);
-    command.args(crate::runtime_profile::WORK_DOCKER_LIMITS);
-    command.args([
-        "--network",
-        if task.work_network_need == "public_internet" {
-            "bridge"
-        } else {
-            "none"
-        },
-    ]);
+    command.args(["run", "--rm", "--name", &container]);
+    command.args(crate::runtime_profile::work_docker_args(
+        task.resources.work,
+    ));
+    let public_internet = task.work_network_need == "public_internet";
+    command.args(["--network", if public_internet { "bridge" } else { "none" }]);
+    if public_internet {
+        command.args(crate::runtime_profile::host_dns_args());
+    }
     if let Some(platform) = task.work_platform.as_deref() {
         command.args(["--platform", platform]);
     }
     configure_mounted_tree_owner(&mut command, &candidate.root)?;
+    workspace_imports.add_environment(&mut command, "/workspace");
+    command.arg("--mount").arg(format!(
+        "type=bind,src={},dst=/workspace",
+        workspace.display()
+    ));
+    workspace_imports.add_mounts(&mut command, "/workspace");
     command
-        .arg("--mount")
-        .arg(format!(
-            "type=bind,src={},dst=/workspace",
-            workspace.display()
-        ))
         .arg("--mount")
         .arg(format!(
             "type=bind,src={},dst=/agent,readonly",
@@ -329,18 +481,10 @@ print(json.dumps(getattr(mod,{})({{'submission_root':'/submission','hidden_bundl
         serde_json::to_string(entrypoint_function)?
     );
     let mut command = Command::new("docker");
-    command.args([
-        "run",
-        "--rm",
-        "--network",
-        "none",
-        "--read-only",
-        "--cap-drop",
-        "ALL",
-        "--security-opt",
-        "no-new-privileges",
-    ]);
-    command.args(crate::runtime_profile::JUDGE_DOCKER_LIMITS);
+    command.args(["run", "--rm", "--network", "none"]);
+    command.args(crate::runtime_profile::judge_docker_args(
+        task.resources.judge,
+    ));
     command.args(crate::runtime_profile::READ_ONLY_JUDGE_TMPFS);
     configure_mounted_tree_owner(&mut command, &judge.root)?;
     let output = command
@@ -630,6 +774,7 @@ mod tests {
         };
         let workspace = tempfile::tempdir().unwrap();
         let task = TaskInfo {
+            schema: "a3s-bench/task/v1".into(),
             id: "timeout-test".into(),
             name: "Timeout test".into(),
             category: "correctness".into(),
@@ -637,6 +782,7 @@ mod tests {
             work_image: "docker.io/library/alpine:3.20".into(),
             work_platform: None,
             work_network_need: "none".into(),
+            work_network_allow_hosts: vec![],
             candidate_timeout_sec: 3,
             metrics: vec![],
             workspace_seed: None,
@@ -647,12 +793,20 @@ mod tests {
                 max_total_bytes: 1024,
                 max_file_bytes: 1024,
             },
+            resources: Default::default(),
+            work_workspace_imports: vec![],
             legacy_judge: None,
             root: std::path::PathBuf::new(),
         };
 
         assert_eq!(
-            execute_docker_candidate(&task, &candidate, workspace.path()).unwrap(),
+            execute_docker_candidate(
+                &task,
+                &candidate,
+                workspace.path(),
+                &PreparedWorkspaceImports::default(),
+            )
+            .unwrap(),
             CandidateProcessOutcome::TimedOut
         );
         assert_eq!(
@@ -664,6 +818,7 @@ mod tests {
     #[test]
     fn validates_locked_metric_contract() {
         let task = TaskInfo {
+            schema: "a3s-bench/task/v1".into(),
             id: "test".into(),
             name: "Test".into(),
             category: "correctness".into(),
@@ -671,6 +826,7 @@ mod tests {
             work_image: "alpine".into(),
             work_platform: None,
             work_network_need: "none".into(),
+            work_network_allow_hosts: vec![],
             candidate_timeout_sec: 300,
             metrics: vec![MetricInfo {
                 name: "correctness".into(),
@@ -686,6 +842,8 @@ mod tests {
                 max_total_bytes: 1024,
                 max_file_bytes: 1024,
             },
+            resources: Default::default(),
+            work_workspace_imports: vec![],
             legacy_judge: None,
             root: std::path::PathBuf::new(),
         };
@@ -702,5 +860,38 @@ mod tests {
             .metrics
             .insert("correctness".into(), serde_json::json!("2"));
         assert!(validate_judge_result(&task, &invalid).is_err());
+    }
+
+    #[test]
+    fn workspace_import_mount_and_maven_environment_resolve_absolute_and_relative_targets() {
+        let imports = PreparedWorkspaceImports {
+            imports: vec![
+                PreparedWorkspaceImport {
+                    name: "maven_repository".into(),
+                    target_path: "/home/agent/.m2/repository".into(),
+                    volume: "maven-volume".into(),
+                },
+                PreparedWorkspaceImport {
+                    name: "other_cache".into(),
+                    target_path: ".cache/tool".into(),
+                    volume: "relative-volume".into(),
+                },
+            ],
+        };
+        assert_eq!(
+            imports.mount_specs("/home/workspace/exchange-core"),
+            [
+                "type=volume,src=maven-volume,dst=/home/agent/.m2/repository,volume-nocopy",
+                "type=volume,src=relative-volume,dst=/home/workspace/exchange-core/.cache/tool,volume-nocopy",
+            ]
+        );
+        assert_eq!(
+            imports.environment("/home/workspace/exchange-core"),
+            [(
+                "MAVEN_OPTS".into(),
+                "-Dmaven.repo.local=/home/agent/.m2/repository".into()
+            )]
+        );
+        std::mem::forget(imports);
     }
 }

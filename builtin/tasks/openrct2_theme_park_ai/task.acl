@@ -1,6 +1,6 @@
 # Third-party source details: ../../provenance/edgebench.json
 bench "openrct2_theme_park_ai" {
-  schema  = "a3s-bench/task/v1"
+  schema  = "a3s-bench/task/v2"
   version = "0.1.0"
 
   name        = "Openrct2 Theme Park Ai"
@@ -16,6 +16,9 @@ bench "openrct2_theme_park_ai" {
   }
 
   work {
+    cpu_limit    = 4
+    memory_bytes = 17179869184
+
     image {
       ref = "docker.io/seededge/edgebench.work.openrct2_theme_park_ai:7283790ee698"
     }
@@ -34,6 +37,8 @@ bench "openrct2_theme_park_ai" {
   judge {
     asset                = "private/judge"
     solution_timeout_sec = 43200
+    cpu_limit            = 4
+    memory_bytes          = 8589934592
   }
 
   metric "score" {

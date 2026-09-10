@@ -11,6 +11,7 @@ static SUITE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 struct CandidateSpec {
     agent: String,
     model: Option<String>,
+    reasoning_effort: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -184,7 +185,7 @@ fn validate_schema(root: &Block) -> Result<()> {
             block,
             "bench_suite.candidate",
             BlockSchema {
-                attributes: &["agent", "model"],
+                attributes: &["agent", "model", "reasoning_effort"],
                 children: &[],
                 labels: Labels::Exactly(1),
             },
@@ -201,13 +202,25 @@ fn candidate(root: &Block, role: &str) -> Result<CandidateSpec> {
         .collect::<Vec<_>>();
     anyhow::ensure!(matches.len() == 1, "suite requires one candidate {role:?}");
     let block = matches[0];
+    let reasoning_effort = block
+        .attributes
+        .get("reasoning_effort")
+        .map(|_| string(block, "reasoning_effort"))
+        .transpose()?
+        .map(str::to_owned);
+    if let Some(reasoning_effort) = reasoning_effort.as_deref() {
+        crate::lock::validate_reasoning_effort(reasoning_effort)?;
+    }
+    let model = block
+        .attributes
+        .get("model")
+        .map(|_| string(block, "model"))
+        .transpose()?
+        .map(str::to_owned);
     Ok(CandidateSpec {
         agent: string(block, "agent")?.to_owned(),
-        model: block
-            .attributes
-            .get("model")
-            .and_then(Value::as_str)
-            .map(str::to_owned),
+        model,
+        reasoning_effort,
     })
 }
 
@@ -239,12 +252,32 @@ fn spec_digest(
     baseline: &CandidateSpec,
     candidate: &CandidateSpec,
 ) -> Result<String> {
-    let value = serde_json::json!({
-        "id": id,
-        "tasks": tasks,
-        "baseline": {"agent": baseline.agent, "model": baseline.model},
-        "candidate": {"agent": candidate.agent, "model": candidate.model},
-    });
+    let value = if baseline.reasoning_effort.is_none() && candidate.reasoning_effort.is_none() {
+        // Preserve the suite/v1 identity for suites that predate reasoning
+        // effort.  Adding null fields would make every existing resume
+        // digest incompatible even though its semantics are unchanged.
+        serde_json::json!({
+            "id": id,
+            "tasks": tasks,
+            "baseline": {"agent": baseline.agent, "model": baseline.model},
+            "candidate": {"agent": candidate.agent, "model": candidate.model},
+        })
+    } else {
+        serde_json::json!({
+            "id": id,
+            "tasks": tasks,
+            "baseline": {
+                "agent": baseline.agent,
+                "model": baseline.model,
+                "reasoning_effort": baseline.reasoning_effort
+            },
+            "candidate": {
+                "agent": candidate.agent,
+                "model": candidate.model,
+                "reasoning_effort": candidate.reasoning_effort
+            },
+        })
+    };
     Ok(format!(
         "sha256:{:x}",
         Sha256::digest(serde_json::to_vec(&value)?)
@@ -258,15 +291,17 @@ fn plan_suite(state_root: &Path, spec: &SuiteSpec) -> Result<(PathBuf, SuiteRunS
     let run_id = suite_run_id()?;
     let destination = suites.join(&run_id);
     let plan = (|| -> Result<SuiteRunState> {
-        crate::lock::create_candidate(
+        crate::lock::create_candidate_with_options(
             &spec.baseline.agent,
             spec.baseline.model.clone(),
+            spec.baseline.reasoning_effort.clone(),
             state_root,
             &staging.join("baseline.candidate-lock.json"),
         )?;
-        crate::lock::create_candidate(
+        crate::lock::create_candidate_with_options(
             &spec.candidate.agent,
             spec.candidate.model.clone(),
+            spec.candidate.reasoning_effort.clone(),
             state_root,
             &staging.join("candidate.candidate-lock.json"),
         )?;
@@ -433,14 +468,15 @@ mod tests {
             r#"bench_suite "core" {
           schema = "a3s-bench/suite/v1"
           tasks = ["quick_file_edit", "./tasks/local"]
-          candidate "baseline" { agent = "a3s-code-core" model = "openai/base" }
-          candidate "candidate" { agent = "a3s-code-core" model = "openai/new" }
+          candidate "baseline" { agent = "codex" model = "openai/base" reasoning_effort = "low" }
+          candidate "candidate" { agent = "codex" model = "openai/new" reasoning_effort = "none" }
         }"#,
         );
         let spec = load_spec(file.path()).unwrap();
         assert_eq!(spec.id, "core");
         assert_eq!(spec.tasks.len(), 2);
         assert_eq!(spec.baseline.model.as_deref(), Some("openai/base"));
+        assert_eq!(spec.baseline.reasoning_effort.as_deref(), Some("low"));
         assert!(spec.digest.starts_with("sha256:"));
     }
 
@@ -463,10 +499,12 @@ mod tests {
             baseline: CandidateSpec {
                 agent: "a".into(),
                 model: None,
+                reasoning_effort: None,
             },
             candidate: CandidateSpec {
                 agent: "b".into(),
                 model: None,
+                reasoning_effort: None,
             },
             digest: "sha256:spec".into(),
         };
@@ -485,5 +523,44 @@ mod tests {
         let mut changed = spec;
         changed.digest = "sha256:changed".into();
         assert!(validate_state(&state, "suite-1", &changed).is_err());
+    }
+
+    #[test]
+    fn absent_reasoning_effort_preserves_the_suite_v1_digest() {
+        let file = write_spec(
+            r#"bench_suite "core" {
+              schema = "a3s-bench/suite/v1"
+              tasks = ["task"]
+              candidate "baseline" { agent = "a" }
+              candidate "candidate" { agent = "b" }
+            }"#,
+        );
+        let spec = load_spec(file.path()).unwrap();
+
+        assert!(spec.baseline.reasoning_effort.is_none());
+        assert!(spec.candidate.reasoning_effort.is_none());
+        assert_eq!(
+            spec.digest,
+            "sha256:ec8eacddf5157daafe58102840258983770ebc107d53df8a7c2139f951d57e50"
+        );
+    }
+
+    #[test]
+    fn reasoning_effort_changes_suite_identity() {
+        let baseline = CandidateSpec {
+            agent: "a".into(),
+            model: Some("gpt-5.3-codex-spark".into()),
+            reasoning_effort: Some("low".into()),
+        };
+        let candidate = CandidateSpec {
+            agent: "b".into(),
+            model: Some("gpt-5.3-codex-spark".into()),
+            reasoning_effort: Some("medium".into()),
+        };
+        let first = spec_digest("core", &["task".into()], &baseline, &candidate).unwrap();
+        let mut changed = candidate;
+        changed.reasoning_effort = Some("high".into());
+        let second = spec_digest("core", &["task".into()], &baseline, &changed).unwrap();
+        assert_ne!(first, second);
     }
 }

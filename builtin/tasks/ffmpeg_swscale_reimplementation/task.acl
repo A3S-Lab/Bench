@@ -1,6 +1,6 @@
 # Third-party source details: ../../provenance/edgebench.json
 bench "ffmpeg_swscale_reimplementation" {
-  schema  = "a3s-bench/task/v1"
+  schema  = "a3s-bench/task/v2"
   version = "0.1.0"
 
   name        = "Ffmpeg Swscale Reimplementation"
@@ -16,6 +16,9 @@ bench "ffmpeg_swscale_reimplementation" {
   }
 
   work {
+    cpu_limit    = 4
+    memory_bytes = 17179869184
+
     image {
       ref = "docker.io/seededge/edgebench.work.ffmpeg_swscale_reimplementation:0557f5e37b71"
     }
@@ -37,6 +40,8 @@ bench "ffmpeg_swscale_reimplementation" {
   judge {
     asset                = "private/judge"
     solution_timeout_sec = 43200
+    cpu_limit            = 4
+    memory_bytes          = 8589934592
   }
 
   metric "score" {

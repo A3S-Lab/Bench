@@ -1,6 +1,6 @@
 # Third-party source details: ../../provenance/edgebench.json
 bench "order_addition_permutation_optimization" {
-  schema  = "a3s-bench/task/v1"
+  schema  = "a3s-bench/task/v2"
   version = "0.1.0"
 
   name        = "Order Addition Permutation Optimization"
@@ -16,6 +16,9 @@ bench "order_addition_permutation_optimization" {
   }
 
   work {
+    cpu_limit    = 4
+    memory_bytes = 17179869184
+
     image {
       ref = "docker.io/seededge/edgebench.work.order_addition_permutation_optimization:f723a1d13d8e"
     }
@@ -34,6 +37,8 @@ bench "order_addition_permutation_optimization" {
   judge {
     asset                = "private/judge"
     solution_timeout_sec = 43200
+    cpu_limit            = 4
+    memory_bytes          = 8589934592
   }
 
   metric "score" {

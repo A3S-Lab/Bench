@@ -1,6 +1,6 @@
 # Third-party source details: ../../provenance/edgebench.json
 bench "carleson_formalization" {
-  schema  = "a3s-bench/task/v1"
+  schema  = "a3s-bench/task/v2"
   version = "0.1.0"
 
   name        = "Carleson Formalization"
@@ -16,6 +16,9 @@ bench "carleson_formalization" {
   }
 
   work {
+    cpu_limit    = 8
+    memory_bytes = 17179869184
+
     image {
       ref = "docker.io/seededge/edgebench.work.carleson_formalization:cde1812224f4"
     }
@@ -34,6 +37,8 @@ bench "carleson_formalization" {
   judge {
     asset                = "private/judge"
     solution_timeout_sec = 43200
+    cpu_limit            = 8
+    memory_bytes          = 17179869184
   }
 
   metric "score" {
